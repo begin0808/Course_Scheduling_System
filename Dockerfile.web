@@ -1,0 +1,12 @@
+# 正式部署的 web 容器:第一階段用 Node 建置 Vue 前端,
+# 第二階段用 Caddy 服務靜態檔並反向代理 /api 至後端(維持 5 容器架構,不另開 Node 容器)。
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY frontend/package.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+FROM caddy:2-alpine
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /srv

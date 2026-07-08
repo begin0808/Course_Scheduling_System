@@ -1,0 +1,21 @@
+# 正式部署反向代理設定。
+# 內網 IP 存取走 HTTP;若設定網域(將 :80 改為網域名),Caddy 會自動申請 HTTPS 憑證。
+{
+	admin off
+}
+
+:80 {
+	# API 交給後端
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# 其餘走前端 SPA,找不到檔案回退 index.html(支援 vue-router history 模式)
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode gzip
+}

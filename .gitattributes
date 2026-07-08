@@ -1,0 +1,16 @@
+# 統一換行為 LF,確保 shell 腳本與 Dockerfile 在 Linux 容器內可正確執行
+* text=auto eol=lf
+
+# 明確指定必須為 LF 的檔案(容器內執行)
+*.sh text eol=lf
+Dockerfile* text eol=lf
+*.py text eol=lf
+
+# 二進位檔不做換行轉換
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

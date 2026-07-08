@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/api/client.ts","./src/router/index.ts","./src/views/dashboard.test.ts","./src/app.vue","./src/views/dashboard.vue","./env.d.ts"],"errors":true,"version":"5.7.3"}

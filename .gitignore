@@ -1,0 +1,29 @@
+# 環境設定(含密碼)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / 前端
+node_modules/
+dist/
+*.local
+
+# 編輯器 / 作業系統
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code 本機工具設定(不納入版本庫)
+.claude/
+
+# 備份輸出
+backups/

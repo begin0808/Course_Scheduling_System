@@ -1,0 +1,83 @@
+# 正式部署設定。使用方式:
+#   cp .env.example .env   # 修改管理員密碼與校名
+#   docker compose up -d
+#   瀏覽器開 http://<主機IP>
+#
+# 五個容器:web(Caddy+前端)、api、worker、postgres、redis
+name: scheduling
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build:
+      context: ./backend
+    command: ["worker"]
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scheduler}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scheduler}
+      POSTGRES_DB: ${POSTGRES_DB:-scheduler}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scheduler}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,0 +1,13 @@
+# web 映像的建置 context 為專案根目錄,排除不需要的大型/無關檔案
+.git/
+.github/
+docs/
+**/node_modules/
+**/dist/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.env
+backend/

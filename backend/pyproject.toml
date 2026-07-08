@@ -1,0 +1,59 @@
+[project]
+name = "scheduling-backend"
+version = "0.1.0"
+description = "排課與調代課系統 — 後端 API 與排課引擎"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.6",
+    "redis>=5.2",
+    "rq>=2.0",
+    "python-multipart>=0.0.18",
+    "bcrypt>=4.2",
+    "itsdangerous>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 的依賴注入慣例:在參數預設值呼叫 Depends/require_roles 屬正常用法
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Security",
+    "app.core.auth.require_roles",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+[tool.setuptools.packages.find]
+include = ["app*"]

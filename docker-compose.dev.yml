@@ -1,0 +1,76 @@
+# 開發設定(前後端熱重載)。使用方式:
+#   cp .env.example .env
+#   docker compose -f docker-compose.dev.yml up
+#   前端(熱重載):http://localhost:5173   API 文件:http://localhost:8000/api/docs
+name: scheduling-dev
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # 保留容器內安裝的相依,不被掛載覆蓋
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ./backend
+    # dev:遷移後以 --reload 啟動,原始碼變更即時生效
+    entrypoint: ["bash", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+    command: ["worker"]
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scheduler}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scheduler}
+      POSTGRES_DB: ${POSTGRES_DB:-scheduler}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scheduler}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata_dev:

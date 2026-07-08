@@ -1,0 +1,8 @@
+# 開發用前端容器:vite dev server,搭配原始碼掛載達成熱重載。
+FROM node:22-alpine
+WORKDIR /app
+COPY package.json ./
+RUN npm install
+COPY . .
+EXPOSE 5173
+CMD ["npm", "run", "dev"]
