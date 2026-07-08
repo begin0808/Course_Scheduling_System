@@ -15,8 +15,24 @@ const routes = [
   },
   {
     path: '/',
-    name: 'dashboard',
-    component: () => import('@/views/Dashboard.vue'),
+    component: () => import('@/layouts/MainLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'dashboard',
+        component: () => import('@/views/Dashboard.vue'),
+      },
+      {
+        path: 'settings/semesters',
+        name: 'semesters',
+        component: () => import('@/views/settings/Semesters.vue'),
+      },
+      {
+        path: 'settings/period-tables/:id',
+        name: 'period-table-editor',
+        component: () => import('@/views/settings/PeriodTableEditor.vue'),
+      },
+    ],
   },
 ]
 

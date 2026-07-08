@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, health
+from app.api import auth, health, semesters
 from app.core.config import settings
 from app.services.users import ensure_admin
 
@@ -37,3 +37,4 @@ app.add_middleware(
 # 所有 API 掛在 /api 前綴之下(Caddy 依此前綴分流)
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api/auth")
+app.include_router(semesters.router, prefix="/api")

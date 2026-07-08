@@ -20,10 +20,11 @@ function makeRouter() {
 }
 
 describe('Dashboard', () => {
-  it('渲染系統標題', () => {
+  it('渲染儀表板內容', () => {
     const wrapper = mount(Dashboard, {
       global: { plugins: [createPinia(), makeRouter()] },
     })
-    expect(wrapper.text()).toContain('排課與調代課系統')
+    expect(wrapper.text()).toContain('儀表板')
+    expect(wrapper.text()).toContain('後端連線狀態')
   })
 })

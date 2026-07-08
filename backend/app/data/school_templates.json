@@ -1,0 +1,115 @@
+[
+  {
+    "key": "elementary",
+    "name": "國小",
+    "minutes_per_period": 40,
+    "period_table": {
+      "name": "國小節次表",
+      "num_weekdays": 5,
+      "slots": [
+        {"period_no": 1, "name": "早自習", "start": "07:50", "end": "08:20", "type": "morning"},
+        {"period_no": 2, "name": "第一節", "start": "08:30", "end": "09:10", "type": "regular"},
+        {"period_no": 3, "name": "第二節", "start": "09:20", "end": "10:00", "type": "regular"},
+        {"period_no": 4, "name": "第三節", "start": "10:20", "end": "11:00", "type": "regular"},
+        {"period_no": 5, "name": "第四節", "start": "11:10", "end": "11:50", "type": "regular"},
+        {"period_no": 6, "name": "午休", "start": "12:00", "end": "13:20", "type": "lunch"},
+        {"period_no": 7, "name": "第五節", "start": "13:30", "end": "14:10", "type": "regular"},
+        {"period_no": 8, "name": "第六節", "start": "14:20", "end": "15:00", "type": "regular"},
+        {"period_no": 9, "name": "第七節", "start": "15:20", "end": "16:00", "type": "regular"}
+      ],
+      "blocked": [{"weekday": 3, "period_no": [7, 8, 9]}]
+    },
+    "subjects": ["國語", "數學", "生活", "自然", "社會", "健康與體育", "藝術", "綜合活動", "英語", "本土語文"]
+  },
+  {
+    "key": "junior_high",
+    "name": "國中",
+    "minutes_per_period": 45,
+    "period_table": {
+      "name": "國中節次表",
+      "num_weekdays": 5,
+      "slots": [
+        {"period_no": 1, "name": "早自習", "start": "07:50", "end": "08:20", "type": "morning"},
+        {"period_no": 2, "name": "第一節", "start": "08:20", "end": "09:05", "type": "regular"},
+        {"period_no": 3, "name": "第二節", "start": "09:15", "end": "10:00", "type": "regular"},
+        {"period_no": 4, "name": "第三節", "start": "10:20", "end": "11:05", "type": "regular"},
+        {"period_no": 5, "name": "第四節", "start": "11:15", "end": "12:00", "type": "regular"},
+        {"period_no": 6, "name": "午休", "start": "12:00", "end": "13:10", "type": "lunch"},
+        {"period_no": 7, "name": "第五節", "start": "13:10", "end": "13:55", "type": "regular"},
+        {"period_no": 8, "name": "第六節", "start": "14:05", "end": "14:50", "type": "regular"},
+        {"period_no": 9, "name": "第七節", "start": "15:10", "end": "15:55", "type": "regular"}
+      ],
+      "blocked": []
+    },
+    "subjects": ["國文", "英語", "數學", "自然科學", "社會", "健康與體育", "藝術", "綜合活動", "科技", "彈性學習"]
+  },
+  {
+    "key": "senior_high",
+    "name": "普通型高中",
+    "minutes_per_period": 50,
+    "period_table": {
+      "name": "普高節次表",
+      "num_weekdays": 5,
+      "slots": [
+        {"period_no": 1, "name": "早自習", "start": "07:50", "end": "08:10", "type": "morning"},
+        {"period_no": 2, "name": "第一節", "start": "08:10", "end": "09:00", "type": "regular"},
+        {"period_no": 3, "name": "第二節", "start": "09:10", "end": "10:00", "type": "regular"},
+        {"period_no": 4, "name": "第三節", "start": "10:10", "end": "11:00", "type": "regular"},
+        {"period_no": 5, "name": "第四節", "start": "11:10", "end": "12:00", "type": "regular"},
+        {"period_no": 6, "name": "午休", "start": "12:00", "end": "13:10", "type": "lunch"},
+        {"period_no": 7, "name": "第五節", "start": "13:10", "end": "14:00", "type": "regular"},
+        {"period_no": 8, "name": "第六節", "start": "14:10", "end": "15:00", "type": "regular"},
+        {"period_no": 9, "name": "第七節", "start": "15:20", "end": "16:10", "type": "regular"},
+        {"period_no": 10, "name": "第八節", "start": "16:20", "end": "17:10", "type": "regular"}
+      ],
+      "blocked": []
+    },
+    "subjects": ["國語文", "英語文", "數學", "物理", "化學", "生物", "歷史", "地理", "公民與社會", "體育", "音樂", "美術", "多元選修", "彈性學習"]
+  },
+  {
+    "key": "comprehensive",
+    "name": "綜合型高中",
+    "minutes_per_period": 50,
+    "period_table": {
+      "name": "綜高節次表",
+      "num_weekdays": 5,
+      "slots": [
+        {"period_no": 1, "name": "早自習", "start": "07:50", "end": "08:10", "type": "morning"},
+        {"period_no": 2, "name": "第一節", "start": "08:10", "end": "09:00", "type": "regular"},
+        {"period_no": 3, "name": "第二節", "start": "09:10", "end": "10:00", "type": "regular"},
+        {"period_no": 4, "name": "第三節", "start": "10:10", "end": "11:00", "type": "regular"},
+        {"period_no": 5, "name": "第四節", "start": "11:10", "end": "12:00", "type": "regular"},
+        {"period_no": 6, "name": "午休", "start": "12:00", "end": "13:10", "type": "lunch"},
+        {"period_no": 7, "name": "第五節", "start": "13:10", "end": "14:00", "type": "regular"},
+        {"period_no": 8, "name": "第六節", "start": "14:10", "end": "15:00", "type": "regular"},
+        {"period_no": 9, "name": "第七節", "start": "15:20", "end": "16:10", "type": "regular"},
+        {"period_no": 10, "name": "第八節", "start": "16:20", "end": "17:10", "type": "regular"}
+      ],
+      "blocked": []
+    },
+    "subjects": ["國語文", "英語文", "數學", "自然科學", "社會", "體育", "藝術", "學術學程", "專門學程", "多元選修"]
+  },
+  {
+    "key": "vocational",
+    "name": "技術型高中",
+    "minutes_per_period": 50,
+    "period_table": {
+      "name": "技高節次表",
+      "num_weekdays": 5,
+      "slots": [
+        {"period_no": 1, "name": "早自習", "start": "07:50", "end": "08:10", "type": "morning"},
+        {"period_no": 2, "name": "第一節", "start": "08:10", "end": "09:00", "type": "regular"},
+        {"period_no": 3, "name": "第二節", "start": "09:10", "end": "10:00", "type": "regular"},
+        {"period_no": 4, "name": "第三節", "start": "10:10", "end": "11:00", "type": "regular"},
+        {"period_no": 5, "name": "第四節", "start": "11:10", "end": "12:00", "type": "regular"},
+        {"period_no": 6, "name": "午休", "start": "12:00", "end": "13:10", "type": "lunch"},
+        {"period_no": 7, "name": "第五節", "start": "13:10", "end": "14:00", "type": "regular"},
+        {"period_no": 8, "name": "第六節", "start": "14:10", "end": "15:00", "type": "regular"},
+        {"period_no": 9, "name": "第七節", "start": "15:20", "end": "16:10", "type": "regular"},
+        {"period_no": 10, "name": "第八節", "start": "16:20", "end": "17:10", "type": "regular"}
+      ],
+      "blocked": []
+    },
+    "subjects": ["國文", "英文", "數學", "體育", "專業實習", "群科專業科目", "實習工場", "彈性學習", "多元選修"]
+  }
+]

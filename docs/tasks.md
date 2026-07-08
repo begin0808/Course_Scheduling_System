@@ -109,7 +109,7 @@ Course_Scheduling_System/
   4. 既有 15 個 auth 測試不退步
 - **測試方式**:pytest + CI 遷移 job
 
-### [ ] M1-1 學期與節次表
+### [x] M1-1 學期與節次表
 - **描述**:`semester`/`period_table`/`period` CRUD(model+API+UI);節次表視覺化編輯器(表格點選標記節次類型:一般課/午休/導師時間/固定用途);五種學制範本資料(JSON seed,含預設節次表與科目清單);同學期多套節次表(完全中學)。
 - **模組**:`app/models/{semester,period}.py`、`app/api/semesters.py`、`frontend/src/views/settings/PeriodTable.vue`
 - **驗收標準**:

@@ -12,7 +12,7 @@ export function setUnauthorizedHandler(fn: () => void): void {
   unauthorizedHandler = fn
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const resp = await fetch(`/api${path}`, {
     method,
     headers: { 'Content-Type': 'application/json' },
