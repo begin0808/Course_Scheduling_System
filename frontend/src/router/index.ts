@@ -28,6 +28,11 @@ const routes = [
         component: () => import('@/views/settings/Semesters.vue'),
       },
       {
+        path: 'basedata',
+        name: 'basedata',
+        component: () => import('@/views/basedata/BaseData.vue'),
+      },
+      {
         path: 'settings/period-tables/:id',
         name: 'period-table-editor',
         component: () => import('@/views/settings/PeriodTableEditor.vue'),

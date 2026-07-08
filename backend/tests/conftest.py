@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api import auth, semesters
+from app.api import auth, basedata, semesters
 from app.core.auth import get_active_user, require_roles
 from app.core.db import Base, get_db
 from app.models.user import Role, User
@@ -41,6 +41,7 @@ def env():
     application = FastAPI()
     application.include_router(auth.router, prefix="/api/auth")
     application.include_router(semesters.router, prefix="/api")
+    application.include_router(basedata.router, prefix="/api")
 
     @application.get("/api/_protected")
     def _protected(user: User = Depends(get_active_user)) -> dict:

@@ -26,8 +26,11 @@ const menuOptions = [
   { label: menuLink('dashboard', '儀表板'), key: 'dashboard' },
   {
     label: '基礎資料',
-    key: 'basedata',
-    children: [{ label: menuLink('semesters', '學期與節次表'), key: 'semesters' }],
+    key: 'basedata-group',
+    children: [
+      { label: menuLink('semesters', '學期與節次表'), key: 'semesters' },
+      { label: menuLink('basedata', '教師/班級/科目/場地'), key: 'basedata' },
+    ],
   },
 ]
 
@@ -59,7 +62,7 @@ async function onLogout() {
         :collapsed="collapsed"
         :collapsed-width="64"
         :options="menuOptions"
-        :default-expanded-keys="['basedata']"
+        :default-expanded-keys="['basedata-group']"
       />
     </n-layout-sider>
 

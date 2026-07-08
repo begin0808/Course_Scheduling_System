@@ -78,6 +78,16 @@ export const createPeriodTable = (
   body: { name: string; num_weekdays?: number; is_default?: boolean; template_key?: string | null },
 ) => apiPost<PeriodTable>(`/semesters/${semesterId}/period-tables`, body)
 export const getPeriodTable = (id: number) => apiGet<PeriodTable>(`/period-tables/${id}`)
+
+export interface AvailableSlot {
+  weekday: number
+  period_no: number
+  name: string
+  start_time: string | null
+  end_time: string | null
+}
+export const getAvailableSlots = (tableId: number) =>
+  apiGet<AvailableSlot[]>(`/period-tables/${tableId}/available-slots`)
 export const updatePeriodTable = (id: number, body: { name?: string; is_default?: boolean }) =>
   request<PeriodTable>('PATCH', `/period-tables/${id}`, body)
 export const deletePeriodTable = (id: number) => request<void>('DELETE', `/period-tables/${id}`)

@@ -118,7 +118,7 @@ Course_Scheduling_System/
   3. 可為同學期建第二套節次表並指派給不同班級群
 - **測試方式**:pytest CRUD + 範本載入;Vitest 元件測試
 
-### [ ] M1-2 教師、班級、科目、場地 CRUD
+### [x] M1-2 教師、班級、科目、場地 CRUD
 - **描述**:四實體完整 CRUD(對應 architecture.md §2.2 欄位);教師任教科目多選、行政職減課、業界師資標記;班級的學制標籤與群科(技高);場地類型與容量;清單頁支援搜尋/排序。
 - **模組**:`app/models/`、`app/api/`、`frontend/src/views/basedata/`
 - **驗收標準**:
