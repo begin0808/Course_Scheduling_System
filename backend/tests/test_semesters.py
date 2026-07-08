@@ -44,6 +44,11 @@ def test_create_semester_from_elementary_template(env):
     assert len(wed_pm) == 3
     assert all(p["type"] == "reserved" for p in wed_pm)
 
+    # 範本應一併帶入科目清單
+    subjects = client.get(f"/api/subjects?semester_id={body['id']}").json()
+    assert len(subjects) >= 8
+    assert any(s["name"] == "國語" for s in subjects)
+
 
 def test_create_duplicate_semester_conflict(env):
     client, db = env

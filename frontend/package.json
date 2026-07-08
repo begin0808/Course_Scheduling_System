@@ -8,7 +8,9 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:headed": "cross-env HEADED=1 playwright test --headed"
   },
   "dependencies": {
     "naive-ui": "^2.40.1",
@@ -17,8 +19,10 @@
     "vue-router": "^4.4.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.6",
+    "cross-env": "^7.0.3",
     "eslint": "^9.16.0",
     "eslint-plugin-vue": "^9.32.0",
     "jsdom": "^25.0.1",

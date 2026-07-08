@@ -27,3 +27,10 @@ Thumbs.db
 
 # 備份輸出
 backups/
+
+# Playwright e2e 產物
+frontend/e2e/screenshots/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
+frontend/.cache/

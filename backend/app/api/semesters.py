@@ -4,11 +4,12 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
 from app.core.db import get_db
+from app.models.basedata import ClassUnit, Room, Subject, Teacher
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
 from app.models.user import Role
@@ -24,6 +25,7 @@ from app.schemas.semester import (
     SemesterUpdate,
     TemplateOut,
 )
+from app.schemas.wizard import SemesterSummary
 from app.services import templates as tpl
 
 router = APIRouter(tags=["semesters"])
@@ -121,6 +123,23 @@ def get_semester(
     semester_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
 ) -> Semester:
     return _get_semester(db, semester_id)
+
+
+@router.get("/semesters/{semester_id}/summary", response_model=SemesterSummary)
+def semester_summary(
+    semester_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+) -> SemesterSummary:
+    _get_semester(db, semester_id)
+
+    def _count(model) -> int:
+        return db.scalar(
+            select(func.count()).select_from(model).where(model.semester_id == semester_id)
+        ) or 0
+
+    return SemesterSummary(
+        subjects=_count(Subject), teachers=_count(Teacher),
+        classes=_count(ClassUnit), rooms=_count(Room),
+    )
 
 
 @router.patch("/semesters/{semester_id}", response_model=SemesterOut)

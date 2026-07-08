@@ -53,8 +53,19 @@ docker compose -f docker-compose.dev.yml up
 ```bash
 # 後端
 cd backend && pip install -e ".[dev]" && pytest
-# 前端
+# 前端單元測試
 cd frontend && npm install && npm run test
+```
+
+### E2E 驗收(Playwright)
+
+對「執行中的 Docker 全棧」驅動真實瀏覽器。需先 `docker compose up -d` 啟動系統,並有一個教學組長帳號 `e2e_scheduler`(密碼 `e2etest1234`)。
+
+```bash
+cd frontend
+npx playwright install chromium   # 首次
+npm run e2e            # 無頭執行
+npm run e2e:headed     # 有頭 + 放慢,可在螢幕上觀看
 ```
 
 ## 授權

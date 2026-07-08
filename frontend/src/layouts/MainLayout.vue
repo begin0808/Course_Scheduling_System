@@ -32,6 +32,7 @@ const menuOptions = [
       { label: menuLink('basedata', '教師/班級/科目/場地'), key: 'basedata' },
     ],
   },
+  { label: menuLink('system', '系統管理'), key: 'system' },
 ]
 
 const activeKey = computed(() => route.name as string)

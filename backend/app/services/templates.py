@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.models.basedata import Subject
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
 
@@ -88,5 +89,10 @@ def create_semester_from_template(
     table = build_period_table_from_template(template, is_default=True)
     semester.period_tables.append(table)
     db.add(semester)
+    db.flush()
+
+    # 依範本帶入科目清單(名稱),供後續配課使用
+    for name in template.get("subjects", []):
+        db.add(Subject(semester_id=semester.id, name=name))
     db.flush()
     return semester

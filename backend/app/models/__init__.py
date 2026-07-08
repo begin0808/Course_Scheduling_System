@@ -16,6 +16,7 @@ from app.models.basedata import (
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester, SemesterStatus
 from app.models.user import Role, User, UserRole
+from app.models.wizard import WizardState
 
 __all__ = [
     "Role",
@@ -34,4 +35,5 @@ __all__ = [
     "RoomType",
     "ClassUnit",
     "ClassTrack",
+    "WizardState",
 ]
