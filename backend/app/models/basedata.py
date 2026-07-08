@@ -77,6 +77,7 @@ class Teacher(Base):
         ForeignKey("semesters.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(32))
+    id_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)  # 身分證末四碼(軟性識別)
     base_periods: Mapped[int] = mapped_column(Integer, default=0)  # 基本鐘點
     admin_title: Mapped[str | None] = mapped_column(String(32), nullable=True)  # 行政職稱
     admin_reduction: Mapped[int] = mapped_column(Integer, default=0)  # 行政減課節數

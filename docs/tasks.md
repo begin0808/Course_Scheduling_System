@@ -127,7 +127,7 @@ Course_Scheduling_System/
   3. 技高班級可填群科;國小班級可指定導師
 - **測試方式**:pytest(含引用完整性案例)
 
-### [ ] M1-3 Excel 匯入
+### [x] M1-3 Excel 匯入
 - **描述**:教師、班級、科目三種 Excel 範本(系統內可下載,含填寫說明列與範例列);上傳→逐列驗證→錯誤清單(「第 N 列:XX 原因」)→全對才交易式入庫;匯入教師時可勾選「同時建立帳號」(預設密碼規則+強制首登改密)。
 - **模組**:`app/services/importer.py`、`frontend/src/views/basedata/Import.vue`
 - **驗收標準**:

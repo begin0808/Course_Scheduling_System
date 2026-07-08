@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart>=0.0.18",
     "bcrypt>=4.2",
     "itsdangerous>=2.2",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -43,6 +44,7 @@ extend-immutable-calls = [
     "fastapi.Body",
     "fastapi.Header",
     "fastapi.Security",
+    "fastapi.File",
     "app.core.auth.require_roles",
 ]
 

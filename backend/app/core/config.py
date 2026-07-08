@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
     # 新密碼最短長度
     min_password_length: int = 8
+    # 匯入教師並建立帳號時的預設密碼(首次登入強制更改)
+    default_import_password: str = "changeme"
 
     # CORS(開發模式前端 dev server 來源)
     cors_origins: list[str] = ["http://localhost", "http://localhost:5173"]

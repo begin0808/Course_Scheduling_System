@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, basedata, health, semesters
+from app.api import auth, basedata, health, imports, semesters
 from app.core.config import settings
 from app.services.users import ensure_admin
 
@@ -39,3 +39,4 @@ app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api/auth")
 app.include_router(semesters.router, prefix="/api")
 app.include_router(basedata.router, prefix="/api")
+app.include_router(imports.router, prefix="/api")

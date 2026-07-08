@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { listSemesters } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import ClassesTab from './ClassesTab.vue'
+import ImportTab from './ImportTab.vue'
 import RoomsTab from './RoomsTab.vue'
 import SubjectsTab from './SubjectsTab.vue'
 import TeachersTab from './TeachersTab.vue'
@@ -49,6 +50,9 @@ onMounted(async () => {
       </n-tab-pane>
       <n-tab-pane name="rooms" tab="場地">
         <RoomsTab :key="`r-${currentId}`" :semester-id="currentId" />
+      </n-tab-pane>
+      <n-tab-pane name="import" tab="批次匯入">
+        <ImportTab :key="`i-${currentId}`" :semester-id="currentId" />
       </n-tab-pane>
     </n-tabs>
   </n-space>

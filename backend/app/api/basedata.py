@@ -161,6 +161,7 @@ def create_teacher(
     teacher = Teacher(
         semester_id=semester_id,
         name=body.name,
+        id_last4=body.id_last4,
         base_periods=body.base_periods,
         admin_title=body.admin_title,
         admin_reduction=body.admin_reduction,
@@ -192,6 +193,7 @@ def update_teacher(
     if teacher is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
     teacher.name = body.name
+    teacher.id_last4 = body.id_last4
     teacher.base_periods = body.base_periods
     teacher.admin_title = body.admin_title
     teacher.admin_reduction = body.admin_reduction

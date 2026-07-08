@@ -28,6 +28,7 @@ class SubjectOut(SubjectIn):
 # ── 教師 ──────────────────────────────
 class TeacherIn(BaseModel):
     name: str = Field(min_length=1, max_length=32)
+    id_last4: str | None = Field(default=None, max_length=4)
     base_periods: int = Field(default=0, ge=0)
     admin_title: str | None = Field(default=None, max_length=32)
     admin_reduction: int = Field(default=0, ge=0)
@@ -41,6 +42,7 @@ class TeacherOut(BaseModel):
     id: int
     semester_id: int
     name: str
+    id_last4: str | None
     base_periods: int
     admin_title: str | None
     admin_reduction: int
