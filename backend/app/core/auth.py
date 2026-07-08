@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import read_session_token
+from app.core.security import password_fingerprint, read_session_token
 from app.models.user import Role, User
 
 COOKIE_NAME = "session"
@@ -23,14 +23,19 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登入")
-    uid = read_session_token(token, settings.session_max_age_seconds)
-    if uid is None:
+    payload = read_session_token(token, settings.session_max_age_seconds)
+    if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="登入已過期,請重新登入"
         )
-    user = db.get(User, uid)
+    user = db.get(User, payload["uid"])
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="帳號無效")
+    # 密碼指紋不符表示密碼已變更,舊 session 一律失效
+    if payload.get("pv") != password_fingerprint(user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="登入已失效,請重新登入"
+        )
     return user
 
 

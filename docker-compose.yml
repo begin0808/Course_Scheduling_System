@@ -28,6 +28,8 @@ services:
       context: ./backend
     restart: unless-stopped
     env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +48,8 @@ services:
     command: ["worker"]
     restart: unless-stopped
     env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +63,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-scheduler}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scheduler}
       POSTGRES_DB: ${POSTGRES_DB:-scheduler}
+      TZ: ${TZ:-Asia/Taipei}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

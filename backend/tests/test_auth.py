@@ -93,6 +93,26 @@ def test_must_change_password_blocks_then_allows(env):
     assert client.get("/api/_protected").status_code == 200
 
 
+def test_change_password_revokes_old_sessions(env):
+    client, db = env
+    make_user(db, "u", PW, roles=[Role.scheduler])
+    client.post("/api/auth/login", json={"username": "u", "password": PW})
+    old_cookie = client.cookies.get("session")
+    assert old_cookie is not None
+
+    # 改密碼(回應會重新簽發新 cookie)
+    chg = client.post(
+        "/api/auth/change-password",
+        json={"old_password": PW, "new_password": "brandnew456"},
+    )
+    assert chg.status_code == 200
+    # 新 session 可用
+    assert client.get("/api/auth/me").status_code == 200
+    # 舊 session(改密前的 cookie)已失效
+    client.cookies.set("session", old_cookie)
+    assert client.get("/api/auth/me").status_code == 401
+
+
 def test_change_password_too_short(env):
     client, db = env
     make_user(db, "u", PW, roles=[Role.teacher])

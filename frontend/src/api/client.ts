@@ -5,6 +5,13 @@ export interface ApiError extends Error {
   detail?: string
 }
 
+// 全域 401 處理器(由 main.ts 註冊):session 過期/被撤銷時清除登入狀態並導回登入頁。
+// 認證管理端點(/auth/*)的 401 由呼叫端自行處理,不觸發全域導向,避免重導迴圈。
+let unauthorizedHandler: (() => void) | null = null
+export function setUnauthorizedHandler(fn: () => void): void {
+  unauthorizedHandler = fn
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const resp = await fetch(`/api${path}`, {
     method,
@@ -18,6 +25,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       detail = (await resp.json())?.detail
     } catch {
       detail = undefined
+    }
+    if (resp.status === 401 && !path.startsWith('/auth/')) {
+      unauthorizedHandler?.()
     }
     const err = new Error(detail || `API 錯誤 ${resp.status}`) as ApiError
     err.status = resp.status

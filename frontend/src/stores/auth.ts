@@ -52,6 +52,12 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value?.roles.includes(role) ?? false
   }
 
+  // 由全域 401 處理器呼叫:清除本地登入狀態(不打後端,session 已失效)
+  function reset(): void {
+    user.value = null
+    loaded.value = true
+  }
+
   return {
     user,
     loaded,
@@ -62,5 +68,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     changePassword,
     hasRole,
+    reset,
   }
 })

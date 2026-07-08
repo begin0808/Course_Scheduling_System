@@ -9,17 +9,23 @@ from sqlalchemy.orm import Session
 from app.core.auth import COOKIE_NAME, get_current_user
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import create_session_token, hash_password, verify_password
+from app.core.security import (
+    create_session_token,
+    hash_password,
+    password_fingerprint,
+    verify_password,
+)
 from app.models.user import User
 from app.schemas.auth import ChangePasswordRequest, LoginRequest, UserOut
 
 router = APIRouter(tags=["auth"])
 
 
-def _set_session_cookie(response: Response, user_id: int) -> None:
+def _set_session_cookie(response: Response, user: User) -> None:
+    token = create_session_token(user.id, password_fingerprint(user.password_hash))
     response.set_cookie(
         key=COOKIE_NAME,
-        value=create_session_token(user_id),
+        value=token,
         httponly=True,
         samesite="lax",
         secure=settings.cookie_secure,
@@ -66,7 +72,7 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
     user.failed_login_attempts = 0
     user.locked_until = None
     db.commit()
-    _set_session_cookie(response, user.id)
+    _set_session_cookie(response, user)
     return UserOut.from_model(user)
 
 
@@ -100,5 +106,5 @@ def change_password(
     user.password_hash = hash_password(body.new_password)
     user.must_change_password = False
     db.commit()
-    _set_session_cookie(response, user.id)  # 重新簽發 session
+    _set_session_cookie(response, user)  # 以新密碼指紋重新簽發,舊 session 全數失效
     return UserOut.from_model(user)

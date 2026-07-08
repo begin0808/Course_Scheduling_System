@@ -207,6 +207,13 @@ erDiagram
 **D5|單校 schema,不做 multi-tenant。**
 無 `tenant_id`。但所有查詢一律以 `semester_id` 為範圍,天然支援多學期並存與歷史保存。
 
+**D6|時區與日期時間政策(M0 健檢新增)。**
+三類時間嚴格區分,不得混用:
+1. **系統時間戳**(created_at、locked_until、通知時間)→ `DateTime(timezone=True)`,一律 UTC aware;
+2. **領域日期**(學期起訖、請假日期、調代課日期)→ `Date`,無時區概念;
+3. **領域時間**(節次起訖時間)→ `Time`,即學校牆鐘時間,無時區概念。
+「今日/本週」等判定以 `.env` 的 `TZ`(預設 `Asia/Taipei`)換算,不用 UTC 直接取日期。SQLite(測試)回傳 naive datetime 的差異,統一在讀取層正規化為 UTC。
+
 ---
 
 ## 3. 排課引擎設計
@@ -334,7 +341,9 @@ flowchart LR
 
 ### 4.5 帳號與安全
 
-- **MVP:本地帳號**。管理員批次建立教師帳號(匯入 Excel 時一併產生),首次登入強制改密碼;bcrypt 雜湊;session cookie(HttpOnly + SameSite)。
+- **MVP:本地帳號**。管理員批次建立教師帳號(匯入 Excel 時一併產生),首次登入強制改密碼;bcrypt 雜湊;session cookie(HttpOnly + SameSite,簽章式無狀態 token)。
+- **Session 撤銷**:token 內嵌密碼指紋(password_hash 尾段),改密碼即令所有既有 session 失效;帳號停用(`is_active=false`)每請求檢查即時生效。
+- **登入防暴力**:連續失敗 5 次鎖定 15 分鐘(M0-2 已實作,參數可設定)。
 - **教育雲端帳號(OpenID Connect)評估**:技術上為標準 OIDC,可行;但各縣市申請流程不一且需學校行政程序,故列 **v2 選配**,MVP 不阻塞。程式面預留:`user.auth_provider` 欄位 + 登入流程策略介面。
 - **個資**:教師個資最小化蒐集(不收身分證全碼);`audit_log` 記錄排課與調代課異動;HTTPS 由 Caddy 處理。
 - **備份還原**:每日 02:00 自動 pg_dump 至 volume(保留 30 份);管理 UI 提供「立即備份、下載、上傳還原」;文件教學 NAS 排程二次備援。

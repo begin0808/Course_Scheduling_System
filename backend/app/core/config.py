@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     app_name: str = "排課與調代課系統"
     school_name: str = "示範學校"
     debug: bool = False
+    # 學校所在時區,用於「今日/本週」等領域判定(見 architecture.md D6)
+    tz: str = "Asia/Taipei"
 
     # 資料庫與佇列
     database_url: str = "postgresql+psycopg://scheduler:scheduler@postgres:5432/scheduler"

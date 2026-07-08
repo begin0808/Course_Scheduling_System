@@ -28,17 +28,25 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
+def password_fingerprint(password_hash: str) -> str:
+    """由密碼雜湊取指紋(尾段)。改密碼後指紋改變,用來使既有 session 失效。"""
+    return password_hash[-12:]
+
+
 _serializer = URLSafeTimedSerializer(settings.secret_key, salt="session")
 
 
-def create_session_token(user_id: int) -> str:
-    return _serializer.dumps({"uid": user_id})
+def create_session_token(user_id: int, pv: str) -> str:
+    """簽發 session token。pv 為密碼指紋,供改密後撤銷舊 session。"""
+    return _serializer.dumps({"uid": user_id, "pv": pv})
 
 
-def read_session_token(token: str, max_age: int) -> int | None:
-    """驗證並解出 user_id;失效(過期/竄改/格式錯)一律回 None。"""
+def read_session_token(token: str, max_age: int) -> dict | None:
+    """驗證並解出 token 內容 {"uid", "pv"};失效(過期/竄改/格式錯)一律回 None。"""
     try:
         data = _serializer.loads(token, max_age=max_age)
-        return int(data["uid"])
-    except (BadSignature, SignatureExpired, KeyError, ValueError, TypeError):
+        if not isinstance(data, dict) or "uid" not in data:
+            return None
+        return data
+    except (BadSignature, SignatureExpired, ValueError, TypeError):
         return None

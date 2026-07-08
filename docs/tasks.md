@@ -95,6 +95,20 @@ Course_Scheduling_System/
 
 ## M1 基礎資料管理
 
+### [x] M1-0 地基補強(M0 架構健檢產出,先做完才進 M1-1)
+- **描述**:健檢發現三項「現在改便宜、日後改痛」的地基問題:
+  1. **Session 撤銷**:session token 由 `{"uid"}` 改為 `{"uid", "pv": password_hash[-12:]}`,`get_current_user` 驗證 `pv` 與現行密碼一致,不符回 401(改密碼即失效所有舊 session);
+  2. **naming_convention**:`Base.metadata` 加入標準約束命名慣例(ix/uq/ck/fk/pk),確保跨資料庫遷移可靠;
+  3. **時區政策落地**(architecture.md D6):`.env.example` 與 config 增 `TZ=Asia/Taipei` 設定;compose 傳入容器。
+- 順手項:CI 增加「PostgreSQL service container 跑 `alembic upgrade head`」遷移驗證步驟;前端 `client.ts` 加 401 全域處理(清 store → 導向登入)。
+- **模組**:`app/core/{security,auth,db,config}.py`、`tests/`、`.github/workflows/ci.yml`、`frontend/src/api/client.ts`
+- **驗收標準**:
+  1. 登入後改密碼,以「舊 cookie」呼叫 `/api/auth/me` 回 401(新增 pytest 案例)
+  2. `Base.metadata.naming_convention` 已定義,`alembic upgrade head` 在 PostgreSQL 全新資料庫成功(CI 驗證)
+  3. session 過期或被撤銷後,前端任何 API 操作自動導回登入頁
+  4. 既有 15 個 auth 測試不退步
+- **測試方式**:pytest + CI 遷移 job
+
 ### [ ] M1-1 學期與節次表
 - **描述**:`semester`/`period_table`/`period` CRUD(model+API+UI);節次表視覺化編輯器(表格點選標記節次類型:一般課/午休/導師時間/固定用途);五種學制範本資料(JSON seed,含預設節次表與科目清單);同學期多套節次表(完全中學)。
 - **模組**:`app/models/{semester,period}.py`、`app/api/semesters.py`、`frontend/src/views/settings/PeriodTable.vue`
