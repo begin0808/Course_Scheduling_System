@@ -32,6 +32,13 @@ const menuOptions = [
       { label: menuLink('basedata', '教師/班級/科目/場地'), key: 'basedata' },
     ],
   },
+  {
+    label: '排課作業',
+    key: 'scheduling-group',
+    children: [
+      { label: menuLink('assignments', '配課管理'), key: 'assignments' },
+    ],
+  },
   { label: menuLink('system', '系統管理'), key: 'system' },
 ]
 
@@ -63,7 +70,7 @@ async function onLogout() {
         :collapsed="collapsed"
         :collapsed-width="64"
         :options="menuOptions"
-        :default-expanded-keys="['basedata-group']"
+        :default-expanded-keys="['basedata-group', 'scheduling-group']"
       />
     </n-layout-sider>
 

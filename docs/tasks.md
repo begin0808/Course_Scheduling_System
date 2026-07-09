@@ -185,7 +185,7 @@ Course_Scheduling_System/
   4. Email 格式錯誤時表單與匯入均回報錯誤
 - **測試方式**:pytest(綁定/複製/唯一性);既有匯入測試不退步
 
-### [ ] M2-1 配課管理
+### [x] M2-1 配課管理
 - **描述**:`scheduling_unit`/`course_assignment`/`assignment_teacher`/`block_rule` model 與 CRUD;配課建立 UI(班級選科目→指定教師→週節數→連堂→場地需求);跑班群組建立(選多班級組成 group,群組內建多筆配課);教師鐘點即時統計側欄(配課數 vs 基本鐘點,超/不足變色);Excel 批次匯入配課。
 - **模組**:`app/models/assignment.py`、`app/api/assignments.py`、`frontend/src/views/scheduling/Assignments.vue`
 - **驗收標準**:

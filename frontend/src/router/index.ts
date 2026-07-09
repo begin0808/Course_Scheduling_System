@@ -39,6 +39,11 @@ const routes = [
         component: () => import('@/views/basedata/BaseData.vue'),
       },
       {
+        path: 'scheduling/assignments',
+        name: 'assignments',
+        component: () => import('@/views/scheduling/Assignments.vue'),
+      },
+      {
         path: 'settings/period-tables/:id',
         name: 'period-table-editor',
         component: () => import('@/views/settings/PeriodTableEditor.vue'),

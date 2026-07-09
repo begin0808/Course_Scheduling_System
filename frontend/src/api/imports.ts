@@ -1,6 +1,6 @@
 // Excel 匯入 API:範本下載、上傳匯入。
 
-export type ImportEntity = 'subjects' | 'teachers' | 'classes'
+export type ImportEntity = 'subjects' | 'teachers' | 'classes' | 'assignments'
 
 export interface ImportResult {
   imported: number
@@ -11,6 +11,7 @@ export const ENTITY_LABELS: Record<ImportEntity, string> = {
   subjects: '科目',
   teachers: '教師',
   classes: '班級',
+  assignments: '配課',
 }
 
 /** 下載範本檔並觸發瀏覽器儲存。 */

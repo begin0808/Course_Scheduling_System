@@ -13,9 +13,12 @@ router = APIRouter(tags=["import"])
 
 editor = require_roles(Role.scheduler)
 
-VALID_ENTITIES = {"subjects", "teachers", "classes"}
+VALID_ENTITIES = {"subjects", "teachers", "classes", "assignments"}
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-_FILENAMES = {"subjects": "subjects", "teachers": "teachers", "classes": "classes"}
+_FILENAMES = {
+    "subjects": "subjects", "teachers": "teachers",
+    "classes": "classes", "assignments": "assignments",
+}
 
 
 def _check_entity(entity: str) -> None:

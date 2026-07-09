@@ -3,6 +3,14 @@
 新增 model 時在此 import,Alembic 的 autogenerate 與 env.py 才能偵測到 metadata。
 """
 
+from app.models.assignment import (
+    AssignmentTeacher,
+    BlockRule,
+    CourseAssignment,
+    SchedulingUnit,
+    SchedulingUnitMember,
+    SchedulingUnitType,
+)
 from app.models.basedata import (
     ClassTrack,
     ClassUnit,
@@ -36,4 +44,10 @@ __all__ = [
     "ClassUnit",
     "ClassTrack",
     "WizardState",
+    "SchedulingUnit",
+    "SchedulingUnitMember",
+    "SchedulingUnitType",
+    "CourseAssignment",
+    "AssignmentTeacher",
+    "BlockRule",
 ]

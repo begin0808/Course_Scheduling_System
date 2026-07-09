@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import hash_password
 from app.core.validators import is_valid_email
+from app.models.assignment import AssignmentTeacher, BlockRule, CourseAssignment
 from app.models.basedata import (
     ClassTrack,
     ClassUnit,
@@ -25,6 +26,7 @@ from app.models.basedata import (
 )
 from app.models.period import PeriodTable
 from app.models.user import Role, User, UserRole
+from app.services.assignments import get_or_create_single_unit
 
 HEADER_ROWS = 3  # 欄名 + 說明 + 範例
 
@@ -79,6 +81,18 @@ TEMPLATE_DEFS: dict[str, dict] = {
             ("導師", "選填,需為已建立的教師姓名", "王小明"),
             ("人數", "選填,數字", "35"),
             ("節次表", "選填,需為已建立的節次表名稱;空白則用學期預設", "高中部節次表"),
+        ],
+    },
+    "assignments": {
+        "sheet": "配課",
+        "columns": [
+            ("班級", "必填,需為已建立的班名(單班配課;跑班群組請於畫面建立)", "甲"),
+            ("科目", "必填,需為已建立的科目", "國文"),
+            ("教師", "必填,多位以、分隔,第一位為主教", "王小明、李協同"),
+            ("每週節數", "必填,數字", "5"),
+            ("連堂長度", "選填,2-4;與連堂次數成對填寫", "2"),
+            ("連堂次數", "選填,數字", "1"),
+            ("場地類型", "選填:普通教室/專科教室/實習工場/戶外", "專科教室"),
         ],
     },
 }
@@ -322,6 +336,108 @@ def _import_teachers(
     return result
 
 
+def _import_assignments(db: Session, semester_id: int, file_bytes: bytes) -> ImportResult:
+    """單班配課匯入(班級×科目×教師×週節數,可含一組連堂)。跑班群組於畫面建立。"""
+    result = ImportResult()
+    classes = {
+        c.name: c
+        for c in db.scalars(select(ClassUnit).where(ClassUnit.semester_id == semester_id))
+    }
+    subjects = {
+        s.name: s
+        for s in db.scalars(select(Subject).where(Subject.semester_id == semester_id))
+    }
+    teachers = {
+        t.name: t
+        for t in db.scalars(select(Teacher).where(Teacher.semester_id == semester_id))
+    }
+    # (class_unit, subject, teacher_objs, periods, block, room_type)
+    pending: list[tuple] = []
+    for idx, row in _data_rows(file_bytes):
+        class_name = _cell(row, 0)
+        subj_name = _cell(row, 1)
+        teacher_field = _cell(row, 2)
+        if not class_name or not subj_name or not teacher_field:
+            result.errors.append(f"第 {idx} 列:班級、科目、教師皆必填")
+            continue
+        if class_name not in classes:
+            result.errors.append(f"第 {idx} 列:班級「{class_name}」不存在")
+            continue
+        if subj_name not in subjects:
+            result.errors.append(f"第 {idx} 列:科目「{subj_name}」不存在")
+            continue
+        names = [s.strip() for s in teacher_field.replace(",", "、").split("、") if s.strip()]
+        teacher_objs = []
+        t_error = False
+        for tname in names:
+            if tname not in teachers:
+                result.errors.append(f"第 {idx} 列:教師「{tname}」不存在")
+                t_error = True
+                break
+            teacher_objs.append(teachers[tname])
+        if t_error:
+            continue
+        try:
+            periods = _parse_int(_cell(row, 3))
+        except ValueError as e:
+            result.errors.append(f"第 {idx} 列:每週節數 {e}")
+            continue
+        if not periods or periods < 1:
+            result.errors.append(f"第 {idx} 列:每週節數必填且需大於 0")
+            continue
+        # 連堂(選填,長度與次數需成對)
+        try:
+            block_size = _parse_int(_cell(row, 4))
+            block_count = _parse_int(_cell(row, 5))
+        except ValueError as e:
+            result.errors.append(f"第 {idx} 列:連堂 {e}")
+            continue
+        block: tuple[int, int] | None = None
+        if block_size is not None or block_count is not None:
+            if block_size is None or block_count is None:
+                result.errors.append(f"第 {idx} 列:連堂長度與連堂次數需成對填寫")
+                continue
+            if not 2 <= block_size <= 4 or block_count < 1:
+                result.errors.append(f"第 {idx} 列:連堂長度需為 2-4、次數需大於 0")
+                continue
+            if block_size * block_count > periods:
+                result.errors.append(f"第 {idx} 列:連堂總節數超過每週節數")
+                continue
+            block = (block_size, block_count)
+        room_label = _cell(row, 6)
+        room_type = None
+        if room_label:
+            if room_label not in ROOM_TYPE_BY_LABEL:
+                result.errors.append(f"第 {idx} 列:場地類型「{room_label}」無效")
+                continue
+            room_type = ROOM_TYPE_BY_LABEL[room_label].value
+        pending.append((classes[class_name], subjects[subj_name], teacher_objs, periods, block,
+                        room_type))
+
+    if result.errors:
+        return result
+
+    for class_unit, subject, teacher_objs, periods, block, room_type in pending:
+        unit = get_or_create_single_unit(db, class_unit)
+        assignment = CourseAssignment(
+            semester_id=semester_id, scheduling_unit_id=unit.id, subject_id=subject.id,
+            periods_per_week=periods, required_room_type=room_type,
+        )
+        db.add(assignment)
+        db.flush()
+        for i, t in enumerate(teacher_objs):
+            assignment.teachers.append(
+                AssignmentTeacher(teacher_id=t.id, is_lead=(i == 0))
+            )
+        if block is not None:
+            assignment.block_rules.append(
+                BlockRule(block_size=block[0], count_per_week=block[1])
+            )
+    db.commit()
+    result.imported = len(pending)
+    return result
+
+
 def run_import(
     db: Session, entity: str, semester_id: int, file_bytes: bytes, create_accounts: bool = False
 ) -> ImportResult:
@@ -331,4 +447,6 @@ def run_import(
         return _import_classes(db, semester_id, file_bytes)
     if entity == "teachers":
         return _import_teachers(db, semester_id, file_bytes, create_accounts)
+    if entity == "assignments":
+        return _import_assignments(db, semester_id, file_bytes)
     raise ValueError(f"未知的匯入類型:{entity}")
