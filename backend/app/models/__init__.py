@@ -23,6 +23,7 @@ from app.models.basedata import (
 )
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester, SemesterStatus
+from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import Role, User, UserRole
 from app.models.wizard import WizardState
 
@@ -50,4 +51,7 @@ __all__ = [
     "CourseAssignment",
     "AssignmentTeacher",
     "BlockRule",
+    "Timetable",
+    "ScheduleEntry",
+    "TimetableStatus",
 ]

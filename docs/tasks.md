@@ -205,7 +205,7 @@ Course_Scheduling_System/
   3. Vitest 元件測試涵蓋渲染/拖放事件/鎖定顯示
 - **測試方式**:Vitest + 示範頁人工檢視
 
-### [ ] M2-3 衝突檢查服務與手動排課 API
+### [x] M2-3 衝突檢查服務與手動排課 API
 - **描述**:`timetable`/`schedule_entry` model;衝突檢查服務(H1–H10 硬約束的單格檢查版,architecture.md §3.2);**教師/場地衝突在跨節次表時以牆鐘時間區間重疊判定**(architecture.md D7,同表退化為 period_no 相等);API:建立草稿、格位增刪改、`POST /timetables/{id}/check-conflict`(<100ms)、鎖定/解鎖;跑班群組拖一格連動全組。
 - **模組**:`app/services/conflict_checker.py`、`app/api/timetables.py`
 - **驗收標準**:
