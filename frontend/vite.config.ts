@@ -24,5 +24,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // 只跑 src 內的單元測試;e2e/ 由 Playwright 執行
+    include: ['src/**/*.{test,spec}.ts'],
   },
 })

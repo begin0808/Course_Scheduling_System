@@ -136,5 +136,9 @@ class ClassUnit(Base):
     homeroom_teacher_id: Mapped[int | None] = mapped_column(
         ForeignKey("teachers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # 所屬節次表(空=用學期預設表);支援完全中學/附設國小部等多套節次表情境
+    period_table_id: Mapped[int | None] = mapped_column(
+        ForeignKey("period_tables.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     homeroom_teacher: Mapped[Teacher | None] = relationship(lazy="selectin")

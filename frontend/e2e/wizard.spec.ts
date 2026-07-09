@@ -7,9 +7,10 @@ const SHOTS = 'e2e/screenshots'
 test('設定精靈:五步驟建立學期並於儀表板顯示摘要', async ({ page }) => {
   await login(page)
 
-  // 前置:重設精靈狀態、清掉舊測試學期,確保從頭跑
+  // 前置:重設精靈狀態、清掉測試學期(含混合學制用的 121),確保從頭跑且不受干擾
   await page.request.post('/api/wizard/reset')
   await deleteSemesterByYearTerm(page, YEAR, 1)
+  await deleteSemesterByYearTerm(page, 121, 1)
 
   await page.goto('/wizard')
   await expect(page.getByRole('heading', { name: '設定精靈' })).toBeVisible()

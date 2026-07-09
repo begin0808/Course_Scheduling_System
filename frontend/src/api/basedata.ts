@@ -53,6 +53,7 @@ export interface ClassUnit {
   student_count: number | null
   homeroom_teacher_id: number | null
   homeroom_teacher: SubjectBrief | null
+  period_table_id: number | null
 }
 
 export const ROOM_TYPE_LABELS: Record<RoomType, string> = {

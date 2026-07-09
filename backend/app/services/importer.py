@@ -22,6 +22,7 @@ from app.models.basedata import (
     Subject,
     Teacher,
 )
+from app.models.period import PeriodTable
 from app.models.user import Role, User, UserRole
 
 HEADER_ROWS = 3  # 欄名 + 說明 + 範例
@@ -73,6 +74,7 @@ TEMPLATE_DEFS: dict[str, dict] = {
             ("群科", "選填(技高填寫)", "機械科"),
             ("導師", "選填,需為已建立的教師姓名", "王小明"),
             ("人數", "選填,數字", "35"),
+            ("節次表", "選填,需為已建立的節次表名稱;空白則用學期預設", "高中部節次表"),
         ],
     },
 }
@@ -169,6 +171,12 @@ def _import_classes(db: Session, semester_id: int, file_bytes: bytes) -> ImportR
         t.name: t.id
         for t in db.scalars(select(Teacher).where(Teacher.semester_id == semester_id))
     }
+    period_tables = {
+        pt.name: pt.id
+        for pt in db.scalars(
+            select(PeriodTable).where(PeriodTable.semester_id == semester_id)
+        )
+    }
     pending: list[ClassUnit] = []
     for idx, row in _data_rows(file_bytes):
         try:
@@ -191,6 +199,13 @@ def _import_classes(db: Session, semester_id: int, file_bytes: bytes) -> ImportR
                 result.errors.append(f"第 {idx} 列:導師「{homeroom_name}」不存在")
                 continue
             homeroom_id = teachers[homeroom_name]
+        table_name = _cell(row, 6)
+        table_id = None
+        if table_name:
+            if table_name not in period_tables:
+                result.errors.append(f"第 {idx} 列:節次表「{table_name}」不存在")
+                continue
+            table_id = period_tables[table_name]
         try:
             count = _parse_int(_cell(row, 5))
         except ValueError as e:
@@ -201,6 +216,7 @@ def _import_classes(db: Session, semester_id: int, file_bytes: bytes) -> ImportR
                 semester_id=semester_id, grade=grade, name=name,
                 track=TRACK_BY_LABEL[track_label].value, department=_cell(row, 3),
                 student_count=count, homeroom_teacher_id=homeroom_id,
+                period_table_id=table_id,
             )
         )
     if result.errors:

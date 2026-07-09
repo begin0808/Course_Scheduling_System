@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_roles
 from app.core.db import get_db
 from app.models.basedata import ClassUnit, Room, Subject, Teacher
-from app.models.period import Period, PeriodTable, PeriodType
+from app.models.period import Period, PeriodTable
 from app.models.semester import Semester
 from app.models.user import Role
 from app.schemas.semester import (
@@ -26,6 +26,7 @@ from app.schemas.semester import (
     TemplateOut,
 )
 from app.schemas.wizard import SemesterSummary
+from app.services import period_tables as pt_service
 from app.services import templates as tpl
 
 router = APIRouter(tags=["semesters"])
@@ -238,6 +239,14 @@ def delete_period_table(
     table_id: int, db: Session = Depends(get_db), _: object = Depends(editor)
 ) -> None:
     table = _get_period_table(db, table_id)
+    ref_count = db.scalar(
+        select(func.count()).select_from(ClassUnit).where(ClassUnit.period_table_id == table_id)
+    )
+    if ref_count:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"此節次表已被 {ref_count} 個班級指定使用,請先改用其他節次表再刪除",
+        )
     db.delete(table)
     db.commit()
 
@@ -280,17 +289,7 @@ def replace_periods(
     return table
 
 
-@router.get("/period-tables/{table_id}/available-slots", response_model=list[AvailableSlot])
-def available_slots(
-    table_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
-) -> list[AvailableSlot]:
-    """回傳可排課時段(type=regular),供排課時段檢查使用。"""
-    _get_period_table(db, table_id)
-    rows = db.scalars(
-        select(Period)
-        .where(Period.period_table_id == table_id, Period.type == PeriodType.regular.value)
-        .order_by(Period.weekday, Period.period_no)
-    ).all()
+def _slots_out(rows: list[Period]) -> list[AvailableSlot]:
     return [
         AvailableSlot(
             weekday=p.weekday,
@@ -301,3 +300,12 @@ def available_slots(
         )
         for p in rows
     ]
+
+
+@router.get("/period-tables/{table_id}/available-slots", response_model=list[AvailableSlot])
+def available_slots(
+    table_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+) -> list[AvailableSlot]:
+    """回傳可排課時段(type=regular),供排課時段檢查使用。"""
+    _get_period_table(db, table_id)
+    return _slots_out(pt_service.regular_slots(db, table_id))

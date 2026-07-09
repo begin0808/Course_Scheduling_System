@@ -19,6 +19,7 @@ from app.models.basedata import (
     room_subjects,
     teacher_subjects,
 )
+from app.models.period import PeriodTable
 from app.models.semester import Semester
 from app.models.user import Role
 from app.schemas.basedata import (
@@ -33,6 +34,8 @@ from app.schemas.basedata import (
     TeacherTimeRuleIn,
     TeacherTimeRuleOut,
 )
+from app.schemas.semester import AvailableSlot
+from app.services import period_tables as pt_service
 
 router = APIRouter(tags=["basedata"])
 
@@ -345,6 +348,14 @@ def _validate_homeroom(db: Session, semester_id: int, teacher_id: int | None) ->
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "導師無效或不屬於本學期")
 
 
+def _validate_period_table(db: Session, semester_id: int, table_id: int | None) -> None:
+    if table_id is None:
+        return
+    table = db.get(PeriodTable, table_id)
+    if table is None or table.semester_id != semester_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "節次表無效或不屬於本學期")
+
+
 @router.post("/class-units", response_model=ClassUnitOut, status_code=status.HTTP_201_CREATED)
 def create_class_unit(
     body: ClassUnitIn,
@@ -354,6 +365,7 @@ def create_class_unit(
 ) -> ClassUnit:
     _require_semester(db, semester_id)
     _validate_homeroom(db, semester_id, body.homeroom_teacher_id)
+    _validate_period_table(db, semester_id, body.period_table_id)
     cu = ClassUnit(
         semester_id=semester_id,
         grade=body.grade,
@@ -362,6 +374,7 @@ def create_class_unit(
         department=body.department,
         student_count=body.student_count,
         homeroom_teacher_id=body.homeroom_teacher_id,
+        period_table_id=body.period_table_id,
     )
     db.add(cu)
     db.commit()
@@ -377,15 +390,38 @@ def update_class_unit(
     if cu is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到班級")
     _validate_homeroom(db, cu.semester_id, body.homeroom_teacher_id)
+    _validate_period_table(db, cu.semester_id, body.period_table_id)
     cu.grade = body.grade
     cu.name = body.name
     cu.track = body.track.value
     cu.department = body.department
     cu.student_count = body.student_count
     cu.homeroom_teacher_id = body.homeroom_teacher_id
+    cu.period_table_id = body.period_table_id
     db.commit()
     db.refresh(cu)
     return cu
+
+
+@router.get("/class-units/{class_id}/available-slots", response_model=list[AvailableSlot])
+def class_available_slots(
+    class_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+) -> list[AvailableSlot]:
+    """回傳該班級的可排課時段(依所屬節次表,空則用學期預設表)。M2 排課引擎使用。"""
+    cu = db.get(ClassUnit, class_id)
+    if cu is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到班級")
+    table = pt_service.resolve_period_table(db, cu)
+    if table is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "此學期尚無任何節次表")
+    rows = pt_service.regular_slots(db, table.id)
+    return [
+        AvailableSlot(
+            weekday=p.weekday, period_no=p.period_no, name=p.name,
+            start_time=p.start_time, end_time=p.end_time,
+        )
+        for p in rows
+    ]
 
 
 @router.delete("/class-units/{class_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -88,6 +88,7 @@ class ClassUnitIn(BaseModel):
     department: str | None = Field(default=None, max_length=32)
     student_count: int | None = Field(default=None, ge=0)
     homeroom_teacher_id: int | None = None
+    period_table_id: int | None = None  # 空=用學期預設節次表
 
 
 class ClassUnitOut(BaseModel):
@@ -101,3 +102,4 @@ class ClassUnitOut(BaseModel):
     student_count: int | None
     homeroom_teacher_id: int | None
     homeroom_teacher: SubjectBrief | None = None  # 借用 {id,name} 結構顯示導師
+    period_table_id: int | None = None
