@@ -37,6 +37,7 @@ const menuOptions = [
     key: 'scheduling-group',
     children: [
       { label: menuLink('assignments', '配課管理'), key: 'assignments' },
+      { label: menuLink('timetable-demo', '課表元件(示範)'), key: 'timetable-demo' },
     ],
   },
   { label: menuLink('system', '系統管理'), key: 'system' },

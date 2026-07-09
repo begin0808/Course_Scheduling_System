@@ -44,6 +44,11 @@ const routes = [
         component: () => import('@/views/scheduling/Assignments.vue'),
       },
       {
+        path: 'scheduling/timetable-demo',
+        name: 'timetable-demo',
+        component: () => import('@/views/scheduling/TimetableGridDemo.vue'),
+      },
+      {
         path: 'settings/period-tables/:id',
         name: 'period-table-editor',
         component: () => import('@/views/settings/PeriodTableEditor.vue'),

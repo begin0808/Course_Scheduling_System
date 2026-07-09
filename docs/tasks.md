@@ -196,7 +196,7 @@ Course_Scheduling_System/
   5. 跑班群組成員班級的節次表不一致 → 建立被拒(architecture.md D7 第 4 點)
 - **測試方式**:pytest(含跑班/協同/連堂三種結構)
 
-### [ ] M2-2 TimetableGrid 課表元件
+### [x] M2-2 TimetableGrid 課表元件
 - **描述**:前端核心元件:CSS Grid 週課表,依節次表渲染(含反灰不排課時段);格位卡片(科目/教師/場地/鎖定圖示);HTML5 拖拉(從未排清單拖入、格間移動、拖出移除);視覺狀態(可放綠框/衝突紅框+原因浮窗);響應式(平板可用,手機唯讀)。**純展示+事件元件,不含商業邏輯**。
 - **模組**:`frontend/src/components/timetable/`
 - **驗收標準**:
