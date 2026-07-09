@@ -73,6 +73,19 @@ export const updateSemester = (
 ) => request<Semester>('PATCH', `/semesters/${id}`, body)
 export const deleteSemester = (id: number) => request<void>('DELETE', `/semesters/${id}`)
 
+export interface CopyOptions {
+  academic_year: number
+  term: number
+  period_tables: boolean
+  subjects: boolean
+  teachers: boolean
+  rooms: boolean
+  classes: boolean
+  grade_promotion: boolean
+}
+export const copySemester = (id: number, body: CopyOptions) =>
+  apiPost<Semester>(`/semesters/${id}/copy`, body)
+
 export const createPeriodTable = (
   semesterId: number,
   body: { name: string; num_weekdays?: number; is_default?: boolean; template_key?: string | null },

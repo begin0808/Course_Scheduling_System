@@ -19,6 +19,7 @@ from app.schemas.semester import (
     PeriodTableCreate,
     PeriodTableOut,
     PeriodTableUpdate,
+    SemesterCopyRequest,
     SemesterCreate,
     SemesterListItem,
     SemesterOut,
@@ -28,6 +29,7 @@ from app.schemas.semester import (
 from app.schemas.wizard import SemesterSummary
 from app.services import period_tables as pt_service
 from app.services import templates as tpl
+from app.services.semester_copy import CopyOptions, copy_semester
 
 router = APIRouter(tags=["semesters"])
 
@@ -117,6 +119,37 @@ def create_semester(
     db.commit()
     db.refresh(semester)
     return semester
+
+
+@router.post(
+    "/semesters/{source_id}/copy", response_model=SemesterOut, status_code=status.HTTP_201_CREATED
+)
+def copy_to_new_semester(
+    source_id: int,
+    body: SemesterCopyRequest,
+    db: Session = Depends(get_db),
+    _: object = Depends(editor),
+) -> Semester:
+    source = _get_semester(db, source_id)
+    exists = db.scalar(
+        select(Semester).where(
+            Semester.academic_year == body.academic_year, Semester.term == body.term
+        )
+    )
+    if exists:
+        raise HTTPException(status.HTTP_409_CONFLICT, "目標學年度學期已存在")
+    opts = CopyOptions(
+        period_tables=body.period_tables,
+        subjects=body.subjects,
+        teachers=body.teachers,
+        rooms=body.rooms,
+        classes=body.classes,
+        grade_promotion=body.grade_promotion,
+    )
+    new = copy_semester(db, source, body.academic_year, body.term, opts)
+    db.commit()
+    db.refresh(new)
+    return new
 
 
 @router.get("/semesters/{semester_id}", response_model=SemesterOut)

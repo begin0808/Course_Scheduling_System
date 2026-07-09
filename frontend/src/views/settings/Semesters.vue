@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import {
-  NButton, NCard, NDivider, NEmpty, NInputNumber, NModal, NPopconfirm,
-  NSelect, NSpace, NTag, NText, useMessage,
+  NButton, NCard, NCheckbox, NDivider, NEmpty, NInputNumber, NModal, NPopconfirm,
+  NSelect, NSpace, NSwitch, NTag, NText, useMessage,
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import {
-  STATUS_LABELS, createPeriodTable, createSemester, deletePeriodTable,
+  STATUS_LABELS, copySemester, createPeriodTable, createSemester, deletePeriodTable,
   deleteSemester, listSemesters, listTemplates,
 } from '@/api/semesters'
 import type { SemesterListItem, Semester, Template } from '@/api/semesters'
@@ -107,6 +107,37 @@ function editTable(id: number) {
   router.push({ name: 'period-table-editor', params: { id } })
 }
 
+// 複製到新學期
+const showCopy = ref(false)
+const copySource = ref<Semester | null>(null)
+const copyForm = ref({
+  academic_year: 115, term: 1,
+  period_tables: true, subjects: true, teachers: true, rooms: true, classes: true,
+  grade_promotion: true,
+})
+
+function openCopy(sem: Semester) {
+  copySource.value = sem
+  copyForm.value = {
+    academic_year: sem.academic_year + 1, term: sem.term,
+    period_tables: true, subjects: true, teachers: true, rooms: true, classes: true,
+    grade_promotion: true,
+  }
+  showCopy.value = true
+}
+
+async function onCopy() {
+  if (!copySource.value) return
+  try {
+    await copySemester(copySource.value.id, copyForm.value)
+    showCopy.value = false
+    message.success('已複製到新學期')
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).detail || '複製失敗')
+  }
+}
+
 const statusType: Record<string, 'default' | 'success' | 'warning'> = {
   preparing: 'warning',
   active: 'success',
@@ -142,12 +173,17 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
           <strong>{{ sem.label }}</strong>
           <n-tag :type="statusType[sem.status]" size="small">{{ STATUS_LABELS[sem.status] }}</n-tag>
         </n-space>
-        <n-popconfirm @positive-click="onDeleteSemester(sem.id)">
-          <template #trigger>
-            <n-button size="tiny" type="error" ghost>刪除學期</n-button>
-          </template>
-          確定刪除此學期?其節次表將一併移除。
-        </n-popconfirm>
+        <n-space>
+          <n-button size="tiny" data-testid="copy-semester" @click="openCopy(sem)">
+            複製到新學期
+          </n-button>
+          <n-popconfirm @positive-click="onDeleteSemester(sem.id)">
+            <template #trigger>
+              <n-button size="tiny" type="error" ghost>刪除學期</n-button>
+            </template>
+            確定刪除此學期?其節次表將一併移除。
+          </n-popconfirm>
+        </n-space>
       </n-space>
 
       <n-divider style="margin: 12px 0" />
@@ -203,6 +239,34 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
           placeholder="不帶入則建立空表"
         />
         <n-button type="primary" @click="onAddTable">建立</n-button>
+      </n-space>
+    </n-modal>
+
+    <n-modal
+      v-model:show="showCopy"
+      preset="card"
+      :title="`複製「${copySource?.label}」到新學期`"
+      style="max-width: 460px"
+    >
+      <n-space vertical>
+        <n-space align="center">
+          <n-text>目標學年度</n-text>
+          <n-input-number v-model:value="copyForm.academic_year" :min="100" :max="200" style="width: 120px" />
+          <n-select v-model:value="copyForm.term" :options="termOptions" style="width: 130px" />
+        </n-space>
+        <n-text strong>複製項目</n-text>
+        <n-space>
+          <n-checkbox v-model:checked="copyForm.period_tables">節次表</n-checkbox>
+          <n-checkbox v-model:checked="copyForm.subjects">科目</n-checkbox>
+          <n-checkbox v-model:checked="copyForm.teachers">教師</n-checkbox>
+          <n-checkbox v-model:checked="copyForm.rooms">場地</n-checkbox>
+          <n-checkbox v-model:checked="copyForm.classes">班級</n-checkbox>
+        </n-space>
+        <n-space align="center">
+          <n-switch v-model:value="copyForm.grade_promotion" />
+          <n-text>班級年級自動進位(畢業年級不複製)</n-text>
+        </n-space>
+        <n-button type="primary" data-testid="copy-confirm" @click="onCopy">建立新學期</n-button>
       </n-space>
     </n-modal>
   </n-space>

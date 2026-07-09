@@ -79,6 +79,17 @@ class SemesterUpdate(BaseModel):
     status: SemesterStatus | None = None
 
 
+class SemesterCopyRequest(BaseModel):
+    academic_year: int = Field(ge=100, le=200)
+    term: int = Field(ge=1, le=2)
+    period_tables: bool = True
+    subjects: bool = True
+    teachers: bool = True
+    rooms: bool = True
+    classes: bool = True
+    grade_promotion: bool = True
+
+
 class SemesterListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
