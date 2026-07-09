@@ -89,6 +89,8 @@ def copy_semester(
                 base_periods=t.base_periods, admin_title=t.admin_title,
                 admin_reduction=t.admin_reduction, is_external=t.is_external,
                 is_active=t.is_active,
+                # 帳號綁定與聯絡資訊跨學期延續(user_id 唯一性以 semester 為範圍,不衝突)
+                email=t.email, phone=t.phone, line_id=t.line_id, user_id=t.user_id,
             )
             # 任教科目(僅在科目也複製時對應)
             nt.subjects = [subject_map[s.id] for s in t.subjects if s.id in subject_map]

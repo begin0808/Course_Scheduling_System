@@ -1,8 +1,21 @@
 """基礎資料(教師/科目/場地/班級)schema。"""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.validators import is_valid_email
 from app.models.basedata import ClassTrack, RoomType, TeacherRuleType
+
+
+def _normalize_optional_email(value: str | None) -> str | None:
+    """空字串轉 None;非空則驗證 Email 格式。"""
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if not is_valid_email(value):
+        raise ValueError("Email 格式不正確")
+    return value
 
 
 # ── 科目 ──────────────────────────────
@@ -35,6 +48,15 @@ class TeacherIn(BaseModel):
     is_external: bool = False
     is_active: bool = True
     subject_ids: list[int] = []
+    email: str | None = Field(default=None, max_length=128)
+    phone: str | None = Field(default=None, max_length=32)
+    line_id: str | None = Field(default=None, max_length=64)
+    user_id: int | None = None  # 綁定的登入帳號(空=不綁定)
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, v: str | None) -> str | None:
+        return _normalize_optional_email(v)
 
 
 class TeacherOut(BaseModel):
@@ -49,6 +71,19 @@ class TeacherOut(BaseModel):
     is_external: bool
     is_active: bool
     subjects: list[SubjectBrief] = []
+    email: str | None = None
+    phone: str | None = None
+    line_id: str | None = None
+    user_id: int | None = None
+
+
+class BindableAccount(BaseModel):
+    """可供教師綁定的帳號(teacher 角色、於本學期尚未被綁定者)。"""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    display_name: str
 
 
 class TeacherTimeRuleIn(BaseModel):

@@ -4,6 +4,7 @@
 """
 
 import enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -17,6 +18,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class RoomType(enum.StrEnum):
@@ -71,6 +75,10 @@ class Subject(Base):
 
 class Teacher(Base):
     __tablename__ = "teachers"
+    # 一個帳號在同一學期至多綁定一位教師(user_id 為空時不受限,見 M2-0)
+    __table_args__ = (
+        UniqueConstraint("semester_id", "user_id", name="uq_teachers_semester_user"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     semester_id: Mapped[int] = mapped_column(
@@ -83,11 +91,20 @@ class Teacher(Base):
     admin_reduction: Mapped[int] = mapped_column(Integer, default=0)  # 行政減課節數
     is_external: Mapped[bool] = mapped_column(Boolean, default=False)  # 外聘/業界師資
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # 在職
+    # 聯絡資訊(皆選填,供調代課通知與人工聯絡;掛教師因外聘師資可能無系統帳號)
+    email: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    line_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # 綁定的登入帳號(空=無帳號,如外聘師資);帳號刪除時設為 NULL 保留教師主檔
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     subjects: Mapped[list[Subject]] = relationship(secondary=teacher_subjects, lazy="selectin")
     time_rules: Mapped[list["TeacherTimeRule"]] = relationship(
         back_populates="teacher", cascade="all, delete-orphan", lazy="selectin"
     )
+    user: Mapped["User | None"] = relationship(lazy="selectin")
 
 
 class TeacherTimeRule(Base):

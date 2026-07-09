@@ -28,6 +28,15 @@ export interface Teacher {
   is_external: boolean
   is_active: boolean
   subjects: SubjectBrief[]
+  email: string | null
+  phone: string | null
+  line_id: string | null
+  user_id: number | null
+}
+export interface BindableAccount {
+  id: number
+  username: string
+  display_name: string
 }
 export interface TeacherTimeRule {
   id?: number
@@ -92,6 +101,11 @@ export const createTeacher = (semesterId: number, body: Record<string, unknown>)
 export const updateTeacher = (id: number, body: Record<string, unknown>) =>
   request<Teacher>('PATCH', `/teachers/${id}`, body)
 export const deleteTeacher = (id: number) => request<void>('DELETE', `/teachers/${id}`)
+export const listBindableAccounts = (semesterId: number, currentTeacherId?: number) =>
+  apiGet<BindableAccount[]>(
+    `/teachers/bindable-accounts?semester_id=${semesterId}` +
+      (currentTeacherId ? `&current_teacher_id=${currentTeacherId}` : ''),
+  )
 export const getTimeRules = (id: number) => apiGet<TeacherTimeRule[]>(`/teachers/${id}/time-rules`)
 export const replaceTimeRules = (id: number, rules: TeacherTimeRule[]) =>
   request<TeacherTimeRule[]>('PUT', `/teachers/${id}/time-rules`, rules)

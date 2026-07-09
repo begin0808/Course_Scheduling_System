@@ -169,6 +169,22 @@ Course_Scheduling_System/
 
 ## M2 配課與手動排課
 
+### [x] M2-0 教師帳號綁定與聯絡資訊(M1 健檢 2026-07-09 產出,M2-1 前必做)
+- **背景**:`user.py` docstring 承諾的 User↔Teacher 綁定在 M1 未實作(匯入建帳號僅存 display_name,無外鍵)。此綁定是 M2-5「教師查本人課表」、M4 全部(請假自登、代課確認、通知收件人)的前提。另使用者需求:教師需有聯絡欄位以利調代課通知。
+- **描述**:
+  1. `teachers.user_id`(nullable FK → users,`ondelete=SET NULL`,同學期唯一 uq(semester_id, user_id));Excel 匯入「同時建立帳號」時自動綁定;教師表單(admin/scheduler)可選擇綁定既有帳號;
+  2. `teachers.email` / `teachers.phone` / `teachers.line_id`(皆 nullable String)——聯絡資訊掛教師(學期快照),因外聘/業界師資可能無系統帳號;
+  3. Excel 教師範本增 Email/手機/LINE ID 三選填欄;教師表單增欄位;
+  4. `semester_copy` 複製 user_id 與三個聯絡欄位(綁定跨學期延續);
+  5. helper `current_teacher(db, user, semester_id)`:由登入者解析其在指定學期的教師主檔(M2-5/M4 共用)。
+- **模組**:`app/models/basedata.py`、`app/services/{importer,semester_copy}.py`、`app/api/basedata.py`、`frontend/src/views/basedata/TeachersTab.vue`
+- **驗收標準**:
+  1. 匯入 30 位教師勾「建立帳號」→ 每筆 `teachers.user_id` 正確綁定新帳號
+  2. 開新學期複製後,新學期教師仍綁定同一帳號、聯絡資訊完整
+  3. 同一帳號在同學期綁第二位教師 → 409
+  4. Email 格式錯誤時表單與匯入均回報錯誤
+- **測試方式**:pytest(綁定/複製/唯一性);既有匯入測試不退步
+
 ### [ ] M2-1 配課管理
 - **描述**:`scheduling_unit`/`course_assignment`/`assignment_teacher`/`block_rule` model 與 CRUD;配課建立 UI(班級選科目→指定教師→週節數→連堂→場地需求);跑班群組建立(選多班級組成 group,群組內建多筆配課);教師鐘點即時統計側欄(配課數 vs 基本鐘點,超/不足變色);Excel 批次匯入配課。
 - **模組**:`app/models/assignment.py`、`app/api/assignments.py`、`frontend/src/views/scheduling/Assignments.vue`
@@ -176,7 +192,8 @@ Course_Scheduling_System/
   1. 可建立「301 班 × 國文 × 王師 × 每週 5 節」與「高二多元選修跑班群組(3 班 5 組)」
   2. 可建立「機械科實習 × 2 位協同教師 × 每週 6 節含 3 連堂×2」
   3. 王師配 22 節、基本鐘點 20 → 側欄顯示「+2 超鐘點」紅字
-  4. 班級週配課總節數 > 可排節次數時警告
+  4. 班級週配課總節數 > 可排節次數(經 `resolve_period_table`+`regular_slots`)時警告
+  5. 跑班群組成員班級的節次表不一致 → 建立被拒(architecture.md D7 第 4 點)
 - **測試方式**:pytest(含跑班/協同/連堂三種結構)
 
 ### [ ] M2-2 TimetableGrid 課表元件
@@ -189,13 +206,14 @@ Course_Scheduling_System/
 - **測試方式**:Vitest + 示範頁人工檢視
 
 ### [ ] M2-3 衝突檢查服務與手動排課 API
-- **描述**:`timetable`/`schedule_entry` model;衝突檢查服務(H1–H10 硬約束的單格檢查版,architecture.md §3.2);API:建立草稿、格位增刪改、`POST /timetables/{id}/check-conflict`(<100ms)、鎖定/解鎖;跑班群組拖一格連動全組。
+- **描述**:`timetable`/`schedule_entry` model;衝突檢查服務(H1–H10 硬約束的單格檢查版,architecture.md §3.2);**教師/場地衝突在跨節次表時以牆鐘時間區間重疊判定**(architecture.md D7,同表退化為 period_no 相等);API:建立草稿、格位增刪改、`POST /timetables/{id}/check-conflict`(<100ms)、鎖定/解鎖;跑班群組拖一格連動全組。
 - **模組**:`app/services/conflict_checker.py`、`app/api/timetables.py`
 - **驗收標準**:
   1. 王師已在週一第 1 節有課,再排他班同時段 → 回衝突「教師王師 週一第1節 已有 302 班數學」
   2. 連堂課拖至跨午休位置 → 拒絕並說明
   3. 跑班群組某組拖到新時段,全組連動;任一組衝突則整組拒絕
   4. check-conflict 在 60 班資料量下 p95 < 100ms
+  5. 跨節次表衝突:王師在國小部(40 分/節)週一第 4 節 10:30–11:10 有課,再排他至高中部(50 分/節)週一第 3 節 10:10–11:00 → 回報衝突(牆鐘時間重疊)
 - **測試方式**:pytest 覆蓋 H1–H10 每項至少 2 案例(過/不過);效能測試腳本
 
 ### [ ] M2-4 排課工作台整合
@@ -277,7 +295,7 @@ Course_Scheduling_System/
 - **測試方式**:pytest(日期邊界:週末、學期起訖外拒絕)
 
 ### [ ] M4-2 調代課處理工作台與推薦引擎
-- **描述**:逐節處理 UI(代課/調課/併班/自習/不處理);**代課推薦服務**:硬性過濾(該時段空堂、當日未請假)→ 排序(同科目 > 當日已在校 > 本月代課鐘點少),每位候選附排序理由;調課(swap)驗證(architecture.md §5.3);直接指定與「邀請制」兩種指派。
+- **描述**:逐節處理 UI(代課/調課/併班/自習/不處理);**代課推薦服務**:硬性過濾(該時段空堂、當日未請假)→ 排序(同科目 > 當日已在校 > 本月代課鐘點少),每位候選附排序理由;調課(swap)驗證(architecture.md §5.3);指派即生效(**不設邀請/婉拒流程**,2026-07-09 使用者定案:組長實務上已事先口頭徵得同意,通知僅為正式告知+確認收到)。
 - **模組**:`app/services/substitution_recommender.py`、`frontend/src/views/substitution/`
 - **驗收標準**:
   1. 推薦清單第一名必為空堂+同科;已滿 6 節者排序靠後
@@ -286,10 +304,10 @@ Course_Scheduling_System/
 - **測試方式**:pytest 推薦排序表格測試(10+ 情境)
 
 ### [ ] M4-3 通知系統
-- **描述**:`notification` model;站內通知(鈴鐺、未讀數、輪詢);Email 寄送走 RQ(SMTP 設定於系統管理,未設定則僅站內通知並提示);通知模板(代課邀請/確認/取消、課表發布);教師確認/婉拒頁(手機可用);逾時未回提醒組長。
+- **描述**:`notification` model;通知寄送走 `NotificationChannel` 介面(architecture.md §5.3,MVP 實作站內+Email 兩個 channel,v2 增 webhook/LINE adapter);收件人解析經 `teachers.user_id`(站內)與 `teachers.email`(Email,M2-0 欄位);站內通知(鈴鐺、未讀數、輪詢);Email 寄送走 RQ(SMTP 設定於系統管理,未設定則僅站內通知並提示);通知模板(代課指派/取消、課表發布);教師「確認收到」頁(手機可用,一鍵確認);組長看板顯示各筆確認狀態,未確認者可一鍵再次提醒。
 - **驗收標準**:
-  1. 指派代課後,教師站內+Email 雙通知,點連結直達確認頁
-  2. 婉拒必填原因,節次回到「待處理」且組長收到通知
+  1. 指派代課後,教師站內+Email 雙通知,點連結直達確認頁,一鍵「確認收到」
+  2. 組長於看板可見確認/未確認狀態;對未確認者按「再次提醒」重發通知
   3. SMTP 未設定時系統正常運作(僅站內通知)
 - **測試方式**:pytest(mailhog 容器攔信)+ Playwright 手機視窗尺寸
 
@@ -370,3 +388,6 @@ Course_Scheduling_System/
 - M0-3 CI 的 Playwright E2E job 尚未加入(目前無 E2E 測試),待 M5-4 建立 e2e 測試時補進 workflow。
 - 前端 CI 用 `npm install`(未提交 package-lock.json);日後可提交 lock 檔改用 `npm ci` 以完全重現。
 - `docker compose up` 端到端煙霧測試尚未納入 CI(需在 runner 起完整 stack),可於 M5 部署驗證時再加。
+- **LINE 通知 adapter(v2)**:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(`teachers.line_id` 為人工聯絡用,不能直接推播)。實作為 `NotificationChannel` 的一個 adapter。
+- 開新學期複製目前不帶學期起訖日,新學期需手動補填;可於複製對話框加起訖日欄位。
+- 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。

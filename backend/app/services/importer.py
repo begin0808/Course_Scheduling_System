@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import hash_password
+from app.core.validators import is_valid_email
 from app.models.basedata import (
     ClassTrack,
     ClassUnit,
@@ -63,6 +64,9 @@ TEMPLATE_DEFS: dict[str, dict] = {
             ("行政減課", "選填,數字", "4"),
             ("外聘", "選填:是/否,預設否", "否"),
             ("登入帳號", "選填,勾選建立帳號時使用", "wang001"),
+            ("Email", "選填,調代課通知寄送用", "wang@example.edu.tw"),
+            ("手機", "選填,人工聯絡用", "0912345678"),
+            ("LINE ID", "選填,人工聯絡用", "wang_line"),
         ],
     },
     "classes": {
@@ -285,10 +289,16 @@ def _import_teachers(
                 continue
             seen_usernames.add(username)
 
+        email = _cell(row, 8)
+        if email and not is_valid_email(email):
+            result.errors.append(f"第 {idx} 列:Email「{email}」格式不正確")
+            continue
+
         teacher = Teacher(
             semester_id=semester_id, name=name, id_last4=id_last4,
             base_periods=base_periods, admin_title=_cell(row, 4),
             admin_reduction=admin_reduction, is_external=is_external,
+            email=email, phone=_cell(row, 9), line_id=_cell(row, 10),
             subjects=subject_objs,
         )
         pending.append((teacher, username if create_accounts else None))
@@ -299,14 +309,13 @@ def _import_teachers(
     for teacher, username in pending:
         db.add(teacher)
         if username:
-            db.add(
-                User(
-                    username=username,
-                    password_hash=hash_password(settings.default_import_password),
-                    display_name=teacher.name,
-                    must_change_password=True,
-                    roles=[UserRole(role=Role.teacher.value)],
-                )
+            # 綁定新建帳號:teacher.user 賦值於 flush 時寫入 teachers.user_id
+            teacher.user = User(
+                username=username,
+                password_hash=hash_password(settings.default_import_password),
+                display_name=teacher.name,
+                must_change_password=True,
+                roles=[UserRole(role=Role.teacher.value)],
             )
     db.commit()
     result.imported = len(pending)

@@ -21,8 +21,9 @@ from app.models.basedata import (
 )
 from app.models.period import PeriodTable
 from app.models.semester import Semester
-from app.models.user import Role
+from app.models.user import Role, User, UserRole
 from app.schemas.basedata import (
+    BindableAccount,
     ClassUnitIn,
     ClassUnitOut,
     RoomIn,
@@ -136,7 +137,54 @@ def delete_subject(
     db.commit()
 
 
+def _validate_teacher_user(
+    db: Session, semester_id: int, user_id: int | None, exclude_teacher_id: int | None = None
+) -> None:
+    """驗證欲綁定的帳號:須存在,且同學期未被其他教師綁定(否則 409)。"""
+    if user_id is None:
+        return
+    if db.get(User, user_id) is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "欲綁定的帳號不存在")
+    stmt = select(Teacher.id).where(
+        Teacher.semester_id == semester_id, Teacher.user_id == user_id
+    )
+    if exclude_teacher_id is not None:
+        stmt = stmt.where(Teacher.id != exclude_teacher_id)
+    if db.scalar(stmt) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "此帳號在本學期已綁定其他教師")
+
+
 # ── 教師 ──────────────────────────────
+@router.get("/teachers/bindable-accounts", response_model=list[BindableAccount])
+def list_bindable_accounts(
+    semester_id: int = Query(...),
+    current_teacher_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: object = Depends(viewer),
+):
+    """teacher 角色且在本學期尚未綁定的帳號;編輯時另納入該教師目前綁定的帳號。"""
+    bound = set(
+        db.scalars(
+            select(Teacher.user_id).where(
+                Teacher.semester_id == semester_id, Teacher.user_id.is_not(None)
+            )
+        )
+    )
+    if current_teacher_id is not None:
+        cur = db.get(Teacher, current_teacher_id)
+        if cur is not None and cur.user_id is not None:
+            bound.discard(cur.user_id)
+    teacher_user_ids = db.scalars(
+        select(UserRole.user_id).where(UserRole.role == Role.teacher.value)
+    )
+    available = [uid for uid in set(teacher_user_ids) if uid not in bound]
+    if not available:
+        return []
+    return db.scalars(
+        select(User).where(User.id.in_(available), User.is_active.is_(True)).order_by(User.username)
+    ).all()
+
+
 @router.get("/teachers", response_model=list[TeacherOut])
 def list_teachers(
     semester_id: int = Query(...),
@@ -161,6 +209,7 @@ def create_teacher(
     _: object = Depends(editor),
 ) -> Teacher:
     _require_semester(db, semester_id)
+    _validate_teacher_user(db, semester_id, body.user_id)
     teacher = Teacher(
         semester_id=semester_id,
         name=body.name,
@@ -170,6 +219,10 @@ def create_teacher(
         admin_reduction=body.admin_reduction,
         is_external=body.is_external,
         is_active=body.is_active,
+        email=body.email,
+        phone=body.phone,
+        line_id=body.line_id,
+        user_id=body.user_id,
         subjects=_resolve_subjects(db, semester_id, body.subject_ids),
     )
     db.add(teacher)
@@ -195,6 +248,7 @@ def update_teacher(
     teacher = db.get(Teacher, teacher_id)
     if teacher is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    _validate_teacher_user(db, teacher.semester_id, body.user_id, exclude_teacher_id=teacher.id)
     teacher.name = body.name
     teacher.id_last4 = body.id_last4
     teacher.base_periods = body.base_periods
@@ -202,6 +256,10 @@ def update_teacher(
     teacher.admin_reduction = body.admin_reduction
     teacher.is_external = body.is_external
     teacher.is_active = body.is_active
+    teacher.email = body.email
+    teacher.phone = body.phone
+    teacher.line_id = body.line_id
+    teacher.user_id = body.user_id
     teacher.subjects = _resolve_subjects(db, teacher.semester_id, body.subject_ids)
     db.commit()
     db.refresh(teacher)
