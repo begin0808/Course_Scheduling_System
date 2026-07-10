@@ -238,17 +238,37 @@ Course_Scheduling_System/
 
 ## M3 自動排課
 
-### [ ] M3-1 Solver 資料層與 pre-flight 檢查
-- **描述**:`solver/` 模組骨架:從 DB 讀取學期資料轉為純 dataclass 問題描述(solver 不碰 SQLAlchemy);pre-flight 必要條件檢查(教師配課數≤可排格數、場地供需、班級節數,architecture.md §3.4);檢查報告 API。
-- **模組**:`app/solver/preflight.py`、`app/solver/problem.py`
+### [ ] M3-0 三套學制驗證資料集(M2 健檢 2026-07-10 產出,M3-1 前必做)
+- **背景**:測試策略總則承諾的三套 fixtures(標註「M1 期間建立,全案共用」)實際從未建立——`backend/tests/fixtures/` 目錄不存在,M1–M2 測試皆為各檔就地造小數據。M3-1/2/3/5 與 M5-4 的驗收全部以「三套 fixtures」為前提;不先補齊,每張 M3 卡會各自造資料、解的品質彼此不可比。
+- **描述**:以 Python builder 函式(非靜態 JSON,直接用 models 寫入測試 session)實作三套資料集:
+  1. `elementary_small`:國小 6 班(包班+科任、週三下午空、導師時間);
+  2. `junior_high_mid`:國中 12 班(領域課程+彈性課程+兼行政減課教師);
+  3. `vocational_high`:技高 15 班 3 科(3 連堂實習+實習工場+業界師資 unavailable 時段+跑班群組);
+  4. 各附煙霧測試證明資料自洽:teacher_loads 無超鐘點、class_loads 不超可排節數、跑班群組同節次表。
+- **模組**:`backend/tests/fixtures/{__init__,elementary,junior_high,vocational}.py`
 - **驗收標準**:
-  1. 三套 fixtures 皆可轉出問題描述且 pre-flight 通過
+  1. 三套 builder 可在乾淨測試 DB 建出完整學期(節次表/教師/班級/科目/場地/配課/連堂/時段規則)
+  2. 煙霧測試通過(資料自洽,可被 CP-SAT 排出全解)
+  3. 既有 135 個後端測試不退步
+- **測試方式**:pytest
+
+### [ ] M3-1 Solver 資料層與 pre-flight 檢查
+- **描述**:`solver/` 模組骨架:從 DB 讀取學期資料轉為純 dataclass 問題描述(solver 不碰 SQLAlchemy;**DB→dataclass 轉換層放 `app/services/solver_data.py`**,因 loader 必須 import models,放 solver/ 內會違反驗收 3);pre-flight 必要條件檢查(教師配課數≤可排格數、場地供需、班級節數,architecture.md §3.4)+ 班級人數>場地容量警告(D8);檢查報告 API。
+- **補遺(M2 健檢 2026-07-10)**:`schedule_entries.room_id`(nullable FK,空=沿用配課的 room_id)+ 遷移——§2.2 承諾格位帶場地但 M2 未實作;solver 對「指定場地類型而未綁定場地」的配課需逐格指派場地,結果無處可存(M4 教室異動也需要)。conflict_checker `_build_occupancy` 與課表序列化改以 `coalesce(entry.room_id, assignment.room_id)` 取場地。
+- **pre-flight「教師可排格數」定義**:單一節次表(絕大多數學校)=一般課格數 − unavailable 格數;跨表任教的教師以牆鐘區間聯集去重計數(D7 重疊矩陣)。
+- **模組**:`app/solver/preflight.py`、`app/solver/problem.py`、`app/services/solver_data.py`
+- **驗收標準**:
+  1. 三套 fixtures(M3-0)皆可轉出問題描述且 pre-flight 通過
   2. 人為製造「王師 22 節但可排 20 格」→ 報告明確指出教師、數字
   3. solver 模組 `import` 不到 `app.api`/`app.models`(以 import-linter 或測試保證)
+  4. 手動排課將格位放到與配課不同的場地後,check-conflict 以格位場地判定佔用
 - **測試方式**:pytest
 
 ### [ ] M3-2 CP-SAT 核心建模(硬約束)
-- **描述**:實作 H1–H10 硬約束建模(architecture.md §3.2);連堂以區間建模;跑班同步;鎖定格位;求解取出結果轉 schedule_entry 列表。
+- **描述**:實作 H1–H10 硬約束建模(architecture.md §3.2);連堂以區間建模;跑班同步;鎖定格位;場地互斥(D8);教師/場地跨節次表以 D7 重疊矩陣建模;求解取出結果轉 schedule_entry 列表(含逐格 room_id)。
+- **補遺(M2 健檢 2026-07-10)**:
+  1. `ortools` 依賴**此卡才加入** pyproject(M3-1 不需要,保持 pre-flight 輕量);注意 wheel 體積(~50MB)與 arm64 wheel 可用性,重建映像驗證;
+  2. **H10 精確定義以獨立 validator 為準**:同班同科目每日「單節」數 ≤ 上限,連堂(block_rule 產生)的節數不計入;M2-3 手動 conflict_checker 目前把既有連堂 span 也計入每日計數,與此不一致,此卡順手對齊(改法:佔用索引的 subj_count 排除 span>1 或掛 block_rule 的格位)。
 - **模組**:`app/solver/model_builder.py`
 - **驗收標準**:
   1. 三套 fixtures 各自可解,且**逐項驗證**解零硬約束違反(以獨立 validator 檢查,不信任 solver 自己)
@@ -258,7 +278,7 @@ Course_Scheduling_System/
 - **測試方式**:`tests/solver/` + `validator.py`(獨立驗證器,亦供日後回歸)
 
 ### [ ] M3-3 軟約束與目標函數
-- **描述**:實作 S1–S8 軟約束(architecture.md §3.2)加權目標;權重設定存 DB(`constraint_config`),UI 於 v2 才做,先用預設值;解出後產出「軟約束達成度報告」(各項得分/滿分、未達成明細)。
+- **描述**:實作 S1–S8 軟約束(architecture.md §3.2)加權目標;權重設定存 DB(`constraint_config`,含 H10 每日上限值),UI 於 v2 才做,先用預設值;解出後產出「軟約束達成度報告」(各項得分/滿分、未達成明細)。**補遺**:`subjects.is_major`(主科標記,S5 用)+ 遷移 + 科目表單勾選——現行 Subject 無此欄位。
 - **驗收標準**:
   1. 同 fixture 開/關 S2(同科分散)比較:開啟後同班同科目同日 ≥2 節的數量顯著下降
   2. 教師 avoid 時段在有替代方案時被避開
@@ -266,7 +286,7 @@ Course_Scheduling_System/
 - **測試方式**:pytest 比較性測試(斷言方向性,不斷言絕對分數)
 
 ### [ ] M3-4 Worker 整合與進度回報
-- **描述**:排課任務走 RQ:`POST /timetables/{id}/auto-schedule` 入佇列;CP-SAT callback 每 5 秒寫進度(已找到解的目標值、經過時間)至 Redis;前端進度頁(polling)含「提前結束取目前最佳解」與「取消」;timeout 預設 10 分鐘可設定;結果寫回為新草稿。
+- **描述**:排課任務走 RQ:`POST /timetables/{id}/auto-schedule` 入佇列;CP-SAT callback 每 5 秒寫進度(已找到解的目標值、經過時間)至 Redis;前端進度頁(polling)含「提前結束取目前最佳解」與「取消」;timeout 預設 10 分鐘可設定;結果寫回為新草稿。**輸入輸出流定義(M2 健檢 2026-07-10)**:以來源草稿為輸入;`locked` 格位作為固定約束(H9)複製至結果草稿並保持鎖定;未鎖定的既有格位以 CP-SAT hint(`AddHint`)餵入以提高解的穩定性(重排時盡量少動);結果草稿命名「{來源名} 自排結果」,來源草稿不動。
 - **模組**:`app/workers/solve_job.py`、`frontend/src/views/scheduling/AutoSchedule.vue`
 - **驗收標準**:
   1. 啟動排課後 UI 顯示進度;點「提前結束」拿到當前最佳解草稿
@@ -392,3 +412,4 @@ Course_Scheduling_System/
 - **LINE 通知 adapter(v2)**:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(`teachers.line_id` 為人工聯絡用,不能直接推播)。實作為 `NotificationChannel` 的一個 adapter。
 - 開新學期複製目前不帶學期起訖日,新學期需手動補填;可於複製對話框加起訖日欄位。
 - 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。
+- `teacher_time_rule` 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。
