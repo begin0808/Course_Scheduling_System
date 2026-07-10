@@ -57,7 +57,10 @@ const menuOptions = computed(() => {
     {
       label: '調代課',
       key: 'substitution-group',
-      children: [leaves],
+      children: [
+        leaves,
+        { label: menuLink('substitutions', '調代課處理'), key: 'substitutions' },
+      ],
     },
     { label: menuLink('system', '系統管理'), key: 'system' },
   ]

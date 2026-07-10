@@ -64,6 +64,11 @@ const routes = [
         component: () => import('@/views/leaves/Leaves.vue'),
       },
       {
+        path: 'substitutions',
+        name: 'substitutions',
+        component: () => import('@/views/substitution/Substitutions.vue'),
+      },
+      {
         path: 'scheduling/versions',
         name: 'versions',
         component: () => import('@/views/scheduling/Versions.vue'),

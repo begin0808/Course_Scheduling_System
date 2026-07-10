@@ -15,6 +15,7 @@ from app.api import (
     leaves,
     semesters,
     solver,
+    substitutions,
     timetables,
     wizard,
 )
@@ -55,6 +56,7 @@ app.include_router(assignments.router, prefix="/api")
 app.include_router(timetables.router, prefix="/api")
 app.include_router(solver.router, prefix="/api")
 app.include_router(leaves.router, prefix="/api")
+app.include_router(substitutions.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
 app.include_router(wizard.router, prefix="/api")

@@ -34,6 +34,11 @@ from app.models.leave import (
 from app.models.notification import Notification, NotificationType
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester, SemesterStatus
+from app.models.substitution import (
+    SUBSTITUTION_TYPE_CN,
+    Substitution,
+    SubstitutionType,
+)
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import Role, User, UserRole
 from app.models.wizard import WizardState
@@ -75,4 +80,7 @@ __all__ = [
     "LEAVE_TYPE_CN",
     "Notification",
     "NotificationType",
+    "Substitution",
+    "SubstitutionType",
+    "SUBSTITUTION_TYPE_CN",
 ]

@@ -22,6 +22,7 @@ from app.api import (
     leaves,
     semesters,
     solver,
+    substitutions,
     timetables,
     wizard,
 )
@@ -78,6 +79,7 @@ def env():
     application.include_router(imports.router, prefix="/api")
     application.include_router(wizard.router, prefix="/api")
     application.include_router(leaves.router, prefix="/api")
+    application.include_router(substitutions.router, prefix="/api")
 
     @application.get("/api/_protected")
     def _protected(user: User = Depends(get_active_user)) -> dict:
