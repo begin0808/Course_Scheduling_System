@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
-  NButton, NInput, NInputNumber, NModal, NPopconfirm, NSelect, NSpace, NText, useMessage,
+  NButton, NCheckbox, NInput, NInputNumber, NModal, NPopconfirm, NSelect, NSpace, NTag, NText,
+  useMessage,
 } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
@@ -26,13 +27,17 @@ onMounted(reload)
 
 const show = ref(false)
 const editingId = ref<number | null>(null)
-const form = ref<{ name: string; domain: string; required_room_type: RoomType | null; default_block_size: number }>({
-  name: '', domain: '', required_room_type: null, default_block_size: 1,
-})
+const form = ref<{
+  name: string
+  domain: string
+  required_room_type: RoomType | null
+  default_block_size: number
+  is_major: boolean
+}>({ name: '', domain: '', required_room_type: null, default_block_size: 1, is_major: false })
 
 function openCreate() {
   editingId.value = null
-  form.value = { name: '', domain: '', required_room_type: null, default_block_size: 1 }
+  form.value = { name: '', domain: '', required_room_type: null, default_block_size: 1, is_major: false }
   show.value = true
 }
 function openEdit(s: Subject) {
@@ -40,6 +45,7 @@ function openEdit(s: Subject) {
   form.value = {
     name: s.name, domain: s.domain ?? '',
     required_room_type: s.required_room_type, default_block_size: s.default_block_size,
+    is_major: s.is_major,
   }
   show.value = true
 }
@@ -54,6 +60,7 @@ async function save() {
     domain: form.value.domain || null,
     required_room_type: form.value.required_room_type,
     default_block_size: form.value.default_block_size,
+    is_major: form.value.is_major,
   }
   try {
     if (editingId.value) await updateSubject(editingId.value, body)
@@ -86,7 +93,7 @@ async function remove(s: Subject) {
 
     <table class="data-table">
       <thead>
-        <tr><th>名稱</th><th>領域/群別</th><th>需要場地</th><th>預設連堂</th><th>操作</th></tr>
+        <tr><th>名稱</th><th>領域/群別</th><th>需要場地</th><th>預設連堂</th><th>主科</th><th>操作</th></tr>
       </thead>
       <tbody>
         <tr v-for="s in items" :key="s.id">
@@ -94,6 +101,10 @@ async function remove(s: Subject) {
           <td>{{ s.domain || '—' }}</td>
           <td>{{ s.required_room_type ? ROOM_TYPE_LABELS[s.required_room_type] : '不限' }}</td>
           <td>{{ s.default_block_size > 1 ? `${s.default_block_size} 連堂` : '一般' }}</td>
+          <td>
+            <n-tag v-if="s.is_major" size="small" type="info" :data-testid="`sub-major-${s.name}`">主科</n-tag>
+            <span v-else>—</span>
+          </td>
           <td>
             <n-space>
               <n-button size="tiny" @click="openEdit(s)">編輯</n-button>
@@ -104,21 +115,24 @@ async function remove(s: Subject) {
             </n-space>
           </td>
         </tr>
-        <tr v-if="items.length === 0"><td colspan="5"><n-text depth="3">尚無科目</n-text></td></tr>
+        <tr v-if="items.length === 0"><td colspan="6"><n-text depth="3">尚無科目</n-text></td></tr>
       </tbody>
     </table>
 
     <n-modal v-model:show="show" preset="card" :title="editingId ? '編輯科目' : '新增科目'" style="max-width: 420px">
       <n-space vertical>
         <n-text>名稱</n-text>
-        <n-input v-model:value="form.name" placeholder="如:數學" />
+        <n-input v-model:value="form.name" data-testid="sub-name" placeholder="如:數學" />
         <n-text>領域/群別(選填)</n-text>
         <n-input v-model:value="form.domain" placeholder="如:數學領域" />
         <n-text>需要場地類型(選填)</n-text>
         <n-select v-model:value="form.required_room_type" :options="roomTypeOptions" clearable placeholder="不限" />
         <n-text>預設連堂長度</n-text>
         <n-input-number v-model:value="form.default_block_size" :min="1" :max="8" />
-        <n-button type="primary" @click="save">儲存</n-button>
+        <n-checkbox v-model:checked="form.is_major" data-testid="sub-is-major">
+          主科(自動排課會盡量排在上午)
+        </n-checkbox>
+        <n-button type="primary" data-testid="sub-save" @click="save">儲存</n-button>
       </n-space>
     </n-modal>
   </n-space>

@@ -76,6 +76,7 @@ def copy_semester(
             ns = Subject(
                 semester_id=new.id, name=s.name, domain=s.domain,
                 required_room_type=s.required_room_type, default_block_size=s.default_block_size,
+                is_major=s.is_major,
             )
             db.add(ns)
             db.flush()

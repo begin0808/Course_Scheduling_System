@@ -1,6 +1,6 @@
-"""排課引擎相關 schema(M3-1 pre-flight 報告)。"""
+"""排課引擎相關 schema(pre-flight 報告、軟約束設定與達成度)。"""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PreflightIssue(BaseModel):
@@ -26,3 +26,35 @@ class PreflightOut(BaseModel):
     teacher_count: int
     assignment_count: int
     total_periods: int
+
+
+# ── 軟約束設定與達成度(M3-3)────────────
+class ConstraintConfigIn(BaseModel):
+    """權重 0 = 關閉該項軟約束。設定 UI 於 v2 才做,先以 API 調整。"""
+
+    daily_subject_cap: int = Field(default=2, ge=1, le=8)
+    teacher_daily_max: int = Field(default=6, ge=1, le=12)
+    teacher_consecutive_max: int = Field(default=3, ge=1, le=12)
+    weights: dict[str, int] = {}
+
+
+class ConstraintConfigOut(ConstraintConfigIn):
+    semester_id: int
+    weight_names: dict[str, str] = {}  # S1 → 「教師偏好時段」
+
+
+class SoftScoreOut(BaseModel):
+    code: str
+    name: str
+    weight: int
+    opportunities: int  # 滿分
+    satisfied: int      # 得分
+    violations: int
+    penalty: int
+    rate: float
+    details: list[str] = []
+
+
+class SoftReportOut(BaseModel):
+    total_penalty: int
+    items: list[SoftScoreOut] = []

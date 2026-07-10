@@ -277,7 +277,7 @@ Course_Scheduling_System/
   4. 12 班國中 fixture 在 CI 機器 60 秒內解出
 - **測試方式**:`tests/solver/` + `validator.py`(獨立驗證器,亦供日後回歸)
 
-### [ ] M3-3 軟約束與目標函數
+### [x] M3-3 軟約束與目標函數
 - **描述**:實作 S1–S8 軟約束(architecture.md §3.2)加權目標;權重設定存 DB(`constraint_config`,含 H10 每日上限值),UI 於 v2 才做,先用預設值;解出後產出「軟約束達成度報告」(各項得分/滿分、未達成明細)。**補遺**:`subjects.is_major`(主科標記,S5 用)+ 遷移 + 科目表單勾選——現行 Subject 無此欄位。
 - **驗收標準**:
   1. 同 fixture 開/關 S2(同科分散)比較:開啟後同班同科目同日 ≥2 節的數量顯著下降
@@ -414,5 +414,8 @@ Course_Scheduling_System/
 - 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。
 - **跑班群組內配課的 `periods_per_week` 未強制一致**(M3-0 發現):群組是「同時段開課」,`placements_for` 一次放入全部成員配課,節數不一致時較短的一筆會先被 H8 週節數守恆擋下,語意曖昧。`class_loads` 已取群組內最長者計算班級佔用;M3-2 的 pre-flight 已加 `group_shape_mismatch` 錯誤、建模則直接拒絕。仍建議在配課建立/修改的 API 就擋下(409),讓使用者當場知道。
 - **映像因 ortools 膨脹到 660MB**(M3-2):ortools 連帶拉進 numpy/pandas/protobuf。實際只有 worker 容器需要排課引擎,api 容器不需要。可拆成兩個映像(共用 base + worker 額外裝 ortools),或改用 `ortools` 的精簡發行版。部署頻寬敏感時再處理。
+- **開新學期複製不帶 `constraint_config`**(M3-3):新學期的軟約束權重會回到預設值。複製精靈可加勾選項。
+- **軟約束權重設定 UI**(M3-3,v2):目前只有 `GET/PUT /api/solver/config`,沒有畫面。等 M3-4 的自動排課頁上線後,把權重滑桿放在該頁的「進階設定」摺疊區。
+- **科目 Excel 匯入沒有「主科」欄**(M3-3):`subjects.is_major` 只能在科目表單勾選。匯入範本可加一個選填欄。
 - **一門課整學期固定一間教室**(M3-2 建模選擇):`y[配課, 教室]` 是每筆配課一個變數,而非逐格挑教室。符合實務(課表上一門課就在一間教室),變數量也小得多。若日後需要「同一門課不同節在不同教室」,改為 `y[配課, 節次, 教室]` 即可,約束式不變。
 - `teacher_time_rule` 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。

@@ -103,6 +103,7 @@ class Builder:
         domain: str | None = None,
         required_room_type: RoomType | None = None,
         default_block_size: int = 1,
+        is_major: bool = False,
     ) -> Subject:
         s = self.subjects.get(name)
         if s is None:
@@ -114,6 +115,7 @@ class Builder:
         if required_room_type:
             s.required_room_type = required_room_type.value
         s.default_block_size = default_block_size
+        s.is_major = is_major
         self.db.flush()
         return s
 

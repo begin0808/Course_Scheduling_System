@@ -88,6 +88,7 @@ def create_subject(
         domain=body.domain,
         required_room_type=body.required_room_type.value if body.required_room_type else None,
         default_block_size=body.default_block_size,
+        is_major=body.is_major,
     )
     db.add(subject)
     db.commit()
@@ -106,6 +107,7 @@ def update_subject(
     subject.domain = body.domain
     subject.required_room_type = body.required_room_type.value if body.required_room_type else None
     subject.default_block_size = body.default_block_size
+    subject.is_major = body.is_major
     db.commit()
     db.refresh(subject)
     return subject

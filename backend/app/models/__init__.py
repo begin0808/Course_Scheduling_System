@@ -22,6 +22,7 @@ from app.models.basedata import (
     TeacherRuleType,
     TeacherTimeRule,
 )
+from app.models.constraint import ConstraintConfig
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester, SemesterStatus
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
@@ -56,4 +57,5 @@ __all__ = [
     "ScheduleEntry",
     "TimetableStatus",
     "AuditLog",
+    "ConstraintConfig",
 ]

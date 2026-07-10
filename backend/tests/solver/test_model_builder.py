@@ -13,7 +13,7 @@ from app.models.basedata import ClassTrack, RoomType, TeacherRuleType, TeacherTi
 from app.services.solver_data import load_problem
 from app.solver import preflight
 from app.solver.model_builder import SolveOptions, SolverInputError, solve
-from app.solver.problem import FixedEntry
+from app.solver.problem import FixedEntry, SolverConfig
 from app.solver.validator import validate
 from tests.fixtures import (
     Builder,
@@ -23,6 +23,8 @@ from tests.fixtures import (
 )
 
 FAST = SolveOptions(max_seconds=120.0, workers=4, random_seed=1)
+# 這張卡驗的是硬約束建模;關掉軟約束目標,讓求解退化為純可行性問題(也最快)。
+HARD = SolverConfig.hard_only()
 
 BUILDERS = {
     "elementary_small": build_elementary_small,
@@ -35,7 +37,7 @@ def _solve_fixture(db, key, **kwargs):
     fx = BUILDERS[key](db)
     problem = load_problem(db, fx.semester_id, **kwargs)
     assert preflight.run(problem).ok
-    result = solve(problem, FAST)
+    result = solve(problem, FAST, config=HARD)
     return fx, problem, result
 
 
@@ -125,7 +127,7 @@ def test_junior_high_assigns_rooms_by_type(db):
 def test_locked_entries_survive_resolve(db):
     fx = build_elementary_small(db)
     problem = load_problem(db, fx.semester_id)
-    first = solve(problem, FAST)
+    first = solve(problem, FAST, config=HARD)
     assert first.solved
 
     locked = tuple(
@@ -134,7 +136,8 @@ def test_locked_entries_survive_resolve(db):
     )
     # 換一顆亂數種子重解:若 H9 沒建對,solver 會很樂意把這 5 格搬走
     pinned = replace(problem, fixed_entries=locked)
-    second = solve(pinned, SolveOptions(max_seconds=120.0, workers=4, random_seed=99))
+    second = solve(pinned, SolveOptions(max_seconds=120.0, workers=4, random_seed=99),
+                   config=HARD)
     assert second.solved
     assert not validate(pinned, second.entries)
 
@@ -149,7 +152,8 @@ def test_junior_high_solves_within_60_seconds(db):
     fx = build_junior_high_mid(db)
     problem = load_problem(db, fx.semester_id)
     started = time.perf_counter()
-    result = solve(problem, SolveOptions(max_seconds=60.0, workers=4, random_seed=7))
+    result = solve(problem, SolveOptions(max_seconds=60.0, workers=4, random_seed=7),
+                   config=HARD)
     elapsed = time.perf_counter() - started
 
     assert result.solved, f"12 班國中應在 60 秒內解出,實得 {result.status}"
@@ -176,7 +180,7 @@ def test_infeasible_when_teacher_has_no_free_slot(db):
 
     problem = load_problem(db, fx.semester_id)
     assert not preflight.run(problem).ok  # pre-flight 就攔下了(10 節 > 4 格)
-    result = solve(problem, SolveOptions(max_seconds=30.0, workers=2))
+    result = solve(problem, SolveOptions(max_seconds=30.0, workers=2), config=HARD)
     assert result.status == "infeasible"
 
 
@@ -200,7 +204,7 @@ def test_group_with_mismatched_periods_is_rejected(db):
     assert "多元選修" in issue.message
 
     with pytest.raises(SolverInputError, match="無法同時段開課"):
-        solve(problem, SolveOptions(max_seconds=5.0))
+        solve(problem, SolveOptions(max_seconds=5.0), config=HARD)
 
 
 def test_daily_subject_cap_counts_single_periods_only(db):
@@ -213,7 +217,7 @@ def test_daily_subject_cap_counts_single_periods_only(db):
     fx = b.build()
 
     problem = load_problem(db, fx.semester_id)
-    result = solve(problem, SolveOptions(max_seconds=30.0, workers=2))
+    result = solve(problem, SolveOptions(max_seconds=30.0, workers=2), config=HARD)
     assert result.solved
     assert not validate(problem, result.entries)
 
@@ -232,4 +236,4 @@ def test_room_type_without_any_room_raises(db):
 
     problem = load_problem(db, fx.semester_id)
     with pytest.raises(SolverInputError, match="沒有"):
-        solve(problem, SolveOptions(max_seconds=5.0))
+        solve(problem, SolveOptions(max_seconds=5.0), config=HARD)

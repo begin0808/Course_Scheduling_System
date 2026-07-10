@@ -18,11 +18,13 @@ from app.models.assignment import (
     SchedulingUnitMember,
 )
 from app.models.basedata import ClassUnit, Room, Teacher, TeacherRuleType, TeacherTimeRule
+from app.models.constraint import ConstraintConfig
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
 from app.models.timetable import ScheduleEntry, Timetable
 from app.services import period_tables as pt_service
 from app.solver.problem import (
+    DEFAULT_WEIGHTS,
     AssignmentSpec,
     BlockSpec,
     ClassSpec,
@@ -31,6 +33,7 @@ from app.solver.problem import (
     Problem,
     RoomSpec,
     Slot,
+    SolverConfig,
     TeacherSpec,
     UnitSpec,
 )
@@ -38,6 +41,52 @@ from app.solver.problem import (
 
 def _minutes(value: time | None) -> int | None:
     return value.hour * 60 + value.minute if value is not None else None
+
+
+# ── 約束設定 ───────────────────────────────────────────────
+_PARAM_KEYS = ("daily_subject_cap", "teacher_daily_max", "teacher_consecutive_max")
+
+
+def load_config(db: Session, semester_id: int) -> SolverConfig:
+    """讀取該學期的約束設定;未設定的 key 回退預設值。"""
+    stored = {
+        row.key: row.value
+        for row in db.scalars(
+            select(ConstraintConfig).where(ConstraintConfig.semester_id == semester_id)
+        )
+    }
+    defaults = SolverConfig()
+    weights = dict(DEFAULT_WEIGHTS)
+    for code in DEFAULT_WEIGHTS:
+        if code in stored:
+            weights[code] = stored[code]
+    return SolverConfig(
+        daily_subject_cap=stored.get("daily_subject_cap", defaults.daily_subject_cap),
+        teacher_daily_max=stored.get("teacher_daily_max", defaults.teacher_daily_max),
+        teacher_consecutive_max=stored.get(
+            "teacher_consecutive_max", defaults.teacher_consecutive_max
+        ),
+        weights=weights,
+    )
+
+
+def save_config(db: Session, semester_id: int, config: SolverConfig) -> None:
+    """整份覆寫該學期的約束設定。呼叫端負責 commit。"""
+    values = {k: getattr(config, k) for k in _PARAM_KEYS}
+    values.update({code: config.weight(code) for code in DEFAULT_WEIGHTS})
+
+    existing = {
+        row.key: row
+        for row in db.scalars(
+            select(ConstraintConfig).where(ConstraintConfig.semester_id == semester_id)
+        )
+    }
+    for key, value in values.items():
+        if key in existing:
+            existing[key].value = value
+        else:
+            db.add(ConstraintConfig(semester_id=semester_id, key=key, value=value))
+    db.flush()
 
 
 def _load_tables(db: Session, semester_id: int) -> dict[int, PeriodTableSpec]:
@@ -99,29 +148,34 @@ def load_problem(
         classes[c.id] = ClassSpec(
             id=c.id, name=c.name, grade=c.grade,
             period_table_id=table_id, student_count=c.student_count,
+            homeroom_teacher_id=c.homeroom_teacher_id,
         )
 
     # 直接查規則表而非走 Teacher.time_rules 關聯:同一個 session 內若規則是稍早才寫入的,
     # 關聯集合可能仍是載入時的舊值,教師的不可排時段就會憑空消失(H4 靜默失效)。
-    unavailable_by_teacher: dict[int, set[tuple[int, int]]] = {}
-    for teacher_id, weekday, period_no in db.execute(
-        select(TeacherTimeRule.teacher_id, TeacherTimeRule.weekday, TeacherTimeRule.period_no)
-        .join(Teacher, Teacher.id == TeacherTimeRule.teacher_id)
-        .where(
-            Teacher.semester_id == semester_id,
-            TeacherTimeRule.rule_type == TeacherRuleType.unavailable.value,
+    rules_by_teacher: dict[int, dict[str, set[tuple[int, int]]]] = {}
+    for teacher_id, weekday, period_no, rule_type in db.execute(
+        select(
+            TeacherTimeRule.teacher_id, TeacherTimeRule.weekday,
+            TeacherTimeRule.period_no, TeacherTimeRule.rule_type,
         )
+        .join(Teacher, Teacher.id == TeacherTimeRule.teacher_id)
+        .where(Teacher.semester_id == semester_id)
     ):
-        unavailable_by_teacher.setdefault(teacher_id, set()).add((weekday, period_no))
+        by_type = rules_by_teacher.setdefault(teacher_id, {})
+        by_type.setdefault(rule_type, set()).add((weekday, period_no))
 
     teachers: dict[int, TeacherSpec] = {}
     for t in db.scalars(
         select(Teacher).where(Teacher.semester_id == semester_id).order_by(Teacher.id)
     ):
+        rules = rules_by_teacher.get(t.id, {})
         teachers[t.id] = TeacherSpec(
             id=t.id, name=t.name, base_periods=t.base_periods,
             admin_reduction=t.admin_reduction, is_external=t.is_external,
-            unavailable=frozenset(unavailable_by_teacher.get(t.id, set())),
+            unavailable=frozenset(rules.get(TeacherRuleType.unavailable.value, set())),
+            avoid=frozenset(rules.get(TeacherRuleType.avoid.value, set())),
+            prefer=frozenset(rules.get(TeacherRuleType.prefer.value, set())),
         )
 
     rooms = {
@@ -179,6 +233,7 @@ def load_problem(
             room_id=a.room_id, required_room_type=a.required_room_type,
             lock_room=a.lock_room,
             blocks=tuple(blocks_by_a.get(a.id, [])),
+            subject_is_major=a.subject.is_major,
         )
         for a in db.scalars(
             select(CourseAssignment)

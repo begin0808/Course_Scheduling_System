@@ -20,17 +20,20 @@ from dataclasses import dataclass
 from ortools.sat.python import cp_model
 
 from app.solver.problem import (
+    MORNING_END_MIN,
     AssignmentSpec,
     PeriodTableSpec,
     Problem,
     Slot,
     SolvedEntry,
+    SolverConfig,
     UnitSpec,
     slots_overlap,
 )
-from app.solver.validator import DEFAULT_DAILY_SUBJECT_CAP
 
 Cell = tuple[int, int]  # (weekday, period_no)
+# 軟約束的懲罰項:線性運算式,或常數 0(該項在此問題中無適用對象)
+_Penalty = cp_model.LinearExpr | int
 
 
 class SolverInputError(Exception):
@@ -48,6 +51,9 @@ class SolveOptions:
 class SolveResult:
     status: str  # optimal / feasible / infeasible / unknown
     entries: tuple[SolvedEntry, ...]
+    # 軟約束加權懲罰(越小越好);純硬約束模式為 0。
+    # 與 report.SoftReport.total_penalty 尺度不同,見 report.py 說明。
+    objective: float
     wall_time: float
     branches: int
     conflicts: int
@@ -158,9 +164,10 @@ def _candidate_rooms(problem: Problem, a: AssignmentSpec) -> list[int]:
 
 
 class _Model:
-    def __init__(self, problem: Problem, daily_subject_cap: int) -> None:
+    def __init__(self, problem: Problem, config: SolverConfig) -> None:
         self.problem = problem
-        self.cap = daily_subject_cap
+        self.config = config
+        self.cap = config.daily_subject_cap
         self.m = cp_model.CpModel()
         self.courses = _build_courses(problem)
 
@@ -168,6 +175,9 @@ class _Model:
         self.x: dict[tuple[int, int], list[cp_model.IntVar]] = {}
         self.occ: dict[tuple[int, Cell], cp_model.IntVar] = {}
         self.y: dict[tuple[int, int], cp_model.IntVar] = {}  # (assignment_id, room_id)
+        # 教師是否在某節次上課;依星期分組並按牆鐘時間排序(算連續授課與空堂用)
+        self.teacher_day: dict[int, dict[int, list[tuple[Slot, cp_model.IntVar]]]] = {}
+        self.has_objective = False
 
         self._make_lesson_vars()
         self._make_room_vars()
@@ -176,6 +186,9 @@ class _Model:
         self._h3_room()
         self._h10_daily_cap()
         self._h9_locked()
+
+        self._make_teacher_busy()
+        self._objective()
 
     # ── 變數 ────────────────────────────
     def _forbidden(self, course: _Course) -> frozenset[Cell]:
@@ -379,6 +392,196 @@ class _Model:
             if f.room_id is not None and (f.assignment_id, f.room_id) in self.y:
                 self.m.add(self.y[(f.assignment_id, f.room_id)] == 1)
 
+    # ── 軟約束(architecture.md §3.2 S1–S8)────────────────
+    def _make_teacher_busy(self) -> None:
+        """teacher_day[t][weekday] = [(節次, 該教師是否在此上課), …],依牆鐘時間排序。"""
+        for tid in self.problem.teachers:
+            per_cell: dict[tuple[int, int, int], tuple[Slot, list[cp_model.IntVar]]] = {}
+            for ci, course in enumerate(self.courses):
+                if tid not in course.teacher_ids:
+                    continue
+                for slot in course.table.slots:
+                    key = (course.table.id, slot.weekday, slot.period_no)
+                    per_cell.setdefault(key, (slot, []))[1].append(self.occ[(ci, slot.key)])
+
+            by_day: dict[int, list[tuple[Slot, cp_model.IntVar]]] = {}
+            for (_table_id, weekday, period_no), (slot, lits) in per_cell.items():
+                if len(lits) == 1:
+                    busy = lits[0]  # 只教一門課的那一格,占用變數本身就是「是否上課」
+                else:
+                    busy = self.m.new_bool_var(f"b{tid}_{weekday}_{period_no}")
+                    self.m.add(busy == sum(lits))  # H2 已保證至多一個為 1
+                by_day.setdefault(weekday, []).append((slot, busy))
+
+            for day in by_day.values():
+                day.sort(key=lambda p: (p[0].start_min or 0, p[0].period_no))
+            self.teacher_day[tid] = by_day
+
+    def _objective(self) -> None:
+        cfg = self.config
+        terms: list[_Penalty] = []
+
+        def add(code: str, expr: _Penalty) -> None:
+            weight = cfg.weight(code)
+            if weight:
+                terms.append(weight * expr)
+
+        s1_avoid, s1_prefer, unmet_by_teacher = self._s1_preferences()
+        add("S1", s1_avoid)
+        if cfg.enabled("S1") and s1_prefer is not None:
+            terms.append(-cfg.weight("S1") * s1_prefer)  # 偏好達成 = 負懲罰
+
+        add("S2", self._s2_spread())
+        add("S3", self._s3_daily_load())
+        add("S4", self._s4_gaps())
+        add("S5", self._s5_major_in_morning())
+        add("S6", self._s6_consecutive())
+        add("S7", self._s7_homeroom_first_period())
+        add("S8", self._s8_fairness(unmet_by_teacher))
+
+        if terms:
+            self.m.minimize(sum(terms))
+            self.has_objective = True
+
+    def _s1_preferences(self) -> tuple[_Penalty, _Penalty | None, dict[int, list[cp_model.IntVar]]]:
+        """avoid 節次扣分、prefer 節次加分;順帶回傳每位教師的未達成數供 S8 使用。"""
+        avoid_terms: list[cp_model.IntVar] = []
+        prefer_terms: list[cp_model.IntVar] = []
+        unmet: dict[int, list[cp_model.IntVar]] = {}
+        for tid, by_day in self.teacher_day.items():
+            teacher = self.problem.teachers[tid]
+            if not teacher.has_preferences:
+                continue
+            for day in by_day.values():
+                for slot, busy in day:
+                    if slot.key in teacher.avoid:
+                        avoid_terms.append(busy)
+                        unmet.setdefault(tid, []).append(busy)
+                    elif slot.key in teacher.prefer:
+                        prefer_terms.append(busy)
+        return (
+            sum(avoid_terms) if avoid_terms else 0,
+            sum(prefer_terms) if prefer_terms else None,
+            unmet,
+        )
+
+    def _s2_spread(self) -> _Penalty:
+        """同班同科目同日超過 1 節的部分計為懲罰(連堂不計,本來就是同一天上完)。"""
+        extras: list[cp_model.IntVar] = []
+        for cls in self.problem.classes.values():
+            cis = self._courses_of_class(cls.id)
+            table = self.problem.tables[cls.period_table_id]
+            subjects = {sid for ci in cis for sid in self.courses[ci].subject_ids}
+            for subject_id in subjects:
+                for weekday in range(1, table.num_weekdays + 1):
+                    lits = self._single_lesson_lits(cis, subject_id, weekday)
+                    if len(lits) < 2:
+                        continue
+                    extra = self.m.new_int_var(
+                        0, len(lits) - 1, f"s2_{cls.id}_{subject_id}_{weekday}"
+                    )
+                    self.m.add(extra >= sum(lits) - 1)
+                    extras.append(extra)
+        return sum(extras) if extras else 0
+
+    def _single_lesson_lits(
+        self, cis: list[int], subject_id: int, weekday: int
+    ) -> list[cp_model.IntVar]:
+        lits: list[cp_model.IntVar] = []
+        for ci in cis:
+            course = self.courses[ci]
+            if subject_id not in course.subject_ids:
+                continue
+            for li, length in enumerate(course.lengths):
+                if length != 1:
+                    continue
+                for xv, cand in zip(self.x[(ci, li)], self.cands[(ci, li)], strict=True):
+                    if cand.weekday == weekday:
+                        lits.append(xv)
+        return lits
+
+    def _s3_daily_load(self) -> _Penalty:
+        overs: list[cp_model.IntVar] = []
+        for tid, by_day in self.teacher_day.items():
+            for weekday, day in by_day.items():
+                over = self.m.new_int_var(0, len(day), f"s3_{tid}_{weekday}")
+                self.m.add(over >= sum(b for _s, b in day) - self.config.teacher_daily_max)
+                overs.append(over)
+        return sum(overs) if overs else 0
+
+    def _s4_gaps(self) -> _Penalty:
+        """零碎空堂 = (最後一節 − 第一節 + 1) − 當日節數。目標函數會把 first/last 壓緊。"""
+        gaps: list[cp_model.IntVar] = []
+        for tid, by_day in self.teacher_day.items():
+            for weekday, day in by_day.items():
+                n = len(day)
+                if n < 3:  # 少於 3 格不可能出現中間的空堂
+                    continue
+                first = self.m.new_int_var(0, n - 1, f"f{tid}_{weekday}")
+                last = self.m.new_int_var(0, n - 1, f"l{tid}_{weekday}")
+                for i, (_slot, busy) in enumerate(day):
+                    self.m.add(first <= i).only_enforce_if(busy)
+                    self.m.add(last >= i).only_enforce_if(busy)
+                gap = self.m.new_int_var(0, n, f"s4_{tid}_{weekday}")
+                self.m.add(gap >= last - first + 1 - sum(b for _s, b in day))
+                gaps.append(gap)
+        return sum(gaps) if gaps else 0
+
+    def _s5_major_in_morning(self) -> _Penalty:
+        afternoon: list[cp_model.IntVar] = []
+        for ci, course in enumerate(self.courses):
+            if not any(a.subject_is_major for a in course.assignments):
+                continue
+            for slot in course.table.slots:
+                if slot.start_min is not None and slot.start_min >= MORNING_END_MIN:
+                    afternoon.append(self.occ[(ci, slot.key)])
+        return sum(afternoon) if afternoon else 0
+
+    def _s6_consecutive(self) -> _Penalty:
+        """任何 (上限+1) 節的連續視窗中,上課節數不得超過上限;超出部分計為懲罰。"""
+        window = self.config.teacher_consecutive_max + 1
+        excesses: list[cp_model.IntVar] = []
+        for tid, by_day in self.teacher_day.items():
+            for weekday, day in by_day.items():
+                for i in range(len(day) - window + 1):
+                    chunk = [b for _s, b in day[i : i + window]]
+                    excess = self.m.new_int_var(0, 1, f"s6_{tid}_{weekday}_{i}")
+                    self.m.add(excess >= sum(chunk) - self.config.teacher_consecutive_max)
+                    excesses.append(excess)
+        return sum(excesses) if excesses else 0
+
+    def _s7_homeroom_first_period(self) -> _Penalty:
+        misses: list[cp_model.IntVar] = []
+        for cls in self.problem.classes.values():
+            tid = cls.homeroom_teacher_id
+            if tid is None:
+                continue
+            table = self.problem.tables[cls.period_table_id]
+            cis = [
+                ci for ci in self._courses_of_class(cls.id)
+                if tid in self.courses[ci].teacher_ids
+            ]
+            if not cis:
+                continue  # 導師沒教這個班 → 這條軟約束無從滿足,不列入懲罰
+            for weekday in range(1, table.num_weekdays + 1):
+                day = table.slots_on(weekday)
+                if not day:
+                    continue
+                lits = [self.occ[(ci, day[0].key)] for ci in cis]
+                miss = self.m.new_bool_var(f"s7_{cls.id}_{weekday}")
+                self.m.add(miss == 1 - sum(lits))
+                misses.append(miss)
+        return sum(misses) if misses else 0
+
+    def _s8_fairness(self, unmet: dict[int, list[cp_model.IntVar]]) -> _Penalty:
+        """最差者優先:壓低「偏好未達成最多的那位教師」的未達成節數。"""
+        if not unmet:
+            return 0
+        worst = self.m.new_int_var(0, max(len(v) for v in unmet.values()), "s8_worst")
+        for lits in unmet.values():
+            self.m.add(worst >= sum(lits))
+        return worst
+
     # ── 取解 ────────────────────────────
     def extract(self, solver: cp_model.CpSolver) -> tuple[SolvedEntry, ...]:
         locked = {
@@ -423,16 +626,18 @@ def solve(
     problem: Problem,
     options: SolveOptions | None = None,
     *,
-    daily_subject_cap: int = DEFAULT_DAILY_SUBJECT_CAP,
+    config: SolverConfig | None = None,
     on_progress: Callable[[int, float], None] | None = None,
 ) -> SolveResult:
-    """求解一份完整課表。
+    """求解一份完整課表:硬約束必須全滿足,軟約束以加權目標最小化。
 
-    M3-2 只有硬約束,故任何可行解皆可接受(status=optimal);軟約束目標於 M3-3 加入。
+    CP-SAT 是 anytime solver——逾時仍會回傳當下最佳解(status=feasible)。
+    config 給 `SolverConfig.hard_only()` 即退化為純可行性問題(最快)。
     on_progress 供 worker 回報進度(M3-4),參數為 (已找到的解數, 經過秒數)。
     """
     options = options or SolveOptions()
-    built = _Model(problem, daily_subject_cap)
+    config = config or SolverConfig()
+    built = _Model(problem, config)
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = options.max_seconds
@@ -443,12 +648,15 @@ def solve(
     status = solver.solve(built.m, callback) if callback else solver.solve(built.m)
 
     entries: tuple[SolvedEntry, ...] = ()
+    objective = 0.0
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         entries = built.extract(solver)
+        objective = solver.objective_value if built.has_objective else 0.0
 
     return SolveResult(
         status=_STATUS.get(status, "unknown"),
         entries=entries,
+        objective=objective,
         wall_time=solver.wall_time,
         branches=solver.num_branches,
         conflicts=solver.num_conflicts,

@@ -30,6 +30,7 @@ class SubjectIn(BaseModel):
     domain: str | None = Field(default=None, max_length=64)
     required_room_type: RoomType | None = None
     default_block_size: int = Field(default=1, ge=1, le=8)
+    is_major: bool = False  # 主科(排課引擎 S5:盡量排上午)
 
 
 class SubjectOut(SubjectIn):

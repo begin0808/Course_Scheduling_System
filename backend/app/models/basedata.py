@@ -71,6 +71,8 @@ class Subject(Base):
     domain: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 領域/群別
     required_room_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     default_block_size: Mapped[int] = mapped_column(Integer, default=1)  # 預設連堂長度(1=不連堂)
+    # 主科(國英數等):排課引擎的軟約束 S5 會盡量把主科排在上午
+    is_major: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Teacher(Base):

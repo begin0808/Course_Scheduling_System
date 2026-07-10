@@ -8,7 +8,7 @@
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # (period_table_id, weekday, period_no)
 SlotKey = tuple[int, int, int]
@@ -68,13 +68,19 @@ class TeacherSpec:
     base_periods: int
     admin_reduction: int
     is_external: bool
-    # 不可排時段(H4)。(weekday, period_no) 以其任教班級的節次表解讀
+    # 時段規則。(weekday, period_no) 以其任教班級的節次表解讀
     # ——多套節次表的學校語意會浮動,見 tasks.md Backlog。
-    unavailable: frozenset[tuple[int, int]]
+    unavailable: frozenset[tuple[int, int]]  # 硬約束 H4
+    avoid: frozenset[tuple[int, int]] = frozenset()   # 軟約束 S1:盡量避開
+    prefer: frozenset[tuple[int, int]] = frozenset()  # 軟約束 S1:偏好
 
     @property
     def target_periods(self) -> int:
         return max(self.base_periods - self.admin_reduction, 0)
+
+    @property
+    def has_preferences(self) -> bool:
+        return bool(self.avoid or self.prefer)
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +99,7 @@ class ClassSpec:
     grade: int
     period_table_id: int  # 已解析(指定表 → 學期預設表),solver 不需再回退
     student_count: int | None
+    homeroom_teacher_id: int | None = None  # 軟約束 S7:導師的課優先排在自己班第一節
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +132,7 @@ class AssignmentSpec:
     required_room_type: str | None
     lock_room: bool
     blocks: tuple[BlockSpec, ...]
+    subject_is_major: bool = False  # 軟約束 S5
 
     @property
     def block_periods(self) -> int:
@@ -204,6 +212,57 @@ class Problem:
         if not periods:
             return 0
         return max(periods) if self.units[unit_id].is_group else sum(periods)
+
+
+# ── 約束設定(architecture.md §3.2)──────────────────────────
+WEIGHT_HIGH = 8
+WEIGHT_MEDIUM = 4
+WEIGHT_LOW = 1
+
+SOFT_NAMES = {
+    "S1": "教師偏好時段",
+    "S2": "同班同科目分散於不同日",
+    "S3": "教師每日授課節數上限",
+    "S4": "教師空堂集中",
+    "S5": "主科優先排上午",
+    "S6": "教師連續授課節數上限",
+    "S7": "導師的課排在自己班第一節",
+    "S8": "教師偏好達成率的公平性",
+}
+
+DEFAULT_WEIGHTS: dict[str, int] = {
+    "S1": WEIGHT_MEDIUM,
+    "S2": WEIGHT_HIGH,
+    "S3": WEIGHT_HIGH,
+    "S4": WEIGHT_LOW,
+    "S5": WEIGHT_MEDIUM,
+    "S6": WEIGHT_MEDIUM,
+    "S7": WEIGHT_LOW,
+    "S8": WEIGHT_LOW,
+}
+
+MORNING_END_MIN = 12 * 60  # 「上午」= 起始時間早於中午(S5)
+
+
+@dataclass(frozen=True, slots=True)
+class SolverConfig:
+    """權重與可調參數。權重 0 = 關閉該項軟約束(硬約束不可關)。"""
+
+    daily_subject_cap: int = 2       # H10 同班同科目每日單節上限
+    teacher_daily_max: int = 6       # S3
+    teacher_consecutive_max: int = 3  # S6
+    weights: Mapping[str, int] = field(default_factory=lambda: dict(DEFAULT_WEIGHTS))
+
+    def weight(self, code: str) -> int:
+        return self.weights.get(code, DEFAULT_WEIGHTS.get(code, 0))
+
+    def enabled(self, code: str) -> bool:
+        return self.weight(code) > 0
+
+    @classmethod
+    def hard_only(cls) -> "SolverConfig":
+        """只求可行解(全部軟約束關閉)。用於效能基準與純硬約束測試。"""
+        return cls(weights=dict.fromkeys(DEFAULT_WEIGHTS, 0))
 
 
 # ── 時段重疊(architecture.md D7)────────────────────────────

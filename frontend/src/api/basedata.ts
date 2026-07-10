@@ -17,6 +17,8 @@ export interface Subject {
   domain: string | null
   required_room_type: RoomType | null
   default_block_size: number
+  /** 主科(國英數等):自動排課會盡量把主科排在上午 */
+  is_major: boolean
 }
 export interface Teacher {
   id: number
