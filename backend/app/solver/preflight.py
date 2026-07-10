@@ -76,6 +76,7 @@ def run(problem: Problem) -> PreflightReport:
     issues: list[Issue] = []
 
     _check_period_tables(problem, issues)
+    _check_groups(problem, issues)
     _check_teachers(problem, issues)
     _check_classes(problem, issues)
     _check_rooms(problem, issues)
@@ -98,6 +99,24 @@ def _check_period_tables(problem: Problem, issues: list[Issue]) -> None:
                 "error", "no_period_table",
                 f"配課「{a.subject_name}」的班級尚未指派節次表,無法決定可排時段",
                 "assignment", a.id,
+            ))
+
+
+def _check_groups(problem: Problem, issues: list[Issue]) -> None:
+    """跑班群組的各門課同時段開課(H7),故每週節數與連堂結構必須一致。"""
+    for unit in problem.units.values():
+        if not unit.is_group:
+            continue
+        members = [a for a in problem.assignments if a.unit_id == unit.id]
+        shapes = {(a.periods_per_week, a.blocks) for a in members}
+        if len(shapes) > 1:
+            periods = sorted({a.periods_per_week for a in members})
+            issues.append(Issue(
+                "error", "group_shape_mismatch",
+                f"跑班群組「{unit.name}」的各門課每週節數不一致({periods}),"
+                f"無法同時段開課",
+                "semester", problem.semester_id,
+                {"unit_id": unit.id, "periods": periods},
             ))
 
 

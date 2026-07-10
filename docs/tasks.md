@@ -264,7 +264,7 @@ Course_Scheduling_System/
   4. 手動排課將格位放到與配課不同的場地後,check-conflict 以格位場地判定佔用
 - **測試方式**:pytest
 
-### [ ] M3-2 CP-SAT 核心建模(硬約束)
+### [x] M3-2 CP-SAT 核心建模(硬約束)
 - **描述**:實作 H1–H10 硬約束建模(architecture.md §3.2);連堂以區間建模;跑班同步;鎖定格位;場地互斥(D8);教師/場地跨節次表以 D7 重疊矩陣建模;求解取出結果轉 schedule_entry 列表(含逐格 room_id)。
 - **補遺(M2 健檢 2026-07-10)**:
   1. `ortools` 依賴**此卡才加入** pyproject(M3-1 不需要,保持 pre-flight 輕量);注意 wheel 體積(~50MB)與 arm64 wheel 可用性,重建映像驗證;
@@ -412,5 +412,7 @@ Course_Scheduling_System/
 - **LINE 通知 adapter(v2)**:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(`teachers.line_id` 為人工聯絡用,不能直接推播)。實作為 `NotificationChannel` 的一個 adapter。
 - 開新學期複製目前不帶學期起訖日,新學期需手動補填;可於複製對話框加起訖日欄位。
 - 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。
-- **跑班群組內配課的 `periods_per_week` 未強制一致**(M3-0 發現):群組是「同時段開課」,`placements_for` 一次放入全部成員配課,節數不一致時較短的一筆會先被 H8 週節數守恆擋下,語意曖昧。`class_loads` 已取群組內最長者計算班級佔用。建議在配課建立/修改時驗證群組內節數相同(不同則 409)。
+- **跑班群組內配課的 `periods_per_week` 未強制一致**(M3-0 發現):群組是「同時段開課」,`placements_for` 一次放入全部成員配課,節數不一致時較短的一筆會先被 H8 週節數守恆擋下,語意曖昧。`class_loads` 已取群組內最長者計算班級佔用;M3-2 的 pre-flight 已加 `group_shape_mismatch` 錯誤、建模則直接拒絕。仍建議在配課建立/修改的 API 就擋下(409),讓使用者當場知道。
+- **映像因 ortools 膨脹到 660MB**(M3-2):ortools 連帶拉進 numpy/pandas/protobuf。實際只有 worker 容器需要排課引擎,api 容器不需要。可拆成兩個映像(共用 base + worker 額外裝 ortools),或改用 `ortools` 的精簡發行版。部署頻寬敏感時再處理。
+- **一門課整學期固定一間教室**(M3-2 建模選擇):`y[配課, 教室]` 是每筆配課一個變數,而非逐格挑教室。符合實務(課表上一門課就在一間教室),變數量也小得多。若日後需要「同一門課不同節在不同教室」,改為 `y[配課, 節次, 教室]` 即可,約束式不變。
 - `teacher_time_rule` 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。

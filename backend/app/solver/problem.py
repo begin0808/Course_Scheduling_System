@@ -82,7 +82,8 @@ class RoomSpec:
     id: int
     name: str
     room_type: str
-    capacity: int | None
+    capacity: int | None  # D8:僅供 pre-flight 警告,不參與求解(場地一律互斥)
+    subject_ids: frozenset[int] = frozenset()  # 適用科目;空=不限
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,14 +133,22 @@ class AssignmentSpec:
 
 @dataclass(frozen=True, slots=True)
 class FixedEntry:
-    """既有課表的格位。locked=True 者為 H9 硬約束,其餘可作為求解起點提示。"""
+    """課表的一個格位:某配課排在某格、用某場地。
+
+    作為輸入時 locked=True 者為 H9 硬約束,其餘可作為求解起點提示;
+    作為求解結果時即待寫回 DB 的 schedule_entry。
+    """
 
     assignment_id: int
     weekday: int
     period_no: int
     span: int
     room_id: int | None
-    locked: bool
+    locked: bool = False
+
+
+# 求解結果與既有格位同形,共用一個型別(輸入來自草稿,輸出寫回草稿)
+SolvedEntry = FixedEntry
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +173,15 @@ class Problem:
         if not members:
             return None
         return self.tables.get(members[0].period_table_id)
+
+    def course_key(self, a: AssignmentSpec) -> tuple[str, int]:
+        """同時段一起排的最小單位。
+
+        跑班群組的多門課同進同出(H7),對班級而言只佔一格,故整個群組是一個 course;
+        單班則每筆配課各自是一個 course(同一班的國文與數學不可同時段)。
+        """
+        unit = self.units[a.unit_id]
+        return ("unit", unit.id) if unit.is_group else ("assignment", a.id)
 
     def assignments_of_teacher(self, teacher_id: int) -> tuple[AssignmentSpec, ...]:
         return tuple(a for a in self.assignments if teacher_id in a.teacher_ids)

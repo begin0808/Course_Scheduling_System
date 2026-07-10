@@ -17,7 +17,7 @@ from app.models.assignment import (
     SchedulingUnit,
     SchedulingUnitMember,
 )
-from app.models.basedata import ClassUnit, Room, Teacher, TeacherRuleType
+from app.models.basedata import ClassUnit, Room, Teacher, TeacherRuleType, TeacherTimeRule
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
 from app.models.timetable import ScheduleEntry, Timetable
@@ -101,23 +101,34 @@ def load_problem(
             period_table_id=table_id, student_count=c.student_count,
         )
 
+    # 直接查規則表而非走 Teacher.time_rules 關聯:同一個 session 內若規則是稍早才寫入的,
+    # 關聯集合可能仍是載入時的舊值,教師的不可排時段就會憑空消失(H4 靜默失效)。
+    unavailable_by_teacher: dict[int, set[tuple[int, int]]] = {}
+    for teacher_id, weekday, period_no in db.execute(
+        select(TeacherTimeRule.teacher_id, TeacherTimeRule.weekday, TeacherTimeRule.period_no)
+        .join(Teacher, Teacher.id == TeacherTimeRule.teacher_id)
+        .where(
+            Teacher.semester_id == semester_id,
+            TeacherTimeRule.rule_type == TeacherRuleType.unavailable.value,
+        )
+    ):
+        unavailable_by_teacher.setdefault(teacher_id, set()).add((weekday, period_no))
+
     teachers: dict[int, TeacherSpec] = {}
     for t in db.scalars(
         select(Teacher).where(Teacher.semester_id == semester_id).order_by(Teacher.id)
     ):
-        unavailable = frozenset(
-            (r.weekday, r.period_no)
-            for r in t.time_rules
-            if r.rule_type == TeacherRuleType.unavailable.value
-        )
         teachers[t.id] = TeacherSpec(
             id=t.id, name=t.name, base_periods=t.base_periods,
             admin_reduction=t.admin_reduction, is_external=t.is_external,
-            unavailable=unavailable,
+            unavailable=frozenset(unavailable_by_teacher.get(t.id, set())),
         )
 
     rooms = {
-        r.id: RoomSpec(id=r.id, name=r.name, room_type=r.room_type, capacity=r.capacity)
+        r.id: RoomSpec(
+            id=r.id, name=r.name, room_type=r.room_type, capacity=r.capacity,
+            subject_ids=frozenset(s.id for s in r.subjects),
+        )
         for r in db.scalars(
             select(Room).where(Room.semester_id == semester_id).order_by(Room.id)
         )

@@ -17,6 +17,8 @@ dependencies = [
     "bcrypt>=4.2",
     "itsdangerous>=2.2",
     "openpyxl>=3.1",
+    # 排課引擎(M3-2)。wheel 約 29MB,amd64/arm64 皆有 manylinux wheel。
+    "ortools>=9.14,<10",
 ]
 
 [project.optional-dependencies]

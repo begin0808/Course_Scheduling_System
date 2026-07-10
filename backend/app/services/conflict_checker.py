@@ -211,9 +211,11 @@ class _Checker:
                     teacher_occ.setdefault(t_id, []).append(occ)
                 if room_id:
                     room_occ.setdefault(room_id, []).append(occ)
-            for cid, _cname, _ct in classes:
-                key = (cid, wd, subject_id)
-                subj_count[key] = subj_count.get(key, 0) + span
+            # H10 只計單節:連堂是一次上完的整塊,本來就不受每日上限限制
+            if span == 1:
+                for cid, _cname, _ct in classes:
+                    key = (cid, wd, subject_id)
+                    subj_count[key] = subj_count.get(key, 0) + 1
         return class_occ, teacher_occ, room_occ, subj_count
 
     def check(self, placements: list[Placement], ignore_entry_ids: set[int]) -> list[Conflict]:
@@ -292,8 +294,9 @@ class _Checker:
                                 f"場地 {self._room_name(room_id)} "
                                 f"{self._slot(pmap, wd, pno)} 已有 {occ.desc}"))
 
-            # H10 同班同科目每日上限(連堂除外)
-            if pl.span == 1 and not a.block_rules:
+            # H10 同班同科目每日上限。連堂(span>1)是一次上完的整塊,不計亦不受限;
+            # 但連堂課剩下的單節仍受限——定義以 solver/validator.py 為準。
+            if pl.span == 1:
                 for c in self._classes(a):
                     existing = subj_count.get((c.id, wd, a.subject_id), 0)
                     if existing + 1 > DEFAULT_DAILY_SUBJECT_CAP:

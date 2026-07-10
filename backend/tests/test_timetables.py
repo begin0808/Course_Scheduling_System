@@ -535,6 +535,24 @@ def test_h10_block_exempt(env2):
     assert _place(client, tid, a["id"], 1, 1, span=3).status_code == 201  # 3 連堂 > 上限 2 但豁免
 
 
+def test_h10_leftover_single_periods_still_capped(env2):
+    """連堂課「剩下的單節」仍受每日上限限制。
+
+    豁免的是連堂本身(一次上完的整塊),不是整筆配課。定義以 solver/validator.py 為準:
+    每日上限只計節長 1 的格位。
+    """
+    client, sid, tid, _ = env2
+    c = _class(client, sid, 1, "機械一")
+    t = _teacher(client, sid, "陳師")
+    s = _subject(client, sid, "機械實習")
+    a = _assign(client, sid, class_id=c["id"], subject_id=s["id"], teacher_ids=[t["id"]],
+                periods=8, blocks=[{"block_size": 3, "count_per_week": 2}])
+    assert _place(client, tid, a["id"], 1, 1).status_code == 201  # 單節 1/2
+    assert _place(client, tid, a["id"], 1, 2).status_code == 201  # 單節 2/2
+    assert "H10" in _codes(_check(client, tid, a["id"], 1, 3))    # 第 3 個單節 → 不過
+    assert _check(client, tid, a["id"], 2, 1)["ok"] is True       # 換一天 → 可
+
+
 # ── 每週節數守恆(放入面)──────────────
 def test_cannot_exceed_periods_per_week(env2):
     client, sid, tid, _ = env2
