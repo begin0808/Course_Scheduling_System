@@ -34,6 +34,11 @@ class ControlAction(enum.StrEnum):
     cancel = "cancel"  # 取消,丟棄結果
 
 
+class JobPhase(enum.StrEnum):
+    solving = "solving"
+    explaining = "explaining"  # 求解證明無解,正在定位是哪幾件事湊在一起
+
+
 @dataclass
 class JobState:
     job_id: str
@@ -50,6 +55,10 @@ class JobState:
     result_name: str | None = None
     error: str | None = None
     report: dict | None = None
+    phase: str = JobPhase.solving.value
+    partial: bool = False           # 是否為部分排課
+    conflict: dict | None = None    # 無解時的衝突定位報告(M3-5)
+    unscheduled: list | None = None  # 部分排課下未排入的課務
 
     @property
     def done(self) -> bool:

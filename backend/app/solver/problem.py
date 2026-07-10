@@ -8,7 +8,7 @@
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 # (period_table_id, weekday, period_no)
 SlotKey = tuple[int, int, int]
@@ -263,6 +263,14 @@ class SolverConfig:
     def hard_only(cls) -> "SolverConfig":
         """只求可行解(全部軟約束關閉)。用於效能基準與純硬約束測試。"""
         return cls(weights=dict.fromkeys(DEFAULT_WEIGHTS, 0))
+
+    def without_soft(self) -> "SolverConfig":
+        """保留可調參數(如每日科目上限),但關閉所有軟約束。
+
+        衝突定位要問的是「硬約束彼此是否矛盾」,目標函數只會拖慢證明無解的速度;
+        CP-SAT 的 assumption 機制也不與目標函數並用。
+        """
+        return replace(self, weights=dict.fromkeys(DEFAULT_WEIGHTS, 0))
 
 
 # ── 時段重疊(architecture.md D7)────────────────────────────

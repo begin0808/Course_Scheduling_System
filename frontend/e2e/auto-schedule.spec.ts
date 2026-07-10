@@ -130,3 +130,90 @@ test('自動排課:資料未通過前置檢查時擋下,並列出待修正項目
 
   await deleteSemesterByYearTerm(page, YEAR, 1)
 })
+
+/** 301 班國文 12 節單節:每日上限 2 節 × 5 天 = 10 節 → 無解,但 pre-flight 看不出來。 */
+async function seedInfeasible(page: Page, sid: number) {
+  const c = await post(page, `/api/class-units?semester_id=${sid}`,
+    { grade: 3, name: '301', track: 'junior_high' })
+  const subjects: Record<string, number> = {}
+  for (const s of await (await page.request.get(`/api/subjects?semester_id=${sid}`)).json()) {
+    subjects[s.name] = s.id
+  }
+  const t = await post(page, `/api/teachers?semester_id=${sid}`, { name: '陳師', base_periods: 40 })
+  await post(page, `/api/assignments?semester_id=${sid}`, {
+    class_id: c.id, subject_id: subjects['國文'], periods_per_week: 12,
+    teachers: [{ teacher_id: t.id }], block_rules: [],
+  })
+}
+
+async function setupInfeasible(page: Page, year: number) {
+  await login(page)
+  await page.request.patch('/api/wizard/state', { data: { completed: true } })
+  await deleteSemesterByYearTerm(page, year, 1)
+  const sem = await post(page, '/api/semesters',
+    { academic_year: year, term: 1, template_key: 'junior_high' })
+  await seedInfeasible(page, sem.id)
+  await post(page, `/api/timetables?semester_id=${sem.id}`, { name: '草稿A' })
+
+  await page.goto('/scheduling/auto')
+  await selectSemester(page, year)
+  await expect(page.getByText('資料檢查通過,可以開始排課')).toBeVisible()
+  await page.getByTestId('as-minutes').locator('input').fill('1')
+  return sem
+}
+
+// ── M3-5 驗收①②:無解時說出是哪一件事、鬆開它就好 ──
+test('無解時定位出原因並給出具體數字與建議', async ({ page }) => {
+  test.setTimeout(240_000)
+  const YEAR = 136
+  const sem = await setupInfeasible(page, YEAR)
+
+  await page.getByTestId('as-start').click()
+  await expect(page.getByTestId('as-conflict')).toBeVisible({ timeout: 180_000 })
+
+  // 不是「排不出來」,而是「12 節單節 > 每日 2 節 × 5 天 = 10 節」
+  const conflict = page.getByTestId('as-conflict')
+  await expect(conflict).toContainText('放寬其中任何一項即可排出課表')
+  const cause = page.getByTestId('as-cause').first()
+  await expect(cause).toContainText('301')
+  await expect(cause).toContainText('12 節單節課')
+  await expect(cause).toContainText('每日上限 2 節 × 5 天')
+  await expect(cause).toContainText('建議:')
+
+  // 一鍵照建議重試
+  await expect(page.getByTestId('as-retry-partial')).toContainText('同班同科目每日節數上限')
+  await conflict.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: `${SHOTS}/auto-4-conflict.png` })
+
+  await deleteSemesterByYearTerm(page, YEAR, 1)
+  expect(sem.id).toBeGreaterThan(0)
+})
+
+// ── M3-5 驗收③:部分排課 → 大部分排入 + 未排清單 ──
+test('部分排課排入大部分課務,並列出未排清單', async ({ page }) => {
+  test.setTimeout(240_000)
+  const YEAR = 137
+  const sem = await setupInfeasible(page, YEAR)
+
+  await page.getByTestId('as-partial').click()
+  await page.getByTestId('as-start').click()
+
+  await expect(page.getByTestId('as-status')).toHaveText('已完成', { timeout: 180_000 })
+  await expect(page.getByTestId('as-done')).toContainText('草稿A 部分排課結果')
+
+  // 排不下的 2 節列成清單,說得出是哪一班的哪一科
+  const list = page.getByTestId('as-unscheduled')
+  await expect(list).toBeVisible()
+  await expect(list).toContainText('國文')
+  await expect(list).toContainText('301')
+  await expect(list).toContainText('2 節')
+  await list.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: `${SHOTS}/auto-5-unscheduled.png` })
+
+  // 12 節裡排進去 10 節,來源草稿不動
+  const tts = await (await page.request.get(`/api/timetables?semester_id=${sem.id}`)).json()
+  expect(tts.find((t: { name: string }) => t.name === '草稿A').entry_count).toBe(0)
+  expect(tts.find((t: { name: string }) => t.name === '草稿A 部分排課結果').entry_count).toBe(10)
+
+  await deleteSemesterByYearTerm(page, YEAR, 1)
+})

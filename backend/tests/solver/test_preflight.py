@@ -259,3 +259,27 @@ def test_cross_table_teacher_has_fewer_available_slots(db):
     available = preflight.teacher_available_slots(problem, teacher)
     assert available < naive_sum, "跨節次表的節次在牆鐘上重疊,不可直接相加"
     assert available >= max(len(t.slots) for t in tables)
+
+
+# ── M3-5:哪些錯誤擋得住「部分排課」 ─────────────────────────
+def _issue(code: str, detail: dict | None = None) -> preflight.Issue:
+    return preflight.Issue("error", code, "x", "semester", 1, detail or {})
+
+
+def test_partial_mode_only_blocks_on_structural_errors():
+    """總量不足正是部分排課要處理的事;結構性錯誤則連模型都建不起來。"""
+    report = preflight.PreflightReport((
+        _issue("class_overload"), _issue("teacher_overload"), _issue("room_supply"),
+        _issue("block_infeasible"), _issue("group_shape_mismatch"),
+    ))
+    assert len(preflight.blocking_errors(report, allow_partial=False)) == 5
+    codes = {i.code for i in preflight.blocking_errors(report, allow_partial=True)}
+    assert codes == {"block_infeasible", "group_shape_mismatch"}
+
+
+def test_partial_mode_blocks_when_a_room_type_has_no_room_at_all():
+    """供給 0 = 一間都沒有 → 建模就會失敗;供給不足則可以少排幾節。"""
+    none_at_all = preflight.PreflightReport((_issue("room_type_supply", {"supply": 0}),))
+    not_enough = preflight.PreflightReport((_issue("room_type_supply", {"supply": 30}),))
+    assert preflight.blocking_errors(none_at_all, allow_partial=True)
+    assert not preflight.blocking_errors(not_enough, allow_partial=True)

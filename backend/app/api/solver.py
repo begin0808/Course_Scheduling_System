@@ -18,10 +18,12 @@ from app.schemas.solver import (
     ConstraintConfigOut,
     PreflightIssue,
     PreflightOut,
+    RelaxableOption,
     SolveJobOut,
 )
 from app.services.solver_data import load_config, load_problem, save_config
 from app.solver import preflight
+from app.solver.model_builder import RELAXABLE_CODES, RELAXABLE_NAMES
 from app.solver.problem import DEFAULT_WEIGHTS, SOFT_NAMES, SolverConfig
 from app.workers import queue as job_queue
 from app.workers.progress import (
@@ -154,6 +156,7 @@ def start_auto_schedule(
     """以來源草稿啟動自動排課;結果寫成新草稿,來源不動。
 
     pre-flight 有錯誤時直接擋下——沒必要讓教學組長等十分鐘才知道資料有問題。
+    部分排課模式只擋結構性錯誤:「總量不足」正是它要處理的事(少排幾節,列成清單)。
     """
     tt = db.get(Timetable, timetable_id)
     if tt is None:
@@ -163,16 +166,28 @@ def start_auto_schedule(
             status.HTTP_409_CONFLICT, "只能以草稿為來源自動排課;請先複製為新草稿"
         )
 
+    unknown = set(body.relax) - set(RELAXABLE_CODES)
+    if unknown:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"這些硬約束不可放寬:{'、'.join(sorted(unknown))}",
+        )
+    if body.relax and not body.allow_partial:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "放寬硬約束只在部分排課模式下有效"
+        )
+
     problem = load_problem(db, tt.semester_id)
     report = preflight.run(problem)
-    if not report.ok:
+    blocking = preflight.blocking_errors(report, allow_partial=body.allow_partial)
+    if blocking:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail={
                 "message": "資料未通過排課前置檢查,請先修正",
                 "issues": [
                     {"level": i.level, "code": i.code, "message": i.message}
-                    for i in report.errors
+                    for i in blocking
                 ],
             },
         )
@@ -182,11 +197,19 @@ def start_auto_schedule(
         job_id=job_id, status=JobStatus.queued.value, semester_id=tt.semester_id,
         source_timetable_id=tt.id, source_name=tt.name,
         max_seconds=float(body.max_seconds), heartbeat=time.time(),
+        partial=body.allow_partial,
     ))
     job_queue.enqueue_solve(
-        job_id, tt.id, float(body.max_seconds), body.seed, user.id, user.username
+        job_id, tt.id, float(body.max_seconds), body.seed, user.id, user.username,
+        body.allow_partial, list(body.relax),
     )
     return AutoScheduleAccepted(job_id=job_id)
+
+
+@router.get("/solver/relaxable", response_model=list[RelaxableOption])
+def list_relaxable(_: object = Depends(viewer)):
+    """部分排課可勾選放寬的硬約束。H1/H2/H3 不在此列:那是物理,不是政策。"""
+    return [RelaxableOption(code=c, name=RELAXABLE_NAMES[c]) for c in RELAXABLE_CODES]
 
 
 @router.get("/solver/jobs/{job_id}", response_model=SolveJobOut)

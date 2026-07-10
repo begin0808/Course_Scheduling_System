@@ -37,9 +37,72 @@ Cell = tuple[int, int]  # (weekday, period_no)
 # 軟約束的懲罰項:線性運算式,或常數 0(該項在此問題中無適用對象)
 _Penalty = cp_model.LinearExpr | int
 
+# 可放寬為軟約束的硬約束(M3-5 部分排課)。
+# H1/H2/H3 不在此列:一位教師不能同時出現在兩間教室、一間教室不能同時容納兩班——
+# 那是物理,不是政策。放寬它們只會產生一張沒有人能照著上課的課表。
+RELAXABLE_CODES = ("H4", "H9", "H10")
+
+RELAXABLE_NAMES = {
+    "H4": "教師不可排時段",
+    "H9": "鎖定的格位",
+    "H10": "同班同科目每日節數上限",
+}
+
 
 class SolverInputError(Exception):
     """問題描述本身不合法(通常 pre-flight 應先攔下)。"""
+
+
+@dataclass(frozen=True, slots=True)
+class ConstraintTag:
+    """一組硬約束的身分,用來在衝突定位時整組關掉。
+
+    scope 刻意取「教學組長改得動的東西」:某位教師的不可排時段、某間場地的互斥、
+    全校的每日科目上限——而不是「第 8371 條線性約束」。
+    H9/H10 是全校一個開關,scope 即為學期。
+    """
+
+    code: str  # H1 / H2 / H3 / H4 / H9 / H10
+    scope_type: str  # class / teacher / room / semester
+    scope_id: int
+
+
+@dataclass(frozen=True, slots=True)
+class Relaxation:
+    """部分排課:放寬選定的硬約束,並允許少數課務未排入。
+
+    懲罰量級刻意拉開:未排入 ≫ 違反被放寬的約束 ≫ 軟約束。
+    教學組長勾了「可放寬教師不可排時段」,意思就是「寧可讓老師委屈一節,
+    也不要讓這門課排不進去」。
+    """
+
+    soft_codes: frozenset[str] = frozenset()
+    allow_unplaced: bool = True
+    unplaced_penalty: int = 10_000
+    violation_penalty: int = 1_000
+
+    def __post_init__(self) -> None:
+        unknown = set(self.soft_codes) - set(RELAXABLE_CODES)
+        if unknown:
+            raise SolverInputError(
+                f"這些硬約束不可放寬:{'、'.join(sorted(unknown))}"
+                f"(可放寬的只有 {'、'.join(RELAXABLE_CODES)})"
+            )
+
+    def is_soft(self, code: str) -> bool:
+        return code in self.soft_codes
+
+
+@dataclass(frozen=True, slots=True)
+class UnscheduledCourse:
+    """部分排課下未能排入的課務。"""
+
+    assignment_id: int
+    subject_name: str
+    class_names: tuple[str, ...]
+    periods: int  # 未排入的節數
+
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,10 +146,16 @@ class SolveResult:
     wall_time: float
     branches: int
     conflicts: int
+    # 部分排課模式下未能排入的課務;一般模式恆為空(H8 週節數守恆是硬約束)
+    unscheduled: tuple[UnscheduledCourse, ...] = ()
 
     @property
     def solved(self) -> bool:
         return self.status in ("optimal", "feasible")
+
+    @property
+    def unplaced_periods(self) -> int:
+        return sum(u.periods for u in self.unscheduled)
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,10 +259,32 @@ def _candidate_rooms(problem: Problem, a: AssignmentSpec) -> list[int]:
 
 
 class _Model:
-    def __init__(self, problem: Problem, config: SolverConfig) -> None:
+    """三種建模模式共用一份程式碼,差別只在「一條硬約束怎麼掛上去」。
+
+    - 一般:全部硬約束照常加入。
+    - disabled:指定的幾組硬約束**整組不加**。衝突定位靠反覆重建這樣的模型來
+      驗證「關掉這一項是不是就有解了」。刻意不用 CP-SAT 的 assumption 機制:
+      assumption literal 會讓 presolve 認不出「N 節課塞進 M 格」的鴿籠結構,
+      同一個問題從 0.8 秒證完變成 60 秒證不完(見 conflict_explainer.py 說明)。
+    - relax:選定的類別改為高權重懲罰項,並允許 lesson 不排入(部分排課)。
+      放寬 H4 時不能預先把不可排時段從候選剔除,改為顯式懲罰 `occ`。
+    """
+
+    def __init__(
+        self,
+        problem: Problem,
+        config: SolverConfig,
+        *,
+        disabled: frozenset[ConstraintTag] = frozenset(),
+        relax: Relaxation | None = None,
+    ) -> None:
+        if disabled and relax is not None:
+            raise SolverInputError("衝突定位與部分排課不可同時啟用")
         self.problem = problem
         self.config = config
         self.cap = config.daily_subject_cap
+        self.disabled = disabled
+        self.relax = relax
         self.m = cp_model.CpModel()
         self.courses = _build_courses(problem)
 
@@ -201,6 +292,8 @@ class _Model:
         self.x: dict[tuple[int, int], list[cp_model.IntVar]] = {}
         self.occ: dict[tuple[int, Cell], cp_model.IntVar] = {}
         self.y: dict[tuple[int, int], cp_model.IntVar] = {}  # (assignment_id, room_id)
+        self.drop: dict[tuple[int, int], cp_model.IntVar] = {}  # (ci, li) → 未排入
+        self.relaxed: list[_Penalty] = []  # 被放寬的硬約束轉成的懲罰項
         # 教師是否在某節次上課;依星期分組並按牆鐘時間排序(算連續授課與空堂用)
         self.teacher_day: dict[int, dict[int, list[tuple[Slot, cp_model.IntVar]]]] = {}
         self.has_objective = False
@@ -210,6 +303,7 @@ class _Model:
         self._h1_class()
         self._h2_teacher()
         self._h3_room()
+        self._h4_unavailable()
         self._h10_daily_cap()
         self._h9_locked()
 
@@ -217,20 +311,35 @@ class _Model:
         self._objective()
         self._hints()
 
+    # ── 模式開關 ────────────────────────
+    @property
+    def _h4_is_soft(self) -> bool:
+        """放寬 H4:不可排時段不再剔除候選,改為可被違反的懲罰項。"""
+        return self.relax is not None and self.relax.is_soft("H4")
+
+    def _is_soft(self, code: str) -> bool:
+        return self.relax is not None and self.relax.is_soft(code)
+
+    def _off(self, code: str, scope_type: str, scope_id: int) -> bool:
+        return ConstraintTag(code, scope_type, scope_id) in self.disabled
+
     # ── 變數 ────────────────────────────
     def _forbidden(self, course: _Course) -> frozenset[Cell]:
+        if self._h4_is_soft:
+            return frozenset()  # 改由 _h4_unavailable 表達為懲罰
         cells: set[Cell] = set()
         for tid in course.teacher_ids:
             teacher = self.problem.teachers.get(tid)
-            if teacher:
+            if teacher and not self._off("H4", "teacher", tid):
                 cells |= set(teacher.unavailable)
         return frozenset(cells)
 
     def _make_lesson_vars(self) -> None:
+        allow_drop = self.relax is not None and self.relax.allow_unplaced
         for ci, course in enumerate(self.courses):
             forbidden = self._forbidden(course)
             covering: dict[Cell, list[cp_model.IntVar]] = {}
-            pos_by_length: dict[int, list[cp_model.IntVar]] = {}
+            pos_by_length: dict[int, list[tuple[int, cp_model.IntVar]]] = {}
 
             for li, length in enumerate(course.lengths):
                 cands = _candidates(course.table, length, forbidden)
@@ -240,7 +349,13 @@ class _Model:
                         f"{length} 連堂時段(節次表或教師不可排時段過於嚴格)"
                     )
                 xs = [self.m.new_bool_var(f"x{ci}_{li}_{k}") for k in range(len(cands))]
-                self.m.add_exactly_one(xs)  # H8:每個 lesson 恰排一次
+                if allow_drop:
+                    # H8 放寬:排入一格,或整節不排入(計入未排清單)
+                    d = self.m.new_bool_var(f"d{ci}_{li}")
+                    self.m.add(sum(xs) + d == 1)
+                    self.drop[(ci, li)] = d
+                else:
+                    self.m.add_exactly_one(xs)  # H8:每個 lesson 恰排一次
                 self.cands[(ci, li)] = cands
                 self.x[(ci, li)] = xs
                 for xv, cand in zip(xs, cands, strict=True):
@@ -249,18 +364,33 @@ class _Model:
 
                 pos = self.m.new_int_var(0, len(cands) - 1, f"p{ci}_{li}")
                 self.m.add(pos == sum(k * xs[k] for k in range(len(cands))))
-                pos_by_length.setdefault(length, []).append(pos)
+                pos_by_length.setdefault(length, []).append((li, pos))
 
-            # 同長度的 lesson 可互換 → 強制遞增以消除對稱性(候選依時間排序)
-            for positions in pos_by_length.values():
-                for a, b in zip(positions, positions[1:], strict=False):
-                    self.m.add(a < b)
+            self._break_symmetry(ci, pos_by_length)
 
             for slot in course.table.slots:
                 o = self.m.new_bool_var(f"o{ci}_{slot.weekday}_{slot.period_no}")
                 # 等式:同一 course 的兩個 lesson 不得壓在同一格(sum=2 直接不可行)
                 self.m.add(o == sum(covering.get(slot.key, [])))
                 self.occ[(ci, slot.key)] = o
+
+    def _break_symmetry(
+        self, ci: int, pos_by_length: dict[int, list[tuple[int, cp_model.IntVar]]]
+    ) -> None:
+        """同長度的 lesson 可互換 → 強制遞增以消除對稱性(候選依時間排序)。
+
+        部分排課下位置變數對「未排入」的 lesson 無意義(恆為 0),故只在兩者都排入時
+        比較;並要求未排入的 lesson 一律是後面幾個,否則 n 個 lesson 少排 1 節
+        會有 n 種等價寫法。
+        """
+        for items in pos_by_length.values():
+            for (li_a, pa), (li_b, pb) in zip(items, items[1:], strict=False):
+                drop_a, drop_b = self.drop.get((ci, li_a)), self.drop.get((ci, li_b))
+                if drop_a is None or drop_b is None:
+                    self.m.add(pa < pb)
+                else:
+                    self.m.add(drop_a <= drop_b)
+                    self.m.add(pa < pb).only_enforce_if(drop_b.negated())
 
     def _make_room_vars(self) -> None:
         for course in self.courses:
@@ -286,7 +416,7 @@ class _Model:
     def _h1_class(self) -> None:
         for cls in self.problem.classes.values():
             cis = self._courses_of_class(cls.id)
-            if len(cis) < 2:
+            if len(cis) < 2 or self._off("H1", "class", cls.id):
                 continue
             table = self.problem.tables[cls.period_table_id]
             for slot in table.slots:
@@ -323,6 +453,8 @@ class _Model:
 
     def _h2_teacher(self) -> None:
         for teacher_id in self.problem.teachers:
+            if self._off("H2", "teacher", teacher_id):
+                continue
             entries: list[tuple[int, Slot, cp_model.IntVar]] = []
             for ci, course in enumerate(self.courses):
                 if teacher_id not in course.teacher_ids:
@@ -331,6 +463,27 @@ class _Model:
                     entries.append((course.table.id, slot, self.occ[(ci, slot.key)]))
             if entries:
                 self._resource_at_most_one(entries)
+
+    def _h4_unavailable(self) -> None:
+        """教師不可排時段。
+
+        一般模式已在候選階段剔除(比加約束便宜),整組關掉也只是不剔除;
+        只有「放寬 H4」的部分排課才需要把它表達成可以被違反的懲罰項。
+        """
+        if not self._h4_is_soft or self.relax is None:
+            return
+        for tid, teacher in self.problem.teachers.items():
+            if not teacher.unavailable:
+                continue
+            lits = [
+                self.occ[(ci, cell)]
+                for ci, course in enumerate(self.courses)
+                if tid in course.teacher_ids
+                for cell in teacher.unavailable
+                if (ci, cell) in self.occ
+            ]
+            if lits:
+                self.relaxed.append(self.relax.violation_penalty * sum(lits))
 
     def _h3_room(self) -> None:
         """場地互斥(D8:容量不參與求解)。未綁定場地者由引擎在候選教室中挑一間。"""
@@ -355,11 +508,15 @@ class _Model:
                         self.m.add(z >= o + yv - 1)
                         by_room.setdefault(rid, []).append((course.table.id, slot, z))
 
-        for entries in by_room.values():
-            self._resource_at_most_one(entries)
+        for rid, entries in by_room.items():
+            if not self._off("H3", "room", rid):
+                self._resource_at_most_one(entries)
 
     def _h10_daily_cap(self) -> None:
         """同班同科目每日單節數上限;連堂是一次上完的整塊,不計入。"""
+        if self._off("H10", "semester", self.problem.semester_id):
+            return
+        soft = self._is_soft("H10")
         for cls in self.problem.classes.values():
             cis = self._courses_of_class(cls.id)
             subjects = {sid for ci in cis for sid in self.courses[ci].subject_ids}
@@ -378,7 +535,15 @@ class _Model:
                             ):
                                 if cand.weekday == weekday:
                                     lits.append(xv)
-                    if len(lits) > self.cap:
+                    if len(lits) <= self.cap:
+                        continue  # 一天內根本放不了那麼多節,約束恆成立
+                    if soft and self.relax is not None:
+                        over = self.m.new_int_var(
+                            0, len(lits), f"r10_{cls.id}_{subject_id}_{weekday}"
+                        )
+                        self.m.add(over >= sum(lits) - self.cap)
+                        self.relaxed.append(self.relax.violation_penalty * over)
+                    else:
                         self.m.add(sum(lits) <= self.cap)
 
     def _course_of_assignment(self) -> dict[int, int]:
@@ -423,6 +588,8 @@ class _Model:
         不指定「哪一個 lesson」佔住該格(同長度的 lesson 可互換,綁死會與對稱性
         約束打架),只要求「該長度的 lesson 中恰有一個排在這裡」。
         """
+        if self._off("H9", "semester", self.problem.semester_id):
+            return
         course_of = self._course_of_assignment()
         pinned: set[tuple[int, int, int, int]] = set()
         for f in self.problem.fixed_entries:
@@ -446,14 +613,22 @@ class _Model:
                     f"鎖定的格位(配課 {f.assignment_id} 週{f.weekday} 第 {f.period_no} 格,"
                     f"{f.span} 節)不是合法的排課位置"
                 )
-            self.m.add(sum(lits) == 1)
+            if self._is_soft("H9") and self.relax is not None:
+                # 放寬:允許這一格被搬走,但代價高昂
+                moved = self.m.new_bool_var(f"r9_{f.assignment_id}_{f.weekday}_{f.period_no}")
+                self.m.add(sum(lits) + moved == 1)
+                self.relaxed.append(self.relax.violation_penalty * moved)
+                continue
 
+            self.m.add(sum(lits) == 1)
             if f.room_id is not None and (f.assignment_id, f.room_id) in self.y:
                 self.m.add(self.y[(f.assignment_id, f.room_id)] == 1)
 
     # ── 軟約束(architecture.md §3.2 S1–S8)────────────────
     def _make_teacher_busy(self) -> None:
         """teacher_day[t][weekday] = [(節次, 該教師是否在此上課), …],依牆鐘時間排序。"""
+        if not self.config.weights or not any(self.config.weights.values()):
+            return  # 只有軟約束用得到;純可行性模型不必建這些變數
         for tid in self.problem.teachers:
             per_cell: dict[tuple[int, int, int], tuple[Slot, list[cp_model.IntVar]]] = {}
             for ci, course in enumerate(self.courses):
@@ -478,7 +653,9 @@ class _Model:
 
     def _objective(self) -> None:
         cfg = self.config
-        terms: list[_Penalty] = []
+        terms: list[_Penalty] = list(self.relaxed)
+        if self.relax is not None and self.drop:
+            terms.append(self.relax.unplaced_penalty * sum(self.drop.values()))
 
         def add(code: str, expr: _Penalty) -> None:
             weight = cfg.weight(code)
@@ -642,7 +819,9 @@ class _Model:
         return worst
 
     # ── 取解 ────────────────────────────
-    def extract(self, solver: cp_model.CpSolver) -> tuple[SolvedEntry, ...]:
+    def extract(
+        self, solver: cp_model.CpSolver
+    ) -> tuple[tuple[SolvedEntry, ...], tuple[UnscheduledCourse, ...]]:
         locked = {
             (f.assignment_id, f.weekday, f.period_no, f.span)
             for f in self.problem.fixed_entries
@@ -654,11 +833,18 @@ class _Model:
                 rooms_of[a_id] = rid
 
         out: list[SolvedEntry] = []
+        unplaced: dict[int, int] = {}
         for ci, course in enumerate(self.courses):
-            for li in range(len(course.lengths)):
+            for li, length in enumerate(course.lengths):
                 cands = self.cands[(ci, li)]
                 xs = self.x[(ci, li)]
-                chosen = next(c for c, xv in zip(cands, xs, strict=True) if solver.value(xv))
+                chosen = next(
+                    (c for c, xv in zip(cands, xs, strict=True) if solver.value(xv)), None
+                )
+                if chosen is None:  # 部分排課:這一節沒排進去
+                    for a in course.assignments:
+                        unplaced[a.id] = unplaced.get(a.id, 0) + length
+                    continue
                 span = len(chosen.cells)
                 for a in course.assignments:
                     room_id = a.room_id if a.room_id is not None else rooms_of.get(a.id)
@@ -669,6 +855,20 @@ class _Model:
                         locked=key in locked,
                     ))
         out.sort(key=lambda e: (e.weekday, e.period_no, e.assignment_id))
+        return tuple(out), self._unscheduled(unplaced)
+
+    def _unscheduled(self, unplaced: dict[int, int]) -> tuple[UnscheduledCourse, ...]:
+        by_id = {a.id: a for a in self.problem.assignments}
+        out = [
+            UnscheduledCourse(
+                assignment_id=aid,
+                subject_name=by_id[aid].subject_name,
+                class_names=tuple(c.name for c in self.problem.classes_of(by_id[aid])),
+                periods=periods,
+            )
+            for aid, periods in unplaced.items()
+        ]
+        out.sort(key=lambda u: (-u.periods, u.subject_name, u.assignment_id))
         return tuple(out)
 
 
@@ -687,16 +887,20 @@ def solve(
     *,
     config: SolverConfig | None = None,
     control: SolveControl | None = None,
+    relax: Relaxation | None = None,
 ) -> SolveResult:
     """求解一份完整課表:硬約束必須全滿足,軟約束以加權目標最小化。
 
     CP-SAT 是 anytime solver——逾時或被要求提前結束時,仍回傳當下最佳解
     (status=feasible)。config 給 `SolverConfig.hard_only()` 即退化為純可行性問題。
     control 提供進度回報與中斷(M3-4 的 worker 據此送心跳、實作「提前結束」)。
+
+    給定 `relax` 即進入**部分排課**:放寬選定的硬約束、允許少數課務未排入,
+    因此永遠有解(最差是整張表空著)。未排入的課務列在 `result.unscheduled`。
     """
     options = options or SolveOptions()
     config = config or SolverConfig()
-    built = _Model(problem, config)
+    built = _Model(problem, config, relax=relax)
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = options.max_seconds
@@ -717,9 +921,10 @@ def solve(
             watcher.stop()
 
     entries: tuple[SolvedEntry, ...] = ()
+    unscheduled: tuple[UnscheduledCourse, ...] = ()
     objective = 0.0
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        entries = built.extract(solver)
+        entries, unscheduled = built.extract(solver)
         objective = solver.objective_value if built.has_objective else 0.0
 
     return SolveResult(
@@ -729,7 +934,42 @@ def solve(
         wall_time=solver.wall_time,
         branches=solver.num_branches,
         conflicts=solver.num_conflicts,
+        unscheduled=unscheduled,
     )
+
+
+# ── 無解衝突定位(M3-5)──────────────────────────────────────
+def check_feasibility(
+    problem: Problem,
+    *,
+    config: SolverConfig | None = None,
+    disabled: frozenset[ConstraintTag] = frozenset(),
+    max_seconds: float = 10.0,
+    workers: int = 8,
+) -> str:
+    """關掉 `disabled` 這幾組硬約束後,課表排得出來嗎?
+
+    回傳 feasible / infeasible / unknown。不建目標函數——衝突定位只問可行性,
+    軟約束只會拖慢證明無解的速度。
+
+    建模階段就攔下的情形(例:某門課完全找不到可排時段)本身就是「排不出來」,
+    視為 infeasible 而不是錯誤。
+    """
+    config = (config or SolverConfig()).without_soft()
+    try:
+        built = _Model(problem, config, disabled=disabled)
+    except SolverInputError:
+        return "infeasible"
+
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = max_seconds
+    solver.parameters.num_workers = workers
+    status = solver.solve(built.m)
+    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return "feasible"
+    if status == cp_model.INFEASIBLE:
+        return "infeasible"
+    return "unknown"
 
 
 class _SolutionCallback(cp_model.CpSolverSolutionCallback):

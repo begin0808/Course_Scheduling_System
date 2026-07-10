@@ -72,6 +72,34 @@ def _room_supply(problem: Problem, room_id: int) -> int:
     return max_non_overlapping(slots)
 
 
+# 這些錯誤連 CP-SAT 模型都建不起來(某門課根本沒有可排的位置、群組結構自相矛盾),
+# 「部分排課」也救不了——少排幾節課不能讓一個 4 連堂塞進 3 連續節次。
+STRUCTURAL_CODES = frozenset({
+    "assignment_without_class",
+    "no_period_table",
+    "group_shape_mismatch",
+    "block_infeasible",
+    "block_exceeds_periods",
+})
+
+
+def blocking_errors(report: PreflightReport, *, allow_partial: bool) -> tuple[Issue, ...]:
+    """哪些錯誤該擋在自動排課門口。
+
+    一般模式:全部。部分排課模式:只擋結構性錯誤——「教師配課超量」「場地不夠」
+    這類總量問題,正是部分排課要處理的事(少排幾節,列成未排清單)。
+    """
+    if not allow_partial:
+        return report.errors
+    return tuple(
+        i
+        for i in report.errors
+        if i.code in STRUCTURAL_CODES
+        # 該類型場地一間都沒有 → 建模時就會失敗,不是「少排幾節」的問題
+        or (i.code == "room_type_supply" and not i.detail.get("supply"))
+    )
+
+
 def run(problem: Problem) -> PreflightReport:
     issues: list[Issue] = []
 

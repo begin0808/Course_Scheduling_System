@@ -39,6 +39,40 @@ export interface SoftReport {
 }
 
 export type JobStatus = 'queued' | 'running' | 'finished' | 'failed' | 'cancelled'
+export type JobPhase = 'solving' | 'explaining'
+
+/** 無解時的一條原因:message 說發生什麼事,suggestion 說可以怎麼辦。 */
+export interface ConflictCause {
+  code: string
+  scope_type: string
+  scope_id: number
+  scope_name: string
+  message: string
+  suggestion: string
+  relaxable: boolean
+  detail: Record<string, number | string>
+}
+export interface ConflictReport {
+  status: string
+  source: 'preflight' | 'analysis' | 'none'
+  mode: 'each' | 'joint' | 'structural' | ''
+  headline: string
+  complete: boolean
+  relaxable_codes: string[]
+  causes: ConflictCause[]
+}
+
+export interface UnscheduledCourse {
+  assignment_id: number
+  subject_name: string
+  class_names: string[]
+  periods: number
+}
+
+export interface RelaxableOption {
+  code: string
+  name: string
+}
 
 export interface SolveJob {
   job_id: string
@@ -54,6 +88,10 @@ export interface SolveJob {
   result_name: string | null
   error: string | null
   report: SoftReport | null
+  phase: JobPhase
+  partial: boolean
+  conflict: ConflictReport | null
+  unscheduled: UnscheduledCourse[] | null
 }
 
 export interface ConstraintConfig {
@@ -76,11 +114,19 @@ export const saveConstraintConfig = (
   body: Omit<ConstraintConfig, 'semester_id' | 'weight_names'>,
 ): Promise<ConstraintConfig> => apiPut(`/solver/config?semester_id=${semesterId}`, body)
 
+export const listRelaxable = (): Promise<RelaxableOption[]> => apiGet('/solver/relaxable')
+
 export const startAutoSchedule = (
   timetableId: number,
   maxSeconds: number,
+  options: { allowPartial?: boolean; relax?: string[] } = {},
 ): Promise<{ job_id: string }> =>
-  apiPost(`/timetables/${timetableId}/auto-schedule`, { max_seconds: maxSeconds, seed: 0 })
+  apiPost(`/timetables/${timetableId}/auto-schedule`, {
+    max_seconds: maxSeconds,
+    seed: 0,
+    allow_partial: options.allowPartial ?? false,
+    relax: options.relax ?? [],
+  })
 
 export const getSolveJob = (jobId: string): Promise<SolveJob> => apiGet(`/solver/jobs/${jobId}`)
 export const stopSolveJob = (jobId: string): Promise<SolveJob> =>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  NAlert, NButton, NCard, NEmpty, NInputNumber, NPopconfirm, NProgress, NSelect, NSpace, NTag,
-  NText, useMessage,
+  NAlert, NButton, NCard, NCheckbox, NCheckboxGroup, NEmpty, NInputNumber, NPopconfirm, NProgress,
+  NSelect, NSpace, NTag, NText, useMessage,
 } from 'naive-ui'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -9,9 +9,11 @@ import type { ApiError } from '@/api/client'
 import { listSemesters } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import {
-  cancelSolveJob, getSolveJob, preflight, startAutoSchedule, stopSolveJob,
+  cancelSolveJob, getSolveJob, listRelaxable, preflight, startAutoSchedule, stopSolveJob,
 } from '@/api/solver'
-import type { PreflightIssue, PreflightReport, SolveJob } from '@/api/solver'
+import type {
+  PreflightIssue, PreflightReport, RelaxableOption, SolveJob,
+} from '@/api/solver'
 import { listTimetables } from '@/api/timetables'
 import type { TimetableBrief } from '@/api/timetables'
 
@@ -31,6 +33,10 @@ const job = ref<SolveJob | null>(null)
 const blockingIssues = ref<PreflightIssue[]>([])
 const starting = ref(false)
 
+const relaxable = ref<RelaxableOption[]>([])
+const allowPartial = ref(false)
+const relax = ref<string[]>([])
+
 let timer: ReturnType<typeof setInterval> | null = null
 
 const semesterOptions = computed(() => semesters.value.map((s) => ({ label: s.label, value: s.id })))
@@ -38,6 +44,10 @@ const draftOptions = computed(() =>
   drafts.value.map((t) => ({ label: `${t.name}(${t.entry_count} 格)`, value: t.id })))
 
 const running = computed(() => job.value?.status === 'queued' || job.value?.status === 'running')
+const explaining = computed(() => running.value && job.value?.phase === 'explaining')
+const conflict = computed(() => job.value?.conflict ?? null)
+const conflictCauses = computed(() => conflict.value?.causes ?? [])
+const unscheduled = computed(() => job.value?.unscheduled ?? [])
 
 // 進行中顯示「已用掉多少時間預算」;結束後一律填滿——提前結束時 elapsed 可能只有 1%,
 // 進度條停在最左邊卻寫著「已完成」會讓人以為排壞了。
@@ -53,6 +63,20 @@ const statusTagType = computed(() => {
   if (job.value?.status === 'cancelled') return 'warning'
   return 'error'
 })
+
+const STATUS_LABELS: Record<string, string> = {
+  queued: '排隊中', running: '排課中', finished: '已完成', failed: '失敗', cancelled: '已取消',
+}
+const statusLabel = computed(() =>
+  (explaining.value ? '定位無解原因中' : STATUS_LABELS[job.value?.status ?? ''] ?? ''))
+
+const codeName = (code: string) => relaxable.value.find((o) => o.code === code)?.name ?? code
+
+const elapsedText = computed(() => {
+  const s = job.value?.elapsed ?? 0
+  return s < 1 ? '不到 1 秒' : `${Math.round(s)} 秒`
+})
+const unplacedPeriods = computed(() => unscheduled.value.reduce((n, u) => n + u.periods, 0))
 
 function stopPolling() {
   if (timer) {
@@ -79,7 +103,7 @@ async function onSemesterChange(id: number) {
 }
 
 onMounted(async () => {
-  semesters.value = await listSemesters()
+  ;[semesters.value, relaxable.value] = await Promise.all([listSemesters(), listRelaxable()])
   if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
 })
 
@@ -105,7 +129,10 @@ async function onStart() {
   starting.value = true
   blockingIssues.value = []
   try {
-    const { job_id } = await startAutoSchedule(sourceId.value, minutes.value * 60)
+    const { job_id } = await startAutoSchedule(sourceId.value, minutes.value * 60, {
+      allowPartial: allowPartial.value,
+      relax: allowPartial.value ? relax.value : [],
+    })
     job.value = await getSolveJob(job_id)
     stopPolling()
     timer = setInterval(poll, POLL_MS)
@@ -120,6 +147,14 @@ async function onStart() {
   } finally {
     starting.value = false
   }
+}
+
+/** 照著衝突報告的建議重試:勾好可放寬的項目,直接再排一次。 */
+async function onRetryPartial() {
+  allowPartial.value = true
+  relax.value = conflict.value?.relaxable_codes ?? []
+  job.value = null
+  await onStart()
 }
 
 async function onStop() {
@@ -200,6 +235,22 @@ function openResult() {
             鎖定的格位會維持原位;其餘已排的課會作為求解起點,結果寫成新草稿,來源草稿不動。
           </n-text>
 
+          <n-checkbox v-model:checked="allowPartial" :disabled="running" data-testid="as-partial">
+            允許部分排課(排不下的課列成清單,不要整個失敗)
+          </n-checkbox>
+          <n-space v-if="allowPartial" align="center" style="padding-left: 24px">
+            <n-text depth="3">可放寬:</n-text>
+            <n-checkbox-group v-model:value="relax" :disabled="running">
+              <n-checkbox
+                v-for="o in relaxable" :key="o.code" :value="o.code"
+                :label="o.name" :data-testid="`as-relax-${o.code}`"
+              />
+            </n-checkbox-group>
+          </n-space>
+          <n-text v-if="allowPartial" depth="3" style="padding-left: 24px">
+            班級、教師、場地的「同時段只能有一門課」不可放寬——那是物理限制,不是政策。
+          </n-text>
+
           <n-alert v-if="blockingIssues.length" type="error" title="請先修正這些問題">
             <div v-for="i in blockingIssues" :key="i.code + i.subject_id" data-testid="as-blocking">
               {{ i.message }}
@@ -212,15 +263,15 @@ function openResult() {
       <n-card v-if="job" title="排課進度" size="small" data-testid="as-job">
         <n-space vertical>
           <n-space align="center">
-            <n-tag :type="statusTagType" data-testid="as-status">
-              {{ {
-                queued: '排隊中', running: '排課中', finished: '已完成',
-                failed: '失敗', cancelled: '已取消',
-              }[job.status] }}
-            </n-tag>
-            <n-text>已耗時 {{ Math.round(job.elapsed) }} 秒 / 上限 {{ job.max_seconds }} 秒</n-text>
-            <n-text data-testid="as-solutions">已找到 {{ job.solutions }} 個解</n-text>
-            <n-text v-if="job.objective !== null">目前目標值 {{ Math.round(job.objective) }}</n-text>
+            <n-tag :type="statusTagType" data-testid="as-status">{{ statusLabel }}</n-tag>
+            <n-text>已耗時 {{ elapsedText }} / 上限 {{ job.max_seconds }} 秒</n-text>
+            <n-text v-if="running || job.solutions" data-testid="as-solutions">
+              已找到 {{ job.solutions }} 個解
+            </n-text>
+            <!-- 部分排課的目標值被「未排入」的高額懲罰灌爆(一節 = 10000),
+                 拿給人看只會以為排壞了;真正該看的是未排幾節。 -->
+            <n-text v-if="job.partial && !running">未排 {{ unplacedPeriods }} 節</n-text>
+            <n-text v-else-if="job.objective !== null">目前目標值 {{ Math.round(job.objective) }}</n-text>
           </n-space>
 
           <n-progress
@@ -231,7 +282,7 @@ function openResult() {
             :processing="running"
           />
 
-          <n-space v-if="running">
+          <n-space v-if="running && !explaining">
             <n-button
               type="primary" ghost :disabled="job.solutions === 0"
               data-testid="as-stop" @click="onStop"
@@ -246,8 +297,43 @@ function openResult() {
             </n-popconfirm>
           </n-space>
 
-          <n-alert v-if="job.status === 'failed'" type="error" data-testid="as-error">
+          <n-text v-if="explaining" depth="3" data-testid="as-explaining">
+            排不出來。正在逐項試解,找出是哪幾件事湊在一起造成的……
+          </n-text>
+
+          <!-- 定位不出具體原因時(例如硬約束其實可解、只是軟約束最佳化太慢),仍要給一句人話 -->
+          <n-alert
+            v-if="job.status === 'failed' && !conflictCauses.length"
+            type="error" data-testid="as-error"
+          >
             {{ job.error }}
+          </n-alert>
+
+          <!-- 無解衝突定位:不只說「排不出來」,說是誰、差幾節、鬆開哪一個就好 -->
+          <n-alert
+            v-if="conflict && conflictCauses.length" type="error"
+            :title="conflict.headline" data-testid="as-conflict"
+          >
+            <n-space vertical size="small">
+              <div v-for="(c, k) in conflictCauses" :key="k" data-testid="as-cause">
+                <n-tag size="small" :bordered="false" :type="c.relaxable ? 'warning' : 'error'">
+                  {{ c.scope_name }}
+                </n-tag>
+                <n-text style="margin-left: 8px">{{ c.message }}</n-text>
+                <div style="padding-left: 8px">
+                  <n-text depth="3">建議:{{ c.suggestion }}</n-text>
+                </div>
+              </div>
+              <n-text v-if="!conflict.complete" depth="3">
+                (時間有限,可能還有其他原因未列出)
+              </n-text>
+              <n-button
+                v-if="conflict.relaxable_codes.length" type="primary" ghost size="small"
+                data-testid="as-retry-partial" @click="onRetryPartial"
+              >
+                改用部分排課(放寬{{ conflict.relaxable_codes.map(codeName).join('、') }})
+              </n-button>
+            </n-space>
           </n-alert>
 
           <n-alert v-if="job.status === 'finished'" type="success" data-testid="as-done">
@@ -255,6 +341,25 @@ function openResult() {
             <n-button text type="primary" style="margin-left: 8px" @click="openResult">
               前往版本與發布
             </n-button>
+          </n-alert>
+
+          <!-- 未排清單:部分排課的另一半交付物 -->
+          <n-alert
+            v-if="unscheduled.length" type="warning" title="以下課務未能排入,請人工處理"
+            data-testid="as-unscheduled"
+          >
+            <table class="data-table">
+              <thead>
+                <tr><th>科目</th><th>班級</th><th>未排節數</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="u in unscheduled" :key="u.assignment_id">
+                  <td>{{ u.subject_name }}</td>
+                  <td>{{ u.class_names.join('、') }}</td>
+                  <td>{{ u.periods }} 節</td>
+                </tr>
+              </tbody>
+            </table>
           </n-alert>
 
           <!-- 軟約束達成度 -->
