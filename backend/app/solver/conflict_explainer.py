@@ -91,10 +91,18 @@ class ConflictReport:
         if self.source == "preflight":
             return "資料本身就排不出來,以下每一項都必須修正"
         if self.mode == "each":
+            # 每一項都經過一次真實求解驗證(關掉它就排出來了),即使清單可能不完整
             return f"以下 {len(self.causes)} 項各自都是瓶頸,放寬其中任何一項即可排出課表"
         if self.mode == "joint":
             return "以下項目必須一起處理,只鬆開其中一項仍然排不出來"
-        return "即使放寬所有可調整的項目仍然無解,問題出在配課總量"
+        # structural:只有「全部放寬後仍證明無解」時才敢把話說死;
+        # 有任何一次試解在時限內沒判定出來,就不能宣稱「即使放寬所有項目仍然無解」。
+        if self.complete:
+            return "即使放寬所有可調整的項目仍然無解,問題出在配課總量"
+        return (
+            "放寬所有可調整的項目後仍未排出課表,但部分試解在時限內未能判定;"
+            "最可能是配課總量的問題"
+        )
 
     @property
     def relaxable_codes(self) -> tuple[str, ...]:
@@ -148,6 +156,37 @@ def _step(deadline: float) -> float:
 
 
 # ── 定位 ───────────────────────────────────────────────────
+class _Prober:
+    """反覆試解,並記住「有沒有哪一次沒能得到確定的答案」。
+
+    `check_feasibility` 回 unknown 時,我們只能保守地當作「沒能證明可行」——
+    但那**不等於**已證明不可行。若不追蹤這件事,報告會拿一個從未被證明的結論
+    (「即使放寬所有項目仍然無解」)講得斬釘截鐵。`certain` 就是這份誠實。
+    """
+
+    def __init__(self, problem: Problem, config: SolverConfig, deadline: float) -> None:
+        self._problem = problem
+        self._config = config
+        self._deadline = deadline
+        self.certain = True  # 每一次試解都在時限內得到確定答案
+
+    @property
+    def out_of_time(self) -> bool:
+        return time.monotonic() >= self._deadline
+
+    def feasible_without(self, disabled: set[ConstraintTag]) -> bool:
+        if self.out_of_time:
+            self.certain = False
+            return False
+        status = check_feasibility(
+            problem=self._problem, config=self._config, disabled=frozenset(disabled),
+            max_seconds=_step(self._deadline),
+        )
+        if status == "unknown":
+            self.certain = False
+        return status == "feasible"
+
+
 def _locate(
     problem: Problem,
     config: SolverConfig,
@@ -155,49 +194,43 @@ def _locate(
     deadline: float,
 ) -> tuple[list[ConstraintTag], str, bool]:
     """逐一關掉每個旋鈕重解,看誰是瓶頸。"""
+    probe = _Prober(problem, config, deadline)
+
     critical: list[ConstraintTag] = []
-    complete = True
     for tag in knobs:
-        if time.monotonic() >= deadline:
-            complete = False
+        if probe.out_of_time:
+            probe.certain = False
             break
-        if _feasible_without(problem, config, {tag}, deadline):
+        if probe.feasible_without({tag}):
             critical.append(tag)  # 只鬆開這一項就排得出來 → 它就是瓶頸
 
     if critical:
-        return critical, "each", complete
+        # 每一個 critical 都被一次真實求解驗證過,結論本身可信;
+        # certain 只影響「清單是否完整」。
+        return critical, "each", probe.certain
 
     # 沒有單一項目能解決:要嘛需要同時鬆開多項,要嘛連全部鬆開都不夠
-    if not knobs or not _feasible_without(problem, config, set(knobs), deadline):
-        return [], "structural", complete
-    return _joint(problem, config, knobs, deadline), "joint", complete
+    if not knobs or not probe.feasible_without(set(knobs)):
+        return [], "structural", probe.certain
+    return _joint(probe, knobs), "joint", probe.certain
 
 
-def _feasible_without(
-    problem: Problem, config: SolverConfig, disabled: set[ConstraintTag], deadline: float
-) -> bool:
-    status = check_feasibility(
-        problem, config=config, disabled=frozenset(disabled), max_seconds=_step(deadline)
-    )
-    return status == "feasible"  # unknown 一律當作「沒能證明可行」,不亂下結論
-
-
-def _joint(
-    problem: Problem, config: SolverConfig, knobs: list[ConstraintTag], deadline: float
-) -> list[ConstraintTag]:
+def _joint(probe: _Prober, knobs: list[ConstraintTag]) -> list[ConstraintTag]:
     """需要同時鬆開多項時,找一組夠小的組合:先累加到可行,再逐一試著拿掉。"""
     disabled: set[ConstraintTag] = set()
     for tag in knobs:
         disabled.add(tag)
-        if _feasible_without(problem, config, disabled, deadline):
+        if probe.feasible_without(disabled):
             break
-        if time.monotonic() >= deadline:
+        if probe.out_of_time:
+            probe.certain = False
             break
 
     for tag in list(disabled):
-        if time.monotonic() >= deadline:
+        if probe.out_of_time:
+            probe.certain = False  # 剩下的沒試過 → 這組未必是最小的
             break
-        if _feasible_without(problem, config, disabled - {tag}, deadline):
+        if probe.feasible_without(disabled - {tag}):
             disabled.discard(tag)  # 少了它照樣可行 → 它不是必要的
     return [t for t in knobs if t in disabled]
 
@@ -213,7 +246,7 @@ def _knobs(problem: Problem, config: SolverConfig) -> list[ConstraintTag]:
     for room in problem.rooms.values():
         if not _room_users(problem, room):
             continue
-        demand, _supply, usable = _room_numbers(problem, room)
+        demand, _supply, usable, _pool = _room_numbers(problem, room)
         scored.append((demand / max(usable, 1), ConstraintTag("H3", "room", room.id)))
 
     for teacher in problem.teachers.values():
@@ -294,21 +327,29 @@ def _describe(problem: Problem, tag: ConstraintTag, config: SolverConfig) -> Cau
 
 def _room_cause(problem: Problem, tag: ConstraintTag, _config: SolverConfig) -> Cause:
     room = problem.rooms[tag.scope_id]
-    demand, supply, usable = _room_numbers(problem, room)
+    demand, supply, usable, pool = _room_numbers(problem, room)
+
+    # 需求是「用到這間教室的那些課」的總和,供給就必須是「它們可用的那些教室」的總和。
+    # 兩者的範圍不一致(池需求 vs 單間供給)會憑空放大缺口,數字錯一次信任就沒了。
+    if len(pool) > 1:
+        names = "、".join(r.name for r in pool)
+        where = f"這 {len(pool)} 間場地({names})"
+    else:
+        where = f"場地「{room.name}」"
 
     if usable < supply:
         message = (
-            f"場地「{room.name}」需求 {demand} 節,但扣除相關教師的不可排時段後"
-            f"只剩 {usable} 節可用(該場地一週共 {supply} 節)"
+            f"{where}需求 {demand} 節,但扣除相關教師的不可排時段後"
+            f"只剩 {usable} 節可用(合計一週共 {supply} 節)"
         )
     else:
-        message = f"場地「{room.name}」需求 {demand} 節,可用 {usable} 節,同時段只能容納一班"
+        message = f"{where}需求 {demand} 節,可用 {usable} 節,同時段每間只能容納一班"
 
     return Cause(
         "H3", "room", room.id, room.name, message,
         "增設同類型場地、把部分課移到其他場地,或放寬使用該場地之教師的不可排時段",
         _relaxable("H3"),
-        {"demand": demand, "supply": supply, "usable": usable},
+        {"demand": demand, "supply": supply, "usable": usable, "rooms": len(pool)},
     )
 
 
@@ -442,10 +483,28 @@ def _room_users(problem: Problem, room: RoomSpec) -> list[AssignmentSpec]:
     ]
 
 
-def _room_numbers(problem: Problem, room: RoomSpec) -> tuple[int, int, int]:
-    """(需求節數, 該場地一週的節次數, 扣掉相關教師不可排時段後真正可用的節次數)。"""
+def _room_pool(problem: Problem, room: RoomSpec) -> tuple[RoomSpec, ...]:
+    """與 room 一起承擔同一批課的場地。
+
+    已綁定場地的課只能用那一間;未綁定、只指定類型的課則可用整個候選池,
+    供給必須以整池計算。
+    """
+    if any(a.room_id == room.id for a in problem.assignments):
+        return (room,)
+    users = {a.id for a in _room_users(problem, room)}
+    return tuple(
+        r
+        for r in problem.rooms.values()
+        if r.room_type == room.room_type
+        and users & {a.id for a in _room_users(problem, r)}
+    )
+
+
+def _room_numbers(problem: Problem, room: RoomSpec) -> tuple[int, int, int, tuple[RoomSpec, ...]]:
+    """(需求節數, 候選池一週合計節次數, 扣掉相關教師不可排時段後可用的節次數, 候選池)。"""
     users = _room_users(problem, room)
     demand = sum(a.periods_per_week for a in users)
+    pool = _room_pool(problem, room)
 
     all_slots: dict[tuple[int, int, int], Slot] = {}
     free_slots: dict[tuple[int, int, int], Slot] = {}
@@ -464,9 +523,10 @@ def _room_numbers(problem: Problem, room: RoomSpec) -> tuple[int, int, int]:
             if s.key not in forbidden:
                 free_slots[(table.id, *s.key)] = s
 
-    supply = max_non_overlapping(list(all_slots.values()))
-    usable = max_non_overlapping(list(free_slots.values()))
-    return demand, supply, usable
+    rooms = max(len(pool), 1)
+    supply = max_non_overlapping(list(all_slots.values())) * rooms
+    usable = max_non_overlapping(list(free_slots.values())) * rooms
+    return demand, supply, usable, pool
 
 
 def _subject_ids_of(problem: Problem, cls: ClassSpec) -> set[int]:

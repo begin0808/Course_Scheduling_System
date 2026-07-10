@@ -428,6 +428,27 @@ Course_Scheduling_System/
 - **科目 Excel 匯入沒有「主科」欄**(M3-3):`subjects.is_major` 只能在科目表單勾選。匯入範本可加一個選填欄。
 - **一門課整學期固定一間教室**(M3-2 建模選擇):`y[配課, 教室]` 是每筆配課一個變數,而非逐格挑教室。符合實務(課表上一門課就在一間教室),變數量也小得多。若日後需要「同一門課不同節在不同教室」,改為 `y[配課, 節次, 教室]` 即可,約束式不變。
 - `teacher_time_rule` 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。
+- 【Fable 5 審查】部分排課宣稱「永遠有解」,但 `_make_lesson_vars` 在候選為空時先 raise 才輪到 drop:完全被擋死的課(如未放寬 H4 的協同教學)會讓整個部分排課失敗,而非列入未排清單。
+- 【Fable 5 審查】跑班群組在部分排課掉一格時,`extract` 對每筆成員配課各記一次未排,「未排 N 節」會灌水數倍。
+- 【Fable 5 審查】衝突定位期間(最長 60 秒)不檢查 `should_stop`,使用者按「取消」無效,最後得到 failed 而非 cancelled。
+- 【Fable 5 審查】`check_feasibility` 吞掉 `SolverInputError` 的訊息:未來任何建模 bug 都會偽裝成「資料無解」。至少把原始訊息記入 log / conflict detail。
+- 【Fable 5 審查】`test_purity.py` 只收 `level == 0` 的 import,相對匯入(`from ..models import ...`)可完全繞過純度掃描。
+- 【Fable 5 審查】未排清單只活在 Redis(24h TTL);部分排課草稿可被 force 發布,之後沒有任何持久紀錄說哪些課沒排。M5 報表會需要它。
+- 【Fable 5 審查】「validator/report 與 model_builder 零共用程式碼」嚴格說不成立:三者共用 `problem.py` 的 `slots_overlap`(D7 判定)與 `course_key`(排課單位語意)。獨立性涵蓋**約束編碼**,不涵蓋這兩個定義層謂詞。應為它們補直接的邊界單元測試。
 - 求解前先跑一次 hard-only 可行性探測(約 1 秒):既能提早回報「這份資料無解」,又能把該解當成正式求解的 warm start。目前是在失敗之後才探測。
 - 部分排課的 timeout 幾乎必定用滿:CP-SAT 找到最佳的「未排 2 節」很快,但要證明「不可能只少排 1 節」很慢。可考慮找到解後以未排節數為上界再收斂,或給部分排課獨立的較短預設時限。
 - 衝突定位的旋鈕清單未含「班級可排節次」與「連堂結構」;`structural` 模式目前只列最吃緊的班級/教師,沒有具體到「哪一門課改成連堂就好」。
+
+---
+
+## M3 審查修正(Fable 5 獨立審查,2026-07-10)
+
+M3 完成後由 Fable 5 做獨立技術審查,判決「有條件可進 M4」。以下 5 項已修:
+
+- **A. H10 雙軌判定**:`conflict_checker` 寫死 `cap=2`,solver 卻讀 `constraint_config`。學校把上限設成 3,自動排課排得出來、手動拖曳卻報違規。改為由 `check_conflict` 讀學期設定(hot path 加一次查詢,p95 仍 <100ms)。**M4 調代課直接重用這支檢查器,這條裂縫必須先補。**
+- **B. 軟約束權重無上限**:`PUT /solver/config` 接受 `{"S2": 20000}`,而部分排課的「整節不排入」懲罰是 10000 → solver 會理性地丟課換分散度。新增 `MAX_WEIGHT = 100`(API 擋、`load_config` 讀取時夾),並在 `Relaxation.__post_init__` 斷言量級順序。
+- **C. `unknown` 靜默降級**:試解逾時回 `unknown` 時被當成「不可行」,但 `complete` 沒有跟著降,`structural` 於是宣稱「即使放寬所有可調整的項目仍然無解」——一句從未被證明的話。新增 `_Prober` 追蹤 `certain`,任何 `unknown` 都讓 `complete=False`,structural 措辭隨之收斂。
+- **D. pre-flight 場地供給不看科目適用性**:唯一的專科教室綁「美術」,音樂課要求專科教室 → 檢查放行、建模必然失敗、定位找不到該場地、報告文不對題。改為依「候選場地集合」分組比對供需(與 `_candidate_rooms` 同義),新增 `room_no_candidate` 結構性錯誤(部分排課亦擋)。
+- **E. `_room_numbers` 混用池需求與單間供給**:多間同類型教室時,原因卡會憑空放大缺口。改為整池計算並在訊息中列出教室名。
+
+驗證:pytest 273(+11,含 unknown 路徑 4 個測試)、真實 PostgreSQL 打過 A/B/D 端點、e2e 16 綠。

@@ -283,3 +283,59 @@ def test_partial_mode_blocks_when_a_room_type_has_no_room_at_all():
     not_enough = preflight.PreflightReport((_issue("room_type_supply", {"supply": 30}),))
     assert preflight.blocking_errors(none_at_all, allow_partial=True)
     assert not preflight.blocking_errors(not_enough, allow_partial=True)
+
+
+# ── 場地供給必須與建模端的候選集合同義(不只看類型,也看適用科目)──
+def _room_type_fixture(db, year: int, *, bind_subject: str | None):
+    b = Builder(db, year, 1, "junior_high")
+    b.subject("音樂", required_room_type=RoomType.special)
+    b.subject("美術", required_room_type=RoomType.special)
+    # 全校唯一一間專科教室;bind_subject 決定它適用哪一科(空=不限)
+    b.room("美術教室", room_type=RoomType.special,
+           subjects=[bind_subject] if bind_subject else None)
+    b.teacher("音樂師", base_periods=20)
+    b.klass("301", grade=3, track=ClassTrack.junior_high.value)
+    b.assign(subject="音樂", teachers=["音樂師"], periods=2, classes=["301"],
+             required_room_type=RoomType.special)
+    return b.build()
+
+
+def test_room_supply_respects_subject_applicability(db):
+    """唯一的專科教室只適用美術,音樂課卻要求專科教室 → 建模必然失敗,pre-flight 要先攔下。"""
+    fx = _room_type_fixture(db, 170, bind_subject="美術")
+    report = preflight.run(load_problem(db, fx.semester_id))
+
+    issue = next(i for i in report.errors if i.code == "room_no_candidate")
+    assert "音樂" in issue.message
+    # 這是結構性錯誤:少排幾節課也救不了,部分排課同樣要擋
+    assert preflight.blocking_errors(report, allow_partial=True)
+
+
+def test_room_supply_passes_when_the_room_applies_to_the_subject(db):
+    fx = _room_type_fixture(db, 171, bind_subject=None)
+    report = preflight.run(load_problem(db, fx.semester_id))
+    assert report.ok, [i.message for i in report.errors]
+
+
+def test_room_type_demand_is_grouped_by_candidate_pool(db):
+    """兩門課同樣要專科教室,但可用的教室集合不同 → 需求不可相加。"""
+    b = Builder(db, 172, 1, "junior_high")
+    b.subject("音樂", required_room_type=RoomType.special)
+    b.subject("美術", required_room_type=RoomType.special)
+    b.room("音樂教室", room_type=RoomType.special, subjects=["音樂"])
+    b.room("美術教室", room_type=RoomType.special, subjects=["美術"])
+    b.teacher("音樂師", base_periods=40)
+    b.teacher("美術師", base_periods=40)
+    for i in range(1, 6):
+        b.klass(f"30{i}", grade=3, track=ClassTrack.junior_high.value)
+        b.assign(subject="音樂", teachers=["音樂師"], periods=4, classes=[f"30{i}"],
+                 required_room_type=RoomType.special)
+        b.assign(subject="美術", teachers=["美術師"], periods=4, classes=[f"30{i}"],
+                 required_room_type=RoomType.special)
+    fx = b.build()
+
+    problem = load_problem(db, fx.semester_id)
+    report = preflight.run(problem)
+    # 各池需求 20 節 ≤ 單間供給 35 節;若把兩池相加(40)再比對「2 間 × 35」仍會過,
+    # 但把 40 節硬塞進「音樂教室」就會誤報。這裡確認沒有誤報。
+    assert not [i for i in report.errors if i.code == "room_type_supply"]

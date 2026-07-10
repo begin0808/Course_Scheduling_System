@@ -11,7 +11,7 @@ import pytest
 
 from app.models.basedata import ClassTrack, RoomType, TeacherRuleType, TeacherTimeRule
 from app.services.solver_data import load_problem
-from app.solver import preflight
+from app.solver import conflict_explainer, preflight
 from app.solver.conflict_explainer import explain
 from app.solver.model_builder import (
     Relaxation,
@@ -85,7 +85,7 @@ def test_room_supply_eaten_by_teacher_rules_is_located(db):
 
     room = next(c for c in report.causes if c.code == "H3")
     assert room.scope_name == "音樂教室"
-    assert room.detail == {"demand": 30, "supply": 35, "usable": 28}
+    assert room.detail == {"demand": 30, "supply": 35, "usable": 28, "rooms": 1}
     assert "音樂教室" in room.message
     assert "30" in room.message and "28" in room.message
 
@@ -301,3 +301,71 @@ def test_two_independent_bottlenecks_must_be_fixed_together(db):
     assert len(report.causes) >= 2
     assert "H10" in codes  # 國文那一邊
     assert codes & {"H3", "H4"}  # 音樂教室那一邊
+
+
+# ── unknown 路徑:沒能判定的試解,不可以被當成「已證明不可行」 ─────
+def _fake_probe(monkeypatch, unknown_when):
+    """讓指定的試解回 unknown,其餘照常。unknown_when 收 disabled 標籤集合。"""
+    real = conflict_explainer.check_feasibility
+
+    def fake(problem, *, config=None, disabled=frozenset(), max_seconds=10.0, workers=8):
+        if unknown_when(disabled):
+            return "unknown"
+        return real(problem, config=config, disabled=disabled,
+                    max_seconds=max_seconds, workers=workers)
+
+    monkeypatch.setattr(conflict_explainer, "check_feasibility", fake)
+
+
+def test_base_probe_unknown_reports_unknown_not_infeasible(db, monkeypatch):
+    """連「這份資料到底有沒有解」都沒判定出來時,不可以擺出一份原因報告。"""
+    fx = _daily_cap_fixture(db, year=151).build()
+    problem = load_problem(db, fx.semester_id)
+    _fake_probe(monkeypatch, lambda disabled: not disabled)  # 基準試解逾時
+
+    report = explain(problem, max_seconds=30.0)
+    assert report.status == "unknown"
+    assert report.causes == ()
+    assert report.headline == ""
+
+
+def test_unknown_step_marks_the_report_incomplete(db, monkeypatch):
+    """某個旋鈕的試解逾時 → 它不該被列為原因,但報告必須承認自己不完整。"""
+    fx = _music_room_fixture(db, year=152).build()
+    problem = load_problem(db, fx.semester_id)
+    _fake_probe(monkeypatch, lambda d: any(t.code == "H3" for t in d))
+
+    report = explain(problem, max_seconds=60.0)
+    assert report.status == "infeasible"
+    assert report.mode == "each"
+    assert "H3" not in {c.code for c in report.causes}  # 沒證明 → 不敢說
+    assert {c.code for c in report.causes} == {"H4"}    # 證明過的照樣列
+    assert not report.complete, "有試解沒判定出來,complete 必須是 False"
+
+
+def test_structural_headline_does_not_overclaim_when_unproven(db, monkeypatch):
+    """所有試解都逾時 → 落到 structural,但不可以宣稱「即使放寬所有項目仍然無解」。"""
+    fx = _music_room_fixture(db, year=153).build()
+    problem = load_problem(db, fx.semester_id)
+    _fake_probe(monkeypatch, lambda d: bool(d))  # 除了基準以外全部逾時
+
+    report = explain(problem, max_seconds=60.0)
+    assert report.status == "infeasible"
+    assert report.mode == "structural"
+    assert not report.complete
+    assert "未能判定" in report.headline
+    assert "即使放寬所有可調整的項目仍然無解" not in report.headline
+    assert report.causes  # structural 仍要列出最吃緊的班級/教師
+
+
+def test_structural_headline_is_assertive_when_proven(db):
+    """真的證明了「全部放寬仍無解」時,話就該說死。
+
+    一個班配課 40 節 > 可排 35 格:pre-flight 會先攔下,所以這裡直接驗 headline 文案分支。
+    """
+    report = conflict_explainer.ConflictReport(
+        status="infeasible", source="analysis", mode="structural",
+        causes=(conflict_explainer.Cause("structural", "class", 1, "301", "x", "y"),),
+        complete=True,
+    )
+    assert report.headline == "即使放寬所有可調整的項目仍然無解,問題出在配課總量"

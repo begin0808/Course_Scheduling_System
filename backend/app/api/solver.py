@@ -24,7 +24,7 @@ from app.schemas.solver import (
 from app.services.solver_data import load_config, load_problem, save_config
 from app.solver import preflight
 from app.solver.model_builder import RELAXABLE_CODES, RELAXABLE_NAMES
-from app.solver.problem import DEFAULT_WEIGHTS, SOFT_NAMES, SolverConfig
+from app.solver.problem import DEFAULT_WEIGHTS, MAX_WEIGHT, SOFT_NAMES, SolverConfig
 from app.workers import queue as job_queue
 from app.workers.progress import (
     ControlAction,
@@ -116,6 +116,12 @@ def put_constraint_config(
         )
     if any(w < 0 for w in body.weights.values()):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "權重不可為負數(0 = 關閉該項)")
+    # 上限是部分排課的正確性前提,不是美觀限制(見 solver/problem.py MAX_WEIGHT)
+    if any(w > MAX_WEIGHT for w in body.weights.values()):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"權重上限為 {MAX_WEIGHT};再高會讓部分排課寧可丟課也要滿足軟約束",
+        )
 
     weights = dict(DEFAULT_WEIGHTS) | body.weights
     config = SolverConfig(

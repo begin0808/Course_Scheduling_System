@@ -716,3 +716,52 @@ def test_check_conflict_performance(env2):
     samples.sort()
     p95 = samples[int(0.95 * (len(samples) - 1))]
     assert p95 < 100, f"check-conflict p95 {p95:.1f}ms(最慢 {samples[-1]:.1f}ms),超過 100ms 目標"
+
+
+# ── 手動排課的每日上限必須與自動排課同源(不可寫死 2)──
+def test_daily_cap_follows_the_semester_config(env):
+    """PUT /solver/config 把上限調到 3 → 手動拖第 3 節同科目不再報 H10。
+
+    寫死的常數會讓同一張草稿出現「自動排課排得出來、手動拖曳卻報違規」的雙軌判定,
+    而 M4 調代課直接重用這支檢查器。
+    """
+    client, db = env
+    make_user(db, "s", PW, roles=[Role.scheduler])
+    client.post("/api/auth/login", json={"username": "s", "password": PW})
+
+    sid = client.post("/api/semesters", json={
+        "academic_year": 180, "term": 1, "template_key": "junior_high"}).json()["id"]
+    c = client.post(f"/api/class-units?semester_id={sid}",
+                    json={"grade": 3, "name": "301", "track": "junior_high"}).json()
+    s = client.post(f"/api/subjects?semester_id={sid}", json={"name": "國文"}).json()
+    t = client.post(f"/api/teachers?semester_id={sid}",
+                    json={"name": "王師", "base_periods": 20}).json()
+    a = client.post(f"/api/assignments?semester_id={sid}", json={
+        "class_id": c["id"], "subject_id": s["id"], "periods_per_week": 6,
+        "teachers": [{"teacher_id": t["id"]}], "block_rules": []}).json()
+    tt = client.post(f"/api/timetables?semester_id={sid}", json={"name": "草稿A"}).json()
+
+    slots = client.get(f"/api/class-units/{c['id']}/period-table").json()["periods"]
+    day1 = [p["period_no"] for p in slots if p["weekday"] == 1 and p["type"] == "regular"]
+
+    def place(pno):
+        return client.post(f"/api/timetables/{tt['id']}/entries", json={
+            "course_assignment_id": a["id"], "weekday": 1, "period_no": pno, "span": 1})
+
+    assert place(day1[0]).status_code == 201
+    assert place(day1[1]).status_code == 201
+
+    # 預設上限 2 → 第 3 節同科目被擋
+    blocked = place(day1[2])
+    assert blocked.status_code == 409
+    assert "每日上限 2 節" in str(blocked.json()["detail"])
+
+    # 學期設定改為 3 → 同一格立刻放得下,訊息裡的數字也跟著變
+    client.put(f"/api/solver/config?semester_id={sid}", json={
+        "daily_subject_cap": 3, "teacher_daily_max": 6,
+        "teacher_consecutive_max": 3, "weights": {}})
+    assert place(day1[2]).status_code == 201
+
+    blocked = place(day1[3])
+    assert blocked.status_code == 409
+    assert "每日上限 3 節" in str(blocked.json()["detail"])

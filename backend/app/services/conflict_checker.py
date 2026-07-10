@@ -23,9 +23,9 @@ from app.models.basedata import ClassUnit, Room, Subject
 from app.models.period import Period, PeriodType
 from app.models.timetable import ScheduleEntry, Timetable
 from app.services import period_tables as pt_service
+from app.services.solver_data import load_config
 
 WEEKDAY_CN = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
-DEFAULT_DAILY_SUBJECT_CAP = 2  # H10 同班同科目每日上限(連堂除外)
 
 
 @dataclass
@@ -63,9 +63,10 @@ def _wd(w: int) -> str:
 
 
 class _Checker:
-    def __init__(self, db: Session, timetable: Timetable) -> None:
+    def __init__(self, db: Session, timetable: Timetable, daily_subject_cap: int) -> None:
         self.db = db
         self.timetable = timetable
+        self.cap = daily_subject_cap
         self._pmap_cache: dict[int, dict[tuple[int, int], Period]] = {}
         self._table_cache: dict[int, int | None] = {}
         self._class_table_cache: dict[int, int | None] = {}
@@ -299,11 +300,11 @@ class _Checker:
             if pl.span == 1:
                 for c in self._classes(a):
                     existing = subj_count.get((c.id, wd, a.subject_id), 0)
-                    if existing + 1 > DEFAULT_DAILY_SUBJECT_CAP:
+                    if existing + 1 > self.cap:
                         conflicts.append(Conflict(
                             "H10",
                             f"班級 {c.name} {_wd(wd)} 已排「{a.subject.name}」{existing} 節,"
-                            f"達每日上限 {DEFAULT_DAILY_SUBJECT_CAP} 節",
+                            f"達每日上限 {self.cap} 節",
                         ))
 
             # 累積批次教師/場地佔用(同群組其他門課據此互檢)
@@ -355,12 +356,19 @@ def check_conflict(
     span: int = 1,
     ignore_entry_ids: set[int] | None = None,
     room_id: int | None = None,
+    daily_subject_cap: int | None = None,
 ) -> list[Conflict]:
     """檢查將 assignment 放到 (weekday, period_no) 是否違反硬約束。
 
     移動既有格位時傳 ignore_entry_ids(被搬動的那幾格),使其不與自己相衝。
     room_id 為格位指定場地(空=沿用配課場地)。回傳空清單表示可放。
+
+    H10 的每日上限**必須與自動排課用同一個值**(學期的 constraint_config),
+    否則同一張草稿會出現「自動排課排得出來、手動拖曳卻報違規」的雙軌判定。
+    未指定時自動讀取該學期設定。
     """
-    checker = _Checker(db, timetable)
+    if daily_subject_cap is None:
+        daily_subject_cap = load_config(db, timetable.semester_id).daily_subject_cap
+    checker = _Checker(db, timetable, daily_subject_cap)
     placements = placements_for(db, assignment, weekday, period_no, span, room_id)
     return checker.check(placements, ignore_entry_ids or set())

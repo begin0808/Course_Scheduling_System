@@ -25,6 +25,7 @@ from app.models.timetable import ScheduleEntry, Timetable
 from app.services import period_tables as pt_service
 from app.solver.problem import (
     DEFAULT_WEIGHTS,
+    MAX_WEIGHT,
     AssignmentSpec,
     BlockSpec,
     ClassSpec,
@@ -59,7 +60,9 @@ def load_config(db: Session, semester_id: int) -> SolverConfig:
     weights = dict(DEFAULT_WEIGHTS)
     for code in DEFAULT_WEIGHTS:
         if code in stored:
-            weights[code] = stored[code]
+            # 夾到上限:API 現在擋得住,但舊資料可能存過更大的值,而超過上限會讓
+            # 部分排課寧可丟掉一節課也要滿足軟約束(見 solver/problem.py MAX_WEIGHT)
+            weights[code] = max(0, min(stored[code], MAX_WEIGHT))
     return SolverConfig(
         daily_subject_cap=stored.get("daily_subject_cap", defaults.daily_subject_cap),
         teacher_daily_max=stored.get("teacher_daily_max", defaults.teacher_daily_max),

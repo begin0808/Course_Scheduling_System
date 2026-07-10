@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from ortools.sat.python import cp_model
 
 from app.solver.problem import (
+    MAX_WEIGHT,
     MORNING_END_MIN,
     AssignmentSpec,
     PeriodTableSpec,
@@ -87,6 +88,12 @@ class Relaxation:
             raise SolverInputError(
                 f"這些硬約束不可放寬:{'、'.join(sorted(unknown))}"
                 f"(可放寬的只有 {'、'.join(RELAXABLE_CODES)})"
+            )
+        # 量級必須嚴格遞減,否則 solver 會用「丟掉一節課」去換軟約束的分數。
+        # 軟約束端的保證來自 problem.MAX_WEIGHT(見該處說明)。
+        if not self.unplaced_penalty > self.violation_penalty > MAX_WEIGHT * 8:
+            raise SolverInputError(
+                "部分排課的懲罰量級必須是:未排入 > 放寬的硬約束 > 軟約束的最大總和"
             )
 
     def is_soft(self, code: str) -> bool:

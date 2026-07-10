@@ -1,8 +1,12 @@
 """M3-3:軟約束權重設定(GET/PUT /api/solver/config)。"""
 
+import pytest
+
+from app.models.constraint import ConstraintConfig
 from app.models.user import Role
 from app.services.solver_data import load_config
-from app.solver.problem import DEFAULT_WEIGHTS
+from app.solver.model_builder import Relaxation, SolverInputError
+from app.solver.problem import DEFAULT_WEIGHTS, MAX_WEIGHT
 from tests.conftest import make_user
 
 PW = "password123"
@@ -94,3 +98,43 @@ def test_unknown_semester_404(env):
     assert client.get("/api/solver/config?semester_id=9999").status_code == 404
     assert client.put("/api/solver/config?semester_id=9999",
                       json={"weights": {}}).status_code == 404
+
+
+# ── 權重上限是部分排課的正確性前提,不是美觀限制 ──────────────
+def _put(client, sid, weights):
+    return client.put(f"/api/solver/config?semester_id={sid}", json={
+        "daily_subject_cap": 2, "teacher_daily_max": 6,
+        "teacher_consecutive_max": 3, "weights": weights})
+
+
+def test_weight_above_max_is_rejected(env):
+    """權重若能設到 20000,solver 會理性地丟掉一節課去換分散度。"""
+    client, db = env
+    _login(client, db)
+    sid = _semester(client)
+
+    r = _put(client, sid, {"S2": 20000})
+    assert r.status_code == 400
+    assert "丟課" in r.json()["detail"]
+    assert _put(client, sid, {"S2": MAX_WEIGHT}).status_code == 200
+
+
+def test_stored_weight_over_max_is_clamped_on_read(env):
+    """舊資料可能存過超大權重;讀出來一定要夾回上限,否則 worker 仍會寧可丟課。"""
+    client, db = env
+    _login(client, db)
+    sid = _semester(client)
+
+    db.add(ConstraintConfig(semester_id=sid, key="S2", value=99999))
+    db.commit()
+    assert load_config(db, sid).weight("S2") == MAX_WEIGHT
+    assert client.get(f"/api/solver/config?semester_id={sid}").json()["weights"]["S2"] == MAX_WEIGHT
+
+
+def test_relaxation_penalties_must_stay_ordered():
+    """未排入 > 放寬的硬約束 > 軟約束的最大總和。順序反了就會用丟課換軟約束分數。"""
+    with pytest.raises(SolverInputError, match="懲罰量級"):
+        Relaxation(unplaced_penalty=500, violation_penalty=1000)
+    with pytest.raises(SolverInputError, match="懲罰量級"):
+        Relaxation(violation_penalty=10)  # 小於 MAX_WEIGHT × 8
+    Relaxation()  # 預設值必須合法

@@ -72,6 +72,13 @@ const statusLabel = computed(() =>
 
 const codeName = (code: string) => relaxable.value.find((o) => o.code === code)?.name ?? code
 
+// 有試解在時限內沒判定出來。each 的每一項仍是驗證過的,只是清單可能不全;
+// joint 則連「這組是不是最小」都沒把握。兩者要說不同的話。
+const incompleteNote = computed(() => {
+  if (conflict.value?.mode === 'joint') return '(時間有限,這組未必是最小的組合)'
+  return '(時間有限,可能還有其他原因未列出)'
+})
+
 const elapsedText = computed(() => {
   const s = job.value?.elapsed ?? 0
   return s < 1 ? '不到 1 秒' : `${Math.round(s)} 秒`
@@ -324,9 +331,7 @@ function openResult() {
                   <n-text depth="3">建議:{{ c.suggestion }}</n-text>
                 </div>
               </div>
-              <n-text v-if="!conflict.complete" depth="3">
-                (時間有限,可能還有其他原因未列出)
-              </n-text>
+              <n-text v-if="!conflict.complete" depth="3">{{ incompleteNote }}</n-text>
               <n-button
                 v-if="conflict.relaxable_codes.length" type="primary" ghost size="small"
                 data-testid="as-retry-partial" @click="onRetryPartial"

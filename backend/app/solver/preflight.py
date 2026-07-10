@@ -11,7 +11,14 @@
 from dataclasses import dataclass, field
 from typing import Literal
 
-from app.solver.problem import Problem, Slot, TeacherSpec, max_non_overlapping
+from app.solver.problem import (
+    AssignmentSpec,
+    Problem,
+    RoomSpec,
+    Slot,
+    TeacherSpec,
+    max_non_overlapping,
+)
 
 Level = Literal["error", "warning"]
 
@@ -80,6 +87,7 @@ STRUCTURAL_CODES = frozenset({
     "group_shape_mismatch",
     "block_infeasible",
     "block_exceeds_periods",
+    "room_no_candidate",  # 沒有任何一間場地適用此科目 → _make_room_vars 直接失敗
 })
 
 
@@ -213,27 +221,7 @@ def _check_rooms(problem: Problem, issues: list[Issue]) -> None:
                 {"demand": demand, "supply": supply},
             ))
 
-    # 2) 場地類型的總量檢查(§3.4「音樂教室需求 35 節 > 供給 30 節」)。
-    #    供給以「該類型場地數 × 單表節次數」估算——這是上界,故只在明顯不足時報錯。
-    demand_by_type: dict[str, int] = {}
-    for a in problem.assignments:
-        if a.required_room_type:
-            demand_by_type[a.required_room_type] = (
-                demand_by_type.get(a.required_room_type, 0) + a.periods_per_week
-            )
-    slots_per_room = max((len(t.slots) for t in problem.tables.values()), default=0)
-    for room_type, demand in demand_by_type.items():
-        rooms = [r for r in problem.rooms.values() if r.room_type == room_type]
-        supply = len(rooms) * slots_per_room
-        if demand > supply:
-            names = "、".join(r.name for r in rooms) or "(無)"
-            issues.append(Issue(
-                "error", "room_type_supply",
-                f"需要「{_ROOM_TYPE_CN.get(room_type, room_type)}」的課共 {demand} 節,"
-                f"但這類場地({names})合計只能提供 {supply} 節",
-                "semester", problem.semester_id,
-                {"room_type": room_type, "demand": demand, "supply": supply},
-            ))
+    _check_room_types(problem, issues)
 
     # 3) D8:場地容量僅作警告,不參與求解(同一場地同時段仍是至多一門課)
     for a in problem.assignments:
@@ -252,6 +240,76 @@ def _check_rooms(problem: Problem, issues: list[Issue]) -> None:
                 "assignment", a.id,
                 {"students": students, "capacity": room.capacity},
             ))
+
+
+def candidate_rooms(problem: Problem, a: AssignmentSpec) -> tuple[RoomSpec, ...]:
+    """該配課可用的場地。**必須與 model_builder._candidate_rooms 同義**——
+
+    pre-flight 若只看場地類型而不看「適用科目」,就會放行一個建模階段必然失敗的學期:
+    唯一的專科教室綁定「美術」,而「音樂」也要求專科教室 → 檢查說供給充足,
+    solver 卻連模型都建不起來,衝突定位也找不到該場地,最後給出一份文不對題的報告。
+    """
+    return tuple(
+        r
+        for r in problem.rooms.values()
+        if r.room_type == a.required_room_type
+        and (not r.subject_ids or a.subject_id in r.subject_ids)
+    )
+
+
+def _check_room_types(problem: Problem, issues: list[Issue]) -> None:
+    """場地類型的總量檢查(§3.4「音樂教室需求 35 節 > 供給 30 節」)。
+
+    需求依「候選場地集合」分組後才與供給比對:兩門課即使同樣要求專科教室,
+    若可用的教室集合不同,它們的需求就不該相加。
+    """
+    slots_per_room = max((len(t.slots) for t in problem.tables.values()), default=0)
+
+    # 該類型一間都沒有 → 建模必然失敗,單獨報(部分排課也擋)
+    typed = [a for a in problem.assignments if a.required_room_type]
+    for room_type in sorted({a.required_room_type for a in typed if a.required_room_type}):
+        if not any(r.room_type == room_type for r in problem.rooms.values()):
+            demand = sum(a.periods_per_week for a in typed if a.required_room_type == room_type)
+            issues.append(Issue(
+                "error", "room_type_supply",
+                f"需要「{_ROOM_TYPE_CN.get(room_type, room_type)}」的課共 {demand} 節,"
+                f"但這類場地((無))合計只能提供 0 節",
+                "semester", problem.semester_id,
+                {"room_type": room_type, "demand": demand, "supply": 0},
+            ))
+
+    by_pool: dict[tuple[int, ...], list[AssignmentSpec]] = {}
+    for a in typed:
+        rooms = candidate_rooms(problem, a)
+        if not rooms:
+            if any(r.room_type == a.required_room_type for r in problem.rooms.values()):
+                # 類型有教室,但沒有一間適用這個科目
+                issues.append(Issue(
+                    "error", "room_no_candidate",
+                    f"「{a.subject_name}」需要「"
+                    f"{_ROOM_TYPE_CN.get(a.required_room_type or '', a.required_room_type)}」,"
+                    f"但沒有任何一間這類場地適用此科目",
+                    "assignment", a.id,
+                    {"room_type": a.required_room_type, "subject_id": a.subject_id},
+                ))
+            continue
+        by_pool.setdefault(tuple(sorted(r.id for r in rooms)), []).append(a)
+
+    for pool_ids, users in by_pool.items():
+        demand = sum(a.periods_per_week for a in users)
+        supply = len(pool_ids) * slots_per_room
+        if demand <= supply:
+            continue
+        names = "、".join(problem.rooms[rid].name for rid in pool_ids)
+        room_type = users[0].required_room_type or ""
+        issues.append(Issue(
+            "error", "room_type_supply",
+            f"需要「{_ROOM_TYPE_CN.get(room_type, room_type)}」的課共 {demand} 節,"
+            f"但可用的場地({names})合計只能提供 {supply} 節",
+            "semester", problem.semester_id,
+            {"room_type": room_type, "demand": demand, "supply": supply,
+             "rooms": len(pool_ids)},
+        ))
 
 
 def _check_blocks(problem: Problem, issues: list[Issue]) -> None:
