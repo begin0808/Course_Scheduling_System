@@ -57,6 +57,9 @@ def _serialize_entry(e: ScheduleEntry) -> ScheduleEntryOut:
         classes=[m.class_unit.name for m in su.members],
         unit_type=su.unit_type, unit_name=su.name,
         room=a.room.name if a.room else None,
+        teacher_ids=[at.teacher_id for at in a.teachers],
+        class_ids=[m.class_unit_id for m in su.members],
+        room_id=a.room_id,
     )
 
 

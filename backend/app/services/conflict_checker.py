@@ -103,6 +103,15 @@ class _Checker:
         names = "、".join(m.class_unit.name for m in a.scheduling_unit.members)
         return f"{names} 班{a.subject.name}"
 
+    def _slot(self, pmap: dict[tuple[int, int], Period], weekday: int, pno: int) -> str:
+        """人話時段標籤:用節次表裡的名稱(早自習/午休/第一節),而非內部 period_no。
+
+        period_no 是含早自習/午休的內部索引(國中範本第一節的 period_no 是 2),
+        直接顯示會與教學組長的認知不符。
+        """
+        p = pmap.get((weekday, pno))
+        return f"{_wd(weekday)}{p.name}" if p else f"{_wd(weekday)}第{pno}節"
+
     def _overlap(
         self, occ: _Occ, weekday: int, table_id: int, pno: int, start: time | None, end: time | None
     ) -> bool:
@@ -221,12 +230,13 @@ class _Checker:
                 if pl.span > 1:
                     conflicts.append(Conflict(
                         "H6",
-                        f"連堂課排在 {_wd(wd)}第{pl.period_no}節 會跨越午休或非上課時段"
+                        f"連堂課排在 {self._slot(pmap, wd, pl.period_no)} 會跨越午休或非上課時段"
                         f"(需連續 {pl.span} 節一般課)",
                     ))
                 else:
                     conflicts.append(Conflict(
-                        "H5", f"{_wd(wd)}第{pl.period_no}節 非一般上課節次,不可排課"))
+                        "H5",
+                        f"{self._slot(pmap, wd, pl.period_no)} 非一般上課節次,不可排課"))
                 continue
 
             # H1:班級不衝堂(僅比對既有格位;同群組成員班級共用不算衝突)
@@ -235,25 +245,26 @@ class _Checker:
                     d = class_occ.get((c.id, wd, pno))
                     if d:
                         conflicts.append(Conflict(
-                            "H1", f"班級 {c.name} {_wd(wd)}第{pno}節 已有 {d}"))
+                            "H1", f"班級 {c.name} {self._slot(pmap, wd, pno)} 已有 {d}"))
 
             # H4 教師不可排時段 + H2 教師不衝堂(含跨表時間重疊、同群組其他門課)
             for at in a.teachers:
                 t = at.teacher
                 for pno, s, e in covered:
+                    label = self._slot(pmap, wd, pno)
                     for rule in t.time_rules:
                         if (rule.rule_type == "unavailable"
                                 and rule.weekday == wd and rule.period_no == pno):
                             conflicts.append(Conflict(
-                                "H4", f"教師{t.name} {_wd(wd)}第{pno}節 為不可排時段"))
+                                "H4", f"教師{t.name} {label} 為不可排時段"))
                     for occ in teacher_occ.get(at.teacher_id, []):
                         if self._overlap(occ, wd, table_id, pno, s, e):
                             conflicts.append(Conflict(
-                                "H2", f"教師{t.name} {_wd(wd)}第{pno}節 已有 {occ.desc}"))
+                                "H2", f"教師{t.name} {label} 已有 {occ.desc}"))
                     for occ in batch_teacher.get(at.teacher_id, []):
                         if self._overlap(occ, wd, table_id, pno, s, e):
                             conflicts.append(Conflict(
-                                "H2", f"教師{t.name} {_wd(wd)}第{pno}節 與同群組另一門課撞課"))
+                                "H2", f"教師{t.name} {label} 與同群組另一門課撞課"))
 
             # H3 場地不衝堂
             if a.room_id:
@@ -262,7 +273,8 @@ class _Checker:
                         if self._overlap(occ, wd, table_id, pno, s, e):
                             room_name = a.room.name if a.room else str(a.room_id)
                             conflicts.append(Conflict(
-                                "H3", f"場地 {room_name} {_wd(wd)}第{pno}節 已有 {occ.desc}"))
+                                "H3",
+                                f"場地 {room_name} {self._slot(pmap, wd, pno)} 已有 {occ.desc}"))
 
             # H10 同班同科目每日上限(連堂除外)
             if pl.span == 1 and not a.block_rules:

@@ -20,6 +20,10 @@ class ScheduleEntryOut(BaseModel):
     unit_type: str
     unit_name: str
     room: str | None = None
+    # id 供前端三視角精確篩選(姓名/班名可能重複,不可當鍵)
+    teacher_ids: list[int] = []
+    class_ids: list[int] = []
+    room_id: int | None = None
 
 
 class TimetableBrief(BaseModel):

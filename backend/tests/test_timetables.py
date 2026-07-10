@@ -112,6 +112,19 @@ def _entries(client, tid):
     return client.get(f"/api/timetables/{tid}").json()["entries"]
 
 
+# ── 班級所屬節次表(工作台渲染用)────
+def test_class_period_table_endpoint(env2):
+    """回傳完整節次表(含午休等非上課格位),且經 resolve_period_table 回退學期預設表。"""
+    client, sid, _tid, ptid = env2
+    c = _class(client, sid, 1, "甲")  # 未指定節次表 → 應回退預設表
+    r = client.get(f"/api/class-units/{c['id']}/period-table")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["id"] == ptid
+    assert any(p["type"] == "lunch" for p in body["periods"])
+    assert any(p["type"] == "regular" for p in body["periods"])
+
+
 # ── 課表草稿 CRUD ─────────────────────
 def test_create_and_list_timetable(env2):
     client, sid, tid, _ = env2
@@ -151,7 +164,8 @@ def test_h1_different_classes_same_slot_ok(env2):
 
 # ── H2 教師不衝堂(驗收①)────────────
 def test_h2_teacher_conflict_message(env2):
-    """驗收①:王師已在週一第1節有課,再排他班同時段 → 「教師王師 週一第1節 已有 302 班數學」"""
+    """驗收①:王師已在週一第一節有課,再排他班同時段 →
+    「教師王師 週一第一節 已有 302 班數學」(時段以節次表名稱呈現)"""
     client, sid, tid, _ = env2
     c302, c301 = _class(client, sid, 3, "302"), _class(client, sid, 3, "301")
     wang = _teacher(client, sid, "王師")
@@ -166,7 +180,7 @@ def test_h2_teacher_conflict_message(env2):
     assert res["ok"] is False
     assert "H2" in _codes(res)
     msg = next(c["message"] for c in res["conflicts"] if c["code"] == "H2")
-    assert msg == "教師王師 週一第1節 已有 302 班數學"
+    assert msg == "教師王師 週一第一節 已有 302 班數學"
     assert _place(client, tid, a301["id"], 1, 1).status_code == 409
 
 
@@ -194,6 +208,47 @@ def test_h2_coteaching_counts(env2):
     a2 = _assign(client, sid, class_id=cb["id"], subject_id=s["id"], teacher_ids=[t2["id"]])
     _place(client, tid, a1["id"], 1, 1)
     assert "H2" in _codes(_check(client, tid, a2["id"], 1, 1))  # 協同教師撞課
+
+
+def test_slot_label_uses_period_name_not_index(env):
+    """迴歸:訊息中的時段須用節次表名稱(早自習/午休/第一節),不可用內部 period_no。
+
+    國中範本的「第一節」period_no 是 2(第 1 格是早自習),先前硬拼 f"第{period_no}節"
+    會顯示「第2節」,與教學組長的認知不符(2026-07-10 實機驗證發現)。
+    """
+    client, db = env
+    make_user(db, "s", PW, roles=[Role.scheduler])
+    client.post("/api/auth/login", json={"username": "s", "password": PW})
+    sid = client.post(
+        "/api/semesters",
+        json={"academic_year": 117, "term": 1, "template_key": "junior_high"},
+    ).json()["id"]
+    tid = client.post(f"/api/timetables?semester_id={sid}", json={"name": "草稿"}).json()["id"]
+
+    c301, c302 = _class(client, sid, 3, "301"), _class(client, sid, 3, "302")
+    wang = _teacher(client, sid, "王師")
+    math = _subject(client, sid, "數學二")
+    chin = _subject(client, sid, "國文二")
+    a302 = _assign(client, sid, class_id=c302["id"], subject_id=math["id"],
+                   teacher_ids=[wang["id"]])
+    a301 = _assign(client, sid, class_id=c301["id"], subject_id=chin["id"],
+                   teacher_ids=[wang["id"]])
+
+    # 範本:period_no 1=早自習、2=第一節、6=午休
+    assert _place(client, tid, a302["id"], 1, 2).status_code == 201
+
+    h2 = next(c["message"] for c in _check(client, tid, a301["id"], 1, 2)["conflicts"]
+              if c["code"] == "H2")
+    assert h2 == "教師王師 週一第一節 已有 302 班數學二"
+    assert "第2節" not in h2
+
+    h5_lunch = next(c["message"] for c in _check(client, tid, a301["id"], 1, 6)["conflicts"]
+                    if c["code"] == "H5")
+    assert h5_lunch.startswith("週一午休")
+
+    h5_morning = next(c["message"] for c in _check(client, tid, a301["id"], 1, 1)["conflicts"]
+                      if c["code"] == "H5")
+    assert h5_morning.startswith("週一早自習")
 
 
 # ── H3 場地不衝堂 ─────────────────────
@@ -285,7 +340,8 @@ def test_h6_block_crossing_lunch_rejected(env2):
     # p3(10:00) + p4(午休) → 跨午休
     res = _check(client, tid, a["id"], 1, 3, span=2)
     assert "H6" in _codes(res)
-    assert "午休" in next(c["message"] for c in res["conflicts"] if c["code"] == "H6")
+    msg = next(c["message"] for c in res["conflicts"] if c["code"] == "H6")
+    assert "週一第三節" in msg and "午休" in msg
     assert _place(client, tid, a["id"], 1, 3, span=2).status_code == 409
 
 

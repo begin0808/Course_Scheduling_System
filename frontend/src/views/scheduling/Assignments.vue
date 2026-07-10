@@ -297,7 +297,7 @@ function blockLabel(a: Assignment): string {
 
         <n-card title="班級節數警告" size="small" style="margin-top: 16px">
           <n-empty v-if="overCapacity.length === 0" description="各班配課未超出可排節次" size="small" />
-          <n-space v-else vertical size="small">
+          <n-space v-else vertical size="small" data-testid="class-warning">
             <n-alert v-for="c in overCapacity" :key="c.class_id" type="warning" :show-icon="false">
               {{ c.grade }}年{{ c.name }}:配課 {{ c.assigned }} 節 &gt; 可排 {{ c.capacity }} 節
             </n-alert>
@@ -342,12 +342,18 @@ function blockLabel(a: Assignment): string {
 
         <n-space align="center" justify="space-between">
           <n-text>連堂規則</n-text>
-          <n-button size="tiny" dashed @click="addBlock">+ 新增連堂</n-button>
+          <n-button size="tiny" dashed data-testid="a-add-block" @click="addBlock">+ 新增連堂</n-button>
         </n-space>
         <n-space v-for="(b, i) in form.block_rules" :key="i" align="center">
-          <n-input-number v-model:value="b.block_size" :min="2" :max="4" style="width: 110px" />
+          <n-input-number
+            v-model:value="b.block_size" :data-testid="`a-block-size-${i}`"
+            :min="2" :max="4" style="width: 110px"
+          />
           <n-text>連堂 ×</n-text>
-          <n-input-number v-model:value="b.count_per_week" :min="1" style="width: 110px" />
+          <n-input-number
+            v-model:value="b.count_per_week" :data-testid="`a-block-count-${i}`"
+            :min="1" style="width: 110px"
+          />
           <n-text>次/週</n-text>
           <n-button size="tiny" type="error" ghost @click="removeBlock(i)">移除</n-button>
         </n-space>

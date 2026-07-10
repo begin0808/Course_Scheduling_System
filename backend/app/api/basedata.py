@@ -35,7 +35,7 @@ from app.schemas.basedata import (
     TeacherTimeRuleIn,
     TeacherTimeRuleOut,
 )
-from app.schemas.semester import AvailableSlot
+from app.schemas.semester import AvailableSlot, PeriodTableOut
 from app.services import period_tables as pt_service
 
 router = APIRouter(tags=["basedata"])
@@ -459,6 +459,23 @@ def update_class_unit(
     db.commit()
     db.refresh(cu)
     return cu
+
+
+@router.get("/class-units/{class_id}/period-table", response_model=PeriodTableOut)
+def class_period_table(
+    class_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+) -> PeriodTable:
+    """該班級所屬的完整節次表(含午休/早自習等非上課格位),供排課工作台渲染。
+
+    一律經 resolve_period_table,前端不需自行處理「指定表 vs 學期預設表」。
+    """
+    cu = db.get(ClassUnit, class_id)
+    if cu is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到班級")
+    table = pt_service.resolve_period_table(db, cu)
+    if table is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "此學期尚無任何節次表")
+    return table
 
 
 @router.get("/class-units/{class_id}/available-slots", response_model=list[AvailableSlot])

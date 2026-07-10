@@ -44,6 +44,11 @@ const routes = [
         component: () => import('@/views/scheduling/Assignments.vue'),
       },
       {
+        path: 'scheduling/workbench',
+        name: 'workbench',
+        component: () => import('@/views/scheduling/Workbench.vue'),
+      },
+      {
         path: 'scheduling/timetable-demo',
         name: 'timetable-demo',
         component: () => import('@/views/scheduling/TimetableGridDemo.vue'),
