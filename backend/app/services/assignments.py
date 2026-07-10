@@ -109,22 +109,44 @@ def teacher_loads(db: Session, semester_id: int) -> list[dict]:
     return out
 
 
-def class_loads(db: Session, semester_id: int) -> list[dict]:
-    """每班每週配課總節數 vs 可排節次數(超出即警告,對應驗收④)。"""
+def _unit_slot_consumption(db: Session, semester_id: int) -> dict[int, int]:
+    """每個排課單位佔用成員班級的節數。
+
+    single:單位內各筆配課的節數總和(同一班的不同科目依序上課)。
+    group(跑班):群組內的配課「同時段開課」(H7),學生分流到不同教室,
+    班級實際被佔用的是最長的那一筆,而非全部相加——5 門 3 節的選修同時開,
+    班級只被佔掉 3 節。
+    """
     rows = db.execute(
         select(
-            SchedulingUnitMember.class_unit_id,
+            SchedulingUnit.id,
+            SchedulingUnit.unit_type,
             func.sum(CourseAssignment.periods_per_week),
+            func.max(CourseAssignment.periods_per_week),
         )
-        .join(
-            CourseAssignment,
-            CourseAssignment.scheduling_unit_id == SchedulingUnitMember.scheduling_unit_id,
-        )
-        .join(SchedulingUnit, SchedulingUnit.id == SchedulingUnitMember.scheduling_unit_id)
+        .join(CourseAssignment, CourseAssignment.scheduling_unit_id == SchedulingUnit.id)
         .where(SchedulingUnit.semester_id == semester_id)
-        .group_by(SchedulingUnitMember.class_unit_id)
+        .group_by(SchedulingUnit.id, SchedulingUnit.unit_type)
     ).all()
-    assigned_by = {cid: int(total or 0) for cid, total in rows}
+    return {
+        uid: int((longest if utype == SchedulingUnitType.group.value else total) or 0)
+        for uid, utype, total, longest in rows
+    }
+
+
+def class_loads(db: Session, semester_id: int) -> list[dict]:
+    """每班每週配課總節數 vs 可排節次數(超出即警告,對應驗收④)。"""
+    consumption = _unit_slot_consumption(db, semester_id)
+    assigned_by: dict[int, int] = {}
+    if consumption:
+        members = db.execute(
+            select(
+                SchedulingUnitMember.scheduling_unit_id,
+                SchedulingUnitMember.class_unit_id,
+            ).where(SchedulingUnitMember.scheduling_unit_id.in_(consumption))
+        ).all()
+        for uid, cid in members:
+            assigned_by[cid] = assigned_by.get(cid, 0) + consumption[uid]
     classes = db.scalars(
         select(ClassUnit).where(ClassUnit.semester_id == semester_id)
         .order_by(ClassUnit.grade, ClassUnit.name)

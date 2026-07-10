@@ -21,6 +21,24 @@ from app.services.users import create_user
 
 
 @pytest.fixture
+def db():
+    """乾淨的測試資料庫 session(不經 API)。給 fixtures builder 與服務層測試用。"""
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    TestSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    session = TestSession()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
 def env():
     """回傳 (client, db) — client 打 API,db 供測試準備資料。共用同一 SQLite 連線。"""
     engine = create_engine(

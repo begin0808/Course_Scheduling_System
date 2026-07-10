@@ -165,6 +165,36 @@ def test_class_over_capacity(env2):
     assert row["over_capacity"] is True
 
 
+def test_class_load_counts_group_once(env2):
+    """跑班群組的多門課同時段開課(H7),班級被佔用的是最長的一筆,不是全部相加。
+
+    3 門 3 節的選修同時開,班級只被佔掉 3 節;若相加成 9 節,60 班規模的學校
+    會滿頁誤報「超出可排節數」。
+    """
+    client, sid = env2
+    classes = [_class(client, sid, 2, f"20{i}") for i in (1, 2)]
+    gr = client.post(
+        f"/api/scheduling-units?semester_id={sid}",
+        json={"name": "高二多元選修", "class_ids": [c["id"] for c in classes]},
+    )
+    assert gr.status_code == 201, gr.text
+    group = gr.json()
+    for name in ("選修甲", "選修乙", "選修丙"):
+        s = _subject(client, sid, name)
+        t = _teacher(client, sid, f"{name}師")
+        r = _create_assignment(
+            client, sid, scheduling_unit_id=group["id"], subject_id=s["id"],
+            periods_per_week=3, teachers=[{"teacher_id": t["id"]}],
+        )
+        assert r.status_code == 201, r.text
+
+    cl = client.get(f"/api/assignments/class-load?semester_id={sid}").json()
+    for c in classes:
+        row = next(x for x in cl if x["class_id"] == c["id"])
+        assert row["assigned"] == 3, "跑班群組應計 3 節(同時段),而非 3 門 × 3 節 = 9"
+        assert row["over_capacity"] is False
+
+
 # ── 驗收⑤ 跑班群組節次表須一致 ────────
 def test_group_requires_same_period_table(env2):
     client, sid = env2

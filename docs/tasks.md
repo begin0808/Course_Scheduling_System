@@ -238,7 +238,7 @@ Course_Scheduling_System/
 
 ## M3 自動排課
 
-### [ ] M3-0 三套學制驗證資料集(M2 健檢 2026-07-10 產出,M3-1 前必做)
+### [x] M3-0 三套學制驗證資料集(M2 健檢 2026-07-10 產出,M3-1 前必做)
 - **背景**:測試策略總則承諾的三套 fixtures(標註「M1 期間建立,全案共用」)實際從未建立——`backend/tests/fixtures/` 目錄不存在,M1–M2 測試皆為各檔就地造小數據。M3-1/2/3/5 與 M5-4 的驗收全部以「三套 fixtures」為前提;不先補齊,每張 M3 卡會各自造資料、解的品質彼此不可比。
 - **描述**:以 Python builder 函式(非靜態 JSON,直接用 models 寫入測試 session)實作三套資料集:
   1. `elementary_small`:國小 6 班(包班+科任、週三下午空、導師時間);
@@ -412,4 +412,5 @@ Course_Scheduling_System/
 - **LINE 通知 adapter(v2)**:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(`teachers.line_id` 為人工聯絡用,不能直接推播)。實作為 `NotificationChannel` 的一個 adapter。
 - 開新學期複製目前不帶學期起訖日,新學期需手動補填;可於複製對話框加起訖日欄位。
 - 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。
+- **跑班群組內配課的 `periods_per_week` 未強制一致**(M3-0 發現):群組是「同時段開課」,`placements_for` 一次放入全部成員配課,節數不一致時較短的一筆會先被 H8 週節數守恆擋下,語意曖昧。`class_loads` 已取群組內最長者計算班級佔用。建議在配課建立/修改時驗證群組內節數相同(不同則 409)。
 - `teacher_time_rule` 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。
