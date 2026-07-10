@@ -61,15 +61,3 @@ class LeaveCancelled(BaseModel):
     revoked_count: int  # 原本已指派、現在被取消的節次數
     notified_teachers: list[str] = []
 
-
-class NotificationOut(BaseModel):
-    id: int
-    type: str
-    title: str
-    body: str
-    link: str
-    created_at: datetime
-    read_at: datetime | None = None
-    acknowledged_at: datetime | None = None
-
-    model_config = {"from_attributes": True}

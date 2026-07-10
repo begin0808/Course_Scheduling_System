@@ -12,7 +12,6 @@ from app.core.auth import get_active_user, require_roles
 from app.core.db import get_db
 from app.models.audit import AuditLog
 from app.models.leave import LEAVE_TYPE_CN, AffectedStatus, LeaveRequest, LeaveType
-from app.models.notification import Notification
 from app.models.semester import Semester
 from app.models.user import Role, User
 from app.schemas.leave import (
@@ -20,7 +19,6 @@ from app.schemas.leave import (
     LeaveCancelled,
     LeaveRequestIn,
     LeaveRequestOut,
-    NotificationOut,
 )
 from app.services import leaves as leave_service
 from app.services.teachers import current_teacher
@@ -207,37 +205,3 @@ def list_affected(
 @router.get("/leave-types", response_model=dict[str, str])
 def leave_types(_: object = Depends(get_active_user)):
     return {t.value: LEAVE_TYPE_CN[t] for t in LeaveType}
-
-
-# ── 通知(M4-1 只做讀取;鈴鐺、未讀數、Email 於 M4-3)────
-@router.get("/notifications/mine", response_model=list[NotificationOut])
-def my_notifications(
-    semester_id: int = Query(...),
-    db: Session = Depends(get_db),
-    user: User = Depends(get_active_user),
-):
-    me = current_teacher(db, user, semester_id)
-    if me is None:
-        return []
-    rows = db.scalars(
-        select(Notification)
-        .where(Notification.semester_id == semester_id, Notification.teacher_id == me.id)
-        .order_by(Notification.id.desc())
-    ).all()
-    return [NotificationOut.model_validate(n) for n in rows]
-
-
-@router.get("/notifications", response_model=list[NotificationOut])
-def all_notifications(
-    semester_id: int = Query(...),
-    teacher_id: int = Query(...),
-    db: Session = Depends(get_db),
-    _: User = Depends(registrar),
-):
-    """組長檢視某位教師收到的通知(M4-3 的看板會用到)。"""
-    rows = db.scalars(
-        select(Notification)
-        .where(Notification.semester_id == semester_id, Notification.teacher_id == teacher_id)
-        .order_by(Notification.id.desc())
-    ).all()
-    return [NotificationOut.model_validate(n) for n in rows]

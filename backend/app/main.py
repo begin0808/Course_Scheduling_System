@@ -13,11 +13,15 @@ from app.api import (
     health,
     imports,
     leaves,
+    notifications,
     semesters,
     solver,
     substitutions,
     timetables,
     wizard,
+)
+from app.api import (
+    settings as settings_api,
 )
 from app.core.config import settings
 from app.services.users import ensure_admin
@@ -57,6 +61,8 @@ app.include_router(timetables.router, prefix="/api")
 app.include_router(solver.router, prefix="/api")
 app.include_router(leaves.router, prefix="/api")
 app.include_router(substitutions.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
+app.include_router(settings_api.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
 app.include_router(wizard.router, prefix="/api")

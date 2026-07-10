@@ -3,6 +3,7 @@ import { NButton, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NMenu, N
 import { computed, h, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import NotificationBell from '@/components/NotificationBell.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -60,6 +61,7 @@ const menuOptions = computed(() => {
       children: [
         leaves,
         { label: menuLink('substitutions', '調代課處理'), key: 'substitutions' },
+        { label: menuLink('notification-board', '通知確認看板'), key: 'notification-board' },
       ],
     },
     { label: menuLink('system', '系統管理'), key: 'system' },
@@ -101,6 +103,7 @@ async function onLogout() {
     <n-layout>
       <n-layout-header bordered style="padding: 12px 24px">
         <n-space justify="end" align="center">
+          <notification-bell />
           <n-text v-if="auth.user">{{ auth.user.display_name }}</n-text>
           <n-tag v-for="label in roleLabels" :key="label" type="info" size="small">
             {{ label }}

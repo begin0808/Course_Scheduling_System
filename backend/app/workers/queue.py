@@ -35,3 +35,10 @@ def enqueue_solve(
         job_id=job_id,
         job_timeout=int(max_seconds) + JOB_TIMEOUT_MARGIN,
     )
+
+
+def enqueue_email(to: str, subject: str, body: str) -> None:
+    """把一封通知信丟進佇列(通知服務於交易 commit 後呼叫)。"""
+    from app.workers.email_job import send_notification_email
+
+    default_queue.enqueue(send_notification_email, to, subject, body, job_timeout=60)

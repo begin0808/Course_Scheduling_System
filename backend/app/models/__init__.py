@@ -3,6 +3,7 @@
 新增 model 時在此 import,Alembic 的 autogenerate 與 env.py 才能偵測到 metadata。
 """
 
+from app.models.app_setting import AppSetting
 from app.models.assignment import (
     AssignmentTeacher,
     BlockRule,
@@ -71,6 +72,7 @@ __all__ = [
     "ScheduleEntry",
     "TimetableStatus",
     "AuditLog",
+    "AppSetting",
     "ConstraintConfig",
     "LeaveRequest",
     "LeaveType",

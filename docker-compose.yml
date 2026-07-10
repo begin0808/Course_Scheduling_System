@@ -83,6 +83,15 @@ services:
       timeout: 5s
       retries: 5
 
+  # 開發/測試用假 SMTP:攔截外送信件,不真正寄出。正式部署不需要此服務
+  # (將 SMTP 指向學校實際的郵件主機即可)。Web UI:http://localhost:8025
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    profiles: ["dev"]
+    ports:
+      - "8025:8025"
+
 volumes:
   pgdata:
   redisdata:

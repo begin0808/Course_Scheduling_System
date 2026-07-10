@@ -351,13 +351,22 @@ Course_Scheduling_System/
 - **鐘點政策**:代課計、併班/自習/不處理不計(可覆寫),供 M4-5 月結。`substitution` 是處置真相來源,`affected_period.handler_teacher_id`/`status` 為冗餘指標。
 - **指派即生效**:建立處置 → 節次轉『已確認』+ 記處理教師 → 通知處理教師(站內落地,M4-3 才寄送)。撤回處置退回待處理並通知取消。無邀請/婉拒(2026-07-09 定案)。
 
-### [ ] M4-3 通知系統
+### [x] M4-3 通知系統
 - **描述**:`notification` model;通知寄送走 `NotificationChannel` 介面(architecture.md §5.3,MVP 實作站內+Email 兩個 channel,v2 增 webhook/LINE adapter);收件人解析經 `teachers.user_id`(站內)與 `teachers.email`(Email,M2-0 欄位);站內通知(鈴鐺、未讀數、輪詢);Email 寄送走 RQ(SMTP 設定於系統管理,未設定則僅站內通知並提示);通知模板(代課指派/取消、課表發布);教師「確認收到」頁(手機可用,一鍵確認);組長看板顯示各筆確認狀態,未確認者可一鍵再次提醒。
 - **驗收標準**:
   1. 指派代課後,教師站內+Email 雙通知,點連結直達確認頁,一鍵「確認收到」
   2. 組長於看板可見確認/未確認狀態;對未確認者按「再次提醒」重發通知
   3. SMTP 未設定時系統正常運作(僅站內通知)
 - **測試方式**:pytest(mailhog 容器攔信)+ Playwright 手機視窗尺寸
+
+**補遺(實作後)**
+- **NotificationChannel 分層**:`notifications.notify()` 建立站內通知列(永遠送達)後,逐一經 `CHANNELS`(`InAppChannel` no-op + `EmailChannel`)派送;v2 加 webhook/LINE 只需再實作一個 channel 並 append。
+- **Email 的交易語意**:EmailChannel 不直接 enqueue,而是把信放進 `session.info` 的寄件匣;SQLAlchemy 的 `after_commit` 事件才排入 RQ,`after_rollback` 則丟棄——交易回滾就不會寄出一封對應到不存在通知的信(雙寫問題的正解)。已測 rollback 不寄、commit 才寄。
+- **站內永遠可用,Email 是加分**:SMTP 未設定時 `email.send` 回 False、`email_job` 只記 log,整個調代課流程照常。這是驗收③,實機在 mailhog 上驗過雙通道。
+- **SMTP 設定存 `app_settings`**(全域 key/value,非學期範圍);密碼留空 = 不變更,回傳不含明文。管理員專屬。`POST /settings/smtp/test` 當場寄測試信回報結果(不走 RQ)。
+- **確認收到 = 通知層已讀確認**,不影響課務(指派即生效,2026-07-09 定案)。教師鈴鐺(輪詢 20s + 未讀數 badge)、組長看板(確認狀態 + 對未確認者「再次提醒」重發,已確認則 409)。
+- **開發用 mailhog**:docker-compose 加 `mailhog`(profile `dev`,不影響正式部署);`docker compose --profile dev up` 才啟動,Web UI :8025。
+- **E2E 教訓**:共用 e2e_teacher 帳號 + 發布課表的測試會用「最近學期」預設互相污染;測試中途失敗會跳過收尾清理,故改用 `test.afterEach` 兜底刪除學期。另 Naive 的 message toast 與 tag 同字串會觸發 strict-mode(getByText 命中兩個),toast 文案要與 tag 區隔。
 
 ### [ ] M4-4 今日看板與調代課日誌
 - **描述**:儀表板「今日調代課看板」(今日全部異動:誰代誰的課、教室異動);當日調代課通知單列印(A4,傳統公告格式);歷史查詢(依教師/日期/假別篩選)。

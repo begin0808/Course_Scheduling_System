@@ -20,11 +20,15 @@ from app.api import (
     basedata,
     imports,
     leaves,
+    notifications,
     semesters,
     solver,
     substitutions,
     timetables,
     wizard,
+)
+from app.api import (
+    settings as settings_api,
 )
 from app.core.auth import get_active_user, require_roles
 from app.core.db import Base, get_db
@@ -80,6 +84,8 @@ def env():
     application.include_router(wizard.router, prefix="/api")
     application.include_router(leaves.router, prefix="/api")
     application.include_router(substitutions.router, prefix="/api")
+    application.include_router(notifications.router, prefix="/api")
+    application.include_router(settings_api.router, prefix="/api")
 
     @application.get("/api/_protected")
     def _protected(user: User = Depends(get_active_user)) -> dict:

@@ -69,6 +69,11 @@ const routes = [
         component: () => import('@/views/substitution/Substitutions.vue'),
       },
       {
+        path: 'notification-board',
+        name: 'notification-board',
+        component: () => import('@/views/substitution/NotificationBoard.vue'),
+      },
+      {
         path: 'scheduling/versions',
         name: 'versions',
         component: () => import('@/views/scheduling/Versions.vue'),
