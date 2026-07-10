@@ -47,6 +47,7 @@ const menuOptions = computed(() => {
       children: [
         { label: menuLink('assignments', '配課管理'), key: 'assignments' },
         { label: menuLink('workbench', '排課工作台'), key: 'workbench' },
+        { label: menuLink('auto-schedule', '自動排課'), key: 'auto-schedule' },
         { label: menuLink('versions', '版本與發布'), key: 'versions' },
         { label: menuLink('timetable-demo', '課表元件(示範)'), key: 'timetable-demo' },
       ],

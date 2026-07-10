@@ -1,4 +1,7 @@
-"""排課引擎 API:pre-flight 檢查報告與軟約束設定。自動排課於 M3-4 加入。"""
+"""排課引擎 API:pre-flight 檢查、軟約束設定、自動排課任務與進度。"""
+
+import time
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -6,21 +9,39 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_roles
 from app.core.db import get_db
 from app.models.semester import Semester
-from app.models.user import Role
+from app.models.timetable import Timetable, TimetableStatus
+from app.models.user import Role, User
 from app.schemas.solver import (
+    AutoScheduleAccepted,
+    AutoScheduleRequest,
     ConstraintConfigIn,
     ConstraintConfigOut,
     PreflightIssue,
     PreflightOut,
+    SolveJobOut,
 )
 from app.services.solver_data import load_config, load_problem, save_config
 from app.solver import preflight
 from app.solver.problem import DEFAULT_WEIGHTS, SOFT_NAMES, SolverConfig
+from app.workers import queue as job_queue
+from app.workers.progress import (
+    ControlAction,
+    JobState,
+    JobStatus,
+    ProgressStore,
+    RedisProgressStore,
+    is_stale,
+)
 
 router = APIRouter(tags=["solver"])
 
 viewer = require_roles(Role.scheduler, Role.director)
 editor = require_roles(Role.scheduler)
+
+
+def get_progress_store() -> ProgressStore:
+    """自動排課的進度儲存。測試以 dependency_overrides 換成記憶體版。"""
+    return RedisProgressStore(job_queue.redis_conn)
 
 
 @router.get("/solver/preflight", response_model=PreflightOut)
@@ -104,3 +125,106 @@ def put_constraint_config(
     save_config(db, semester_id, config)
     db.commit()
     return _config_out(semester_id, config)
+
+
+# ── 自動排課任務(M3-4)────────────────
+def _job_out(state: JobState) -> SolveJobOut:
+    return SolveJobOut(**{k: v for k, v in state.__dict__.items()})
+
+
+def _get_job(store: ProgressStore, job_id: str) -> JobState:
+    state = store.get(job_id)
+    if state is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到排課任務(可能已過期)")
+    return state
+
+
+@router.post(
+    "/timetables/{timetable_id}/auto-schedule",
+    response_model=AutoScheduleAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def start_auto_schedule(
+    timetable_id: int,
+    body: AutoScheduleRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(editor),
+    store: ProgressStore = Depends(get_progress_store),
+):
+    """以來源草稿啟動自動排課;結果寫成新草稿,來源不動。
+
+    pre-flight 有錯誤時直接擋下——沒必要讓教學組長等十分鐘才知道資料有問題。
+    """
+    tt = db.get(Timetable, timetable_id)
+    if tt is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到課表")
+    if tt.status != TimetableStatus.draft.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "只能以草稿為來源自動排課;請先複製為新草稿"
+        )
+
+    problem = load_problem(db, tt.semester_id)
+    report = preflight.run(problem)
+    if not report.ok:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "message": "資料未通過排課前置檢查,請先修正",
+                "issues": [
+                    {"level": i.level, "code": i.code, "message": i.message}
+                    for i in report.errors
+                ],
+            },
+        )
+
+    job_id = uuid.uuid4().hex
+    store.create(JobState(
+        job_id=job_id, status=JobStatus.queued.value, semester_id=tt.semester_id,
+        source_timetable_id=tt.id, source_name=tt.name,
+        max_seconds=float(body.max_seconds), heartbeat=time.time(),
+    ))
+    job_queue.enqueue_solve(
+        job_id, tt.id, float(body.max_seconds), body.seed, user.id, user.username
+    )
+    return AutoScheduleAccepted(job_id=job_id)
+
+
+@router.get("/solver/jobs/{job_id}", response_model=SolveJobOut)
+def get_solve_job(
+    job_id: str,
+    _: object = Depends(viewer),
+    store: ProgressStore = Depends(get_progress_store),
+):
+    """輪詢進度。worker 失聯時回報明確錯誤,而不是讓前端永遠轉圈。"""
+    state = _get_job(store, job_id)
+    if is_stale(state):
+        state.status = JobStatus.failed.value
+        state.error = "排課工作程序中斷(worker 可能已重啟),請重新啟動排課"
+        store.update(job_id, status=state.status, error=state.error)
+    return _job_out(state)
+
+
+@router.post("/solver/jobs/{job_id}/stop", response_model=SolveJobOut)
+def stop_solve_job(
+    job_id: str,
+    _: object = Depends(editor),
+    store: ProgressStore = Depends(get_progress_store),
+):
+    """提前結束:停止搜尋但保留當下最佳解,仍會寫出結果草稿。"""
+    state = _get_job(store, job_id)
+    if not state.done:
+        store.request(job_id, ControlAction.stop)
+    return _job_out(_get_job(store, job_id))
+
+
+@router.post("/solver/jobs/{job_id}/cancel", response_model=SolveJobOut)
+def cancel_solve_job(
+    job_id: str,
+    _: object = Depends(editor),
+    store: ProgressStore = Depends(get_progress_store),
+):
+    """取消:停止搜尋並丟棄結果,不產生新草稿。"""
+    state = _get_job(store, job_id)
+    if not state.done:
+        store.request(job_id, ControlAction.cancel)
+    return _job_out(_get_job(store, job_id))

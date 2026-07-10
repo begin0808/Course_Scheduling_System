@@ -285,7 +285,7 @@ Course_Scheduling_System/
   3. 報告列出「王師週四第7節被排課(偏好未達成)」等人話明細
 - **測試方式**:pytest 比較性測試(斷言方向性,不斷言絕對分數)
 
-### [ ] M3-4 Worker 整合與進度回報
+### [x] M3-4 Worker 整合與進度回報
 - **描述**:排課任務走 RQ:`POST /timetables/{id}/auto-schedule` 入佇列;CP-SAT callback 每 5 秒寫進度(已找到解的目標值、經過時間)至 Redis;前端進度頁(polling)含「提前結束取目前最佳解」與「取消」;timeout 預設 10 分鐘可設定;結果寫回為新草稿。**輸入輸出流定義(M2 健檢 2026-07-10)**:以來源草稿為輸入;`locked` 格位作為固定約束(H9)複製至結果草稿並保持鎖定;未鎖定的既有格位以 CP-SAT hint(`AddHint`)餵入以提高解的穩定性(重排時盡量少動);結果草稿命名「{來源名} 自排結果」,來源草稿不動。
 - **模組**:`app/workers/solve_job.py`、`frontend/src/views/scheduling/AutoSchedule.vue`
 - **驗收標準**:

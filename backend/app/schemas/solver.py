@@ -58,3 +58,31 @@ class SoftScoreOut(BaseModel):
 class SoftReportOut(BaseModel):
     total_penalty: int
     items: list[SoftScoreOut] = []
+
+
+# ── 自動排課任務(M3-4)────────────────
+class AutoScheduleRequest(BaseModel):
+    """timeout 預設 10 分鐘(architecture.md §3.3),可設定。"""
+
+    max_seconds: int = Field(default=600, ge=10, le=3600)
+    seed: int = Field(default=0, ge=0)
+
+
+class AutoScheduleAccepted(BaseModel):
+    job_id: str
+
+
+class SolveJobOut(BaseModel):
+    job_id: str
+    status: str  # queued / running / finished / failed / cancelled
+    semester_id: int
+    source_timetable_id: int
+    source_name: str
+    max_seconds: float
+    elapsed: float
+    solutions: int
+    objective: float | None = None
+    result_timetable_id: int | None = None
+    result_name: str | None = None
+    error: str | None = None
+    report: SoftReportOut | None = None

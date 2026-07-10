@@ -54,6 +54,11 @@ const routes = [
         component: () => import('@/views/scheduling/Workbench.vue'),
       },
       {
+        path: 'scheduling/auto',
+        name: 'auto-schedule',
+        component: () => import('@/views/scheduling/AutoSchedule.vue'),
+      },
+      {
         path: 'scheduling/versions',
         name: 'versions',
         component: () => import('@/views/scheduling/Versions.vue'),
