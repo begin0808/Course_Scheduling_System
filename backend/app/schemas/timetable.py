@@ -1,5 +1,7 @@
 """課表(timetable / schedule_entry)與衝突檢查 schema。"""
 
+from datetime import time
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -71,3 +73,77 @@ class PlaceRequest(BaseModel):
 class MoveRequest(BaseModel):
     weekday: int = Field(ge=1, le=7)
     period_no: int = Field(ge=1)
+
+
+# ── 版本管理與發布 ────────────────────
+class TimetableRename(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+
+
+class UnplacedItem(BaseModel):
+    course_assignment_id: int
+    subject: str
+    classes: list[str] = []
+    teachers: list[str] = []
+    required: int
+    placed: int
+    remaining: int
+
+
+class CompletenessOut(BaseModel):
+    required: int
+    placed: int
+    remaining: int
+    complete: bool
+    unplaced: list[UnplacedItem] = []
+
+
+# ── 全員唯讀課表查詢 ──────────────────
+class PublicSemester(BaseModel):
+    id: int
+    label: str
+
+
+class NamedBrief(BaseModel):
+    id: int
+    name: str
+
+
+class PublicClass(BaseModel):
+    id: int
+    name: str
+    grade: int
+    period_table_id: int | None = None
+
+
+class PublicPeriod(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    weekday: int
+    period_no: int
+    name: str
+    start_time: time | None = None
+    end_time: time | None = None
+    type: str
+
+
+class PublicPeriodTable(BaseModel):
+    id: int
+    name: str
+    num_weekdays: int
+    is_default: bool
+    periods: list[PublicPeriod] = []
+
+
+class PublishedTimetableOut(BaseModel):
+    """已發布課表 + 查詢頁所需的全部選項,一次回傳(教師端只打這一支)。"""
+
+    id: int
+    semester_id: int
+    semester_label: str
+    name: str
+    status: str
+    entries: list[ScheduleEntryOut] = []
+    classes: list[PublicClass] = []
+    teachers: list[NamedBrief] = []
+    rooms: list[NamedBrief] = []
+    period_tables: list[PublicPeriodTable] = []

@@ -44,9 +44,19 @@ const routes = [
         component: () => import('@/views/scheduling/Assignments.vue'),
       },
       {
+        path: 'timetable-query',
+        name: 'timetable-query',
+        component: () => import('@/views/TimetableQuery.vue'),
+      },
+      {
         path: 'scheduling/workbench',
         name: 'workbench',
         component: () => import('@/views/scheduling/Workbench.vue'),
+      },
+      {
+        path: 'scheduling/versions',
+        name: 'versions',
+        component: () => import('@/views/scheduling/Versions.vue'),
       },
       {
         path: 'scheduling/timetable-demo',
@@ -96,6 +106,12 @@ router.beforeEach(async (to) => {
   }
   if (!auth.mustChangePassword && to.name === 'change-password') {
     return { name: 'dashboard' }
+  }
+
+  // 純教師帳號:僅能用課表查詢(儀表板/基礎資料等後端 API 皆需教學組長以上權限)
+  const canManage = auth.hasRole('admin') || auth.hasRole('scheduler') || auth.hasRole('director')
+  if (!canManage && auth.hasRole('teacher') && to.name !== 'timetable-query') {
+    return { name: 'timetable-query' }
   }
 
   // 首次登入引導:教學組長/管理員在尚未完成初始設定時,自動進入精靈(精靈內可略過)

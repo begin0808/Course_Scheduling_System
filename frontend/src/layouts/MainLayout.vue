@@ -16,33 +16,44 @@ const ROLE_LABELS: Record<string, string> = {
 }
 const roleLabels = computed(() => (auth.user?.roles ?? []).map((r) => ROLE_LABELS[r] ?? r))
 
-const collapsed = ref(false)
+// 手機尺寸預設收合側邊欄:390px 寬的螢幕若被 220px 側欄佔去,課表幾乎沒有空間
+const collapsed = ref(typeof window !== 'undefined' && window.innerWidth < 768)
 
 function menuLink(name: string, label: string) {
   return () => h(RouterLink, { to: { name } }, { default: () => label })
 }
 
-const menuOptions = [
-  { label: menuLink('dashboard', '儀表板'), key: 'dashboard' },
-  {
-    label: '基礎資料',
-    key: 'basedata-group',
-    children: [
-      { label: menuLink('semesters', '學期與節次表'), key: 'semesters' },
-      { label: menuLink('basedata', '教師/班級/科目/場地'), key: 'basedata' },
-    ],
-  },
-  {
-    label: '排課作業',
-    key: 'scheduling-group',
-    children: [
-      { label: menuLink('assignments', '配課管理'), key: 'assignments' },
-      { label: menuLink('workbench', '排課工作台'), key: 'workbench' },
-      { label: menuLink('timetable-demo', '課表元件(示範)'), key: 'timetable-demo' },
-    ],
-  },
-  { label: menuLink('system', '系統管理'), key: 'system' },
-]
+// 純教師帳號只看得到課表查詢(其餘頁面的後端 API 需教學組長以上權限)
+const canManage = computed(() =>
+  auth.hasRole('admin') || auth.hasRole('scheduler') || auth.hasRole('director'))
+
+const menuOptions = computed(() => {
+  const query = { label: menuLink('timetable-query', '課表查詢'), key: 'timetable-query' }
+  if (!canManage.value) return [query]
+  return [
+    { label: menuLink('dashboard', '儀表板'), key: 'dashboard' },
+    query,
+    {
+      label: '基礎資料',
+      key: 'basedata-group',
+      children: [
+        { label: menuLink('semesters', '學期與節次表'), key: 'semesters' },
+        { label: menuLink('basedata', '教師/班級/科目/場地'), key: 'basedata' },
+      ],
+    },
+    {
+      label: '排課作業',
+      key: 'scheduling-group',
+      children: [
+        { label: menuLink('assignments', '配課管理'), key: 'assignments' },
+        { label: menuLink('workbench', '排課工作台'), key: 'workbench' },
+        { label: menuLink('versions', '版本與發布'), key: 'versions' },
+        { label: menuLink('timetable-demo', '課表元件(示範)'), key: 'timetable-demo' },
+      ],
+    },
+    { label: menuLink('system', '系統管理'), key: 'system' },
+  ]
+})
 
 const activeKey = computed(() => route.name as string)
 

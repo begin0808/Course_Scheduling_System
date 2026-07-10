@@ -8,23 +8,34 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.auth import require_roles
+from app.core.auth import get_active_user, require_roles
 from app.core.db import get_db
 from app.models.assignment import CourseAssignment
+from app.models.basedata import ClassUnit, Room, Teacher
+from app.models.period import PeriodTable
 from app.models.semester import Semester
-from app.models.timetable import ScheduleEntry, Timetable
-from app.models.user import Role
+from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
+from app.models.user import Role, User
 from app.schemas.timetable import (
     CheckRequest,
     CheckResponse,
+    CompletenessOut,
     MoveRequest,
+    NamedBrief,
     PlaceRequest,
+    PublicClass,
+    PublicPeriodTable,
+    PublicSemester,
+    PublishedTimetableOut,
     ScheduleEntryOut,
     TimetableBrief,
     TimetableCreate,
     TimetableOut,
+    TimetableRename,
 )
 from app.services import conflict_checker as cc
+from app.services import timetable_publish as pub
+from app.services.teachers import current_teacher
 
 router = APIRouter(tags=["timetables"])
 
@@ -36,6 +47,16 @@ def _get_timetable(db: Session, timetable_id: int) -> Timetable:
     tt = db.get(Timetable, timetable_id)
     if tt is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到課表")
+    return tt
+
+
+def _require_draft(tt: Timetable) -> Timetable:
+    """已發布/已封存的課表是快照,不得再改格位(architecture.md D4)。"""
+    if tt.status != TimetableStatus.draft.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "此課表已發布或已封存,不可編輯;請複製為新草稿後修改",
+        )
     return tt
 
 
@@ -161,6 +182,66 @@ def get_timetable(
     )
 
 
+@router.patch("/timetables/{timetable_id}", response_model=TimetableOut)
+def rename_timetable(
+    timetable_id: int,
+    body: TimetableRename,
+    db: Session = Depends(get_db),
+    _: object = Depends(editor),
+):
+    tt = _get_timetable(db, timetable_id)
+    tt.name = body.name
+    db.commit()
+    return get_timetable(timetable_id, db, None)
+
+
+@router.post(
+    "/timetables/{timetable_id}/duplicate",
+    response_model=TimetableOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def duplicate_timetable(
+    timetable_id: int,
+    body: TimetableRename,
+    db: Session = Depends(get_db),
+    _: object = Depends(editor),
+):
+    """複製為新草稿(含全部格位);兩份草稿互不影響。"""
+    src = _get_timetable(db, timetable_id)
+    new = pub.duplicate(db, src, body.name)
+    db.commit()
+    return get_timetable(new.id, db, None)
+
+
+@router.get("/timetables/{timetable_id}/completeness", response_model=CompletenessOut)
+def timetable_completeness(
+    timetable_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+):
+    """發布前完整性檢查:列出尚未排完的課務。"""
+    tt = _get_timetable(db, timetable_id)
+    return pub.completeness(db, tt)
+
+
+@router.post("/timetables/{timetable_id}/publish", response_model=TimetableOut)
+def publish_timetable(
+    timetable_id: int,
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+    user: User = Depends(editor),
+):
+    """draft → published;同學期原 published 轉 archived。未排完時需 force=true 才可發布。"""
+    tt = _require_draft(_get_timetable(db, timetable_id))
+    report = pub.completeness(db, tt)
+    if not report["complete"] and not force:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"message": "尚有課務未排完,確認後可強制發布", "completeness": report},
+        )
+    pub.publish(db, tt, user, forced=not report["complete"])
+    db.commit()
+    return get_timetable(timetable_id, db, None)
+
+
 @router.delete("/timetables/{timetable_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_timetable(
     timetable_id: int, db: Session = Depends(get_db), _: object = Depends(editor)
@@ -168,6 +249,80 @@ def delete_timetable(
     tt = _get_timetable(db, timetable_id)
     db.delete(tt)
     db.commit()
+
+
+# ── 全員唯讀課表查詢(含 teacher 角色)────
+@router.get("/published/semesters", response_model=list[PublicSemester])
+def published_semesters(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+    """有已發布課表的學期。"""
+    rows = db.scalars(
+        select(Semester)
+        .join(Timetable, Timetable.semester_id == Semester.id)
+        .where(Timetable.status == TimetableStatus.published.value)
+        .order_by(Semester.academic_year.desc(), Semester.term.desc())
+    ).all()
+    return [PublicSemester(id=s.id, label=s.label) for s in rows]
+
+
+@router.get("/published/my-teacher", response_model=NamedBrief | None)
+def published_my_teacher(
+    semester_id: int = Query(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_active_user),
+):
+    """登入者在該學期綁定的教師主檔(無綁定回 null),供教師端預設顯示本人課表。"""
+    t = current_teacher(db, user, semester_id)
+    return NamedBrief(id=t.id, name=t.name) if t else None
+
+
+@router.get("/published/timetable", response_model=PublishedTimetableOut | None)
+def published_timetable(
+    semester_id: int = Query(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    """該學期的已發布課表 + 查詢頁所需選項與節次表(教師端只需這一支)。"""
+    tt = db.scalar(
+        select(Timetable).where(
+            Timetable.semester_id == semester_id,
+            Timetable.status == TimetableStatus.published.value,
+        )
+    )
+    if tt is None:
+        return None
+    sem = db.get(Semester, semester_id)
+    rows = db.scalars(select(ScheduleEntry).where(ScheduleEntry.timetable_id == tt.id)).all()
+    classes = db.scalars(
+        select(ClassUnit).where(ClassUnit.semester_id == semester_id)
+        .order_by(ClassUnit.grade, ClassUnit.name)
+    ).all()
+    teachers = db.scalars(
+        select(Teacher).where(Teacher.semester_id == semester_id).order_by(Teacher.name)
+    ).all()
+    rooms = db.scalars(
+        select(Room).where(Room.semester_id == semester_id).order_by(Room.name)
+    ).all()
+    tables = db.scalars(
+        select(PeriodTable).where(PeriodTable.semester_id == semester_id)
+    ).all()
+    return PublishedTimetableOut(
+        id=tt.id, semester_id=semester_id, semester_label=sem.label if sem else "",
+        name=tt.name, status=tt.status,
+        entries=[_serialize_entry(e) for e in sorted(rows, key=lambda x: (x.weekday, x.period_no))],
+        classes=[
+            PublicClass(id=c.id, name=c.name, grade=c.grade, period_table_id=c.period_table_id)
+            for c in classes
+        ],
+        teachers=[NamedBrief(id=t.id, name=t.name) for t in teachers],
+        rooms=[NamedBrief(id=r.id, name=r.name) for r in rooms],
+        period_tables=[
+            PublicPeriodTable(
+                id=p.id, name=p.name, num_weekdays=p.num_weekdays, is_default=p.is_default,
+                periods=list(p.periods),
+            )
+            for p in tables
+        ],
+    )
 
 
 # ── 衝突檢查(不寫入)────────────────
@@ -208,7 +363,7 @@ def place_entry(
     db: Session = Depends(get_db),
     _: object = Depends(editor),
 ):
-    tt = _get_timetable(db, timetable_id)
+    tt = _require_draft(_get_timetable(db, timetable_id))
     a = _get_assignment(db, tt.semester_id, body.course_assignment_id)
     placements = cc.placements_for(db, a, body.weekday, body.period_no, body.span)
     # H8 守恆(放入面):不得超過該配課的每週節數
@@ -237,7 +392,7 @@ def move_entry(
     timetable_id: int, entry_id: int, body: MoveRequest,
     db: Session = Depends(get_db), _: object = Depends(editor),
 ):
-    tt = _get_timetable(db, timetable_id)
+    tt = _require_draft(_get_timetable(db, timetable_id))
     e = db.get(ScheduleEntry, entry_id)
     if e is None or e.timetable_id != tt.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到格位")
@@ -264,7 +419,7 @@ def lock_entry(
     timetable_id: int, entry_id: int, locked: bool = Query(True),
     db: Session = Depends(get_db), _: object = Depends(editor),
 ):
-    tt = _get_timetable(db, timetable_id)
+    tt = _require_draft(_get_timetable(db, timetable_id))
     e = db.get(ScheduleEntry, entry_id)
     if e is None or e.timetable_id != tt.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到格位")
@@ -284,7 +439,7 @@ def delete_entry(
     db: Session = Depends(get_db),
     _: object = Depends(editor),
 ) -> None:
-    tt = _get_timetable(db, timetable_id)
+    tt = _require_draft(_get_timetable(db, timetable_id))
     e = db.get(ScheduleEntry, entry_id)
     if e is None or e.timetable_id != tt.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到格位")

@@ -11,6 +11,7 @@ from app.models.assignment import (
     SchedulingUnitMember,
     SchedulingUnitType,
 )
+from app.models.audit import AuditLog
 from app.models.basedata import (
     ClassTrack,
     ClassUnit,
@@ -54,4 +55,5 @@ __all__ = [
     "Timetable",
     "ScheduleEntry",
     "TimetableStatus",
+    "AuditLog",
 ]
