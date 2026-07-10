@@ -29,7 +29,9 @@ const canManage = computed(() =>
 
 const menuOptions = computed(() => {
   const query = { label: menuLink('timetable-query', '課表查詢'), key: 'timetable-query' }
-  if (!canManage.value) return [query]
+  // 請假是教師自己要做的事,純教師帳號也看得到
+  const leaves = { label: menuLink('leaves', '請假登記'), key: 'leaves' }
+  if (!canManage.value) return [query, leaves]
   return [
     { label: menuLink('dashboard', '儀表板'), key: 'dashboard' },
     query,
@@ -51,6 +53,11 @@ const menuOptions = computed(() => {
         { label: menuLink('versions', '版本與發布'), key: 'versions' },
         { label: menuLink('timetable-demo', '課表元件(示範)'), key: 'timetable-demo' },
       ],
+    },
+    {
+      label: '調代課',
+      key: 'substitution-group',
+      children: [leaves],
     },
     { label: menuLink('system', '系統管理'), key: 'system' },
   ]

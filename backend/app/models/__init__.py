@@ -23,6 +23,15 @@ from app.models.basedata import (
     TeacherTimeRule,
 )
 from app.models.constraint import ConstraintConfig
+from app.models.leave import (
+    LEAVE_TYPE_CN,
+    AffectedPeriod,
+    AffectedStatus,
+    LeaveRequest,
+    LeaveStatus,
+    LeaveType,
+)
+from app.models.notification import Notification, NotificationType
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester, SemesterStatus
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
@@ -58,4 +67,12 @@ __all__ = [
     "TimetableStatus",
     "AuditLog",
     "ConstraintConfig",
+    "LeaveRequest",
+    "LeaveType",
+    "LeaveStatus",
+    "AffectedPeriod",
+    "AffectedStatus",
+    "LEAVE_TYPE_CN",
+    "Notification",
+    "NotificationType",
 ]

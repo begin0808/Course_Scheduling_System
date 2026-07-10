@@ -59,6 +59,11 @@ const routes = [
         component: () => import('@/views/scheduling/AutoSchedule.vue'),
       },
       {
+        path: 'leaves',
+        name: 'leaves',
+        component: () => import('@/views/leaves/Leaves.vue'),
+      },
+      {
         path: 'scheduling/versions',
         name: 'versions',
         component: () => import('@/views/scheduling/Versions.vue'),
@@ -90,6 +95,9 @@ export const router = createRouter({
 const AUTH_PAGES = new Set(['login', 'change-password'])
 
 // 全域守衛:管控登入、強制改密、首次登入引導至設定精靈
+// 純教師帳號可進入的頁面(請假是教師自己要做的事)
+const TEACHER_PAGES = new Set(['timetable-query', 'leaves'])
+
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!auth.loaded) {
@@ -113,9 +121,9 @@ router.beforeEach(async (to) => {
     return { name: 'dashboard' }
   }
 
-  // 純教師帳號:僅能用課表查詢(儀表板/基礎資料等後端 API 皆需教學組長以上權限)
+  // 純教師帳號:只開放課表查詢與請假登記(其餘頁面的後端 API 皆需教學組長以上權限)
   const canManage = auth.hasRole('admin') || auth.hasRole('scheduler') || auth.hasRole('director')
-  if (!canManage && auth.hasRole('teacher') && to.name !== 'timetable-query') {
+  if (!canManage && auth.hasRole('teacher') && !TEACHER_PAGES.has(to.name as string)) {
     return { name: 'timetable-query' }
   }
 
