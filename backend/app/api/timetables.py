@@ -70,6 +70,8 @@ def _get_assignment(db: Session, semester_id: int, assignment_id: int) -> Course
 def _serialize_entry(e: ScheduleEntry) -> ScheduleEntryOut:
     a = e.assignment
     su = a.scheduling_unit
+    # 格位場地優先於配課場地(引擎逐格指派、調代課教室異動皆寫在格位上)
+    room = e.room if e.room is not None else a.room
     return ScheduleEntryOut(
         id=e.id, course_assignment_id=e.course_assignment_id,
         weekday=e.weekday, period_no=e.period_no, span=e.span, locked=e.locked,
@@ -77,10 +79,10 @@ def _serialize_entry(e: ScheduleEntry) -> ScheduleEntryOut:
         teachers=[at.teacher.name for at in a.teachers],
         classes=[m.class_unit.name for m in su.members],
         unit_type=su.unit_type, unit_name=su.name,
-        room=a.room.name if a.room else None,
+        room=room.name if room else None,
         teacher_ids=[at.teacher_id for at in a.teachers],
         class_ids=[m.class_unit_id for m in su.members],
-        room_id=a.room_id,
+        room_id=e.effective_room_id,
     )
 
 
@@ -346,7 +348,7 @@ def check_conflict(
                 )
             }
     conflicts = cc.check_conflict(
-        db, tt, a, body.weekday, body.period_no, body.span, ignore_ids
+        db, tt, a, body.weekday, body.period_no, body.span, ignore_ids, body.room_id
     )
     return CheckResponse(
         ok=not conflicts,
@@ -365,7 +367,11 @@ def place_entry(
 ):
     tt = _require_draft(_get_timetable(db, timetable_id))
     a = _get_assignment(db, tt.semester_id, body.course_assignment_id)
-    placements = cc.placements_for(db, a, body.weekday, body.period_no, body.span)
+    if body.room_id is not None:
+        room = db.get(Room, body.room_id)
+        if room is None or room.semester_id != tt.semester_id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "場地無效或不屬於本課表學期")
+    placements = cc.placements_for(db, a, body.weekday, body.period_no, body.span, body.room_id)
     # H8 守恆(放入面):不得超過該配課的每週節數
     for pl in placements:
         placed = _placed_periods(db, tt.id, pl.assignment.id)
@@ -375,13 +381,16 @@ def place_entry(
                 f"「{pl.assignment.subject.name}」已排 {placed} 節,"
                 f"再排 {pl.span} 節將超過每週 {pl.assignment.periods_per_week} 節",
             )
-    conflicts = cc.check_conflict(db, tt, a, body.weekday, body.period_no, body.span)
+    conflicts = cc.check_conflict(
+        db, tt, a, body.weekday, body.period_no, body.span, room_id=body.room_id
+    )
     if conflicts:
         raise _conflict_409(conflicts)
     for pl in placements:
         db.add(ScheduleEntry(
             timetable_id=tt.id, course_assignment_id=pl.assignment.id,
             weekday=pl.weekday, period_no=pl.period_no, span=pl.span,
+            room_id=pl.room_id,
         ))
     db.commit()
     return get_timetable(timetable_id, db, None)
@@ -404,6 +413,7 @@ def move_entry(
     conflicts = cc.check_conflict(
         db, tt, a, body.weekday, body.period_no, e.span,
         ignore_entry_ids={s.id for s in moving},
+        room_id=e.room_id,  # 搬動時沿用格位既有的場地
     )
     if conflicts:
         raise _conflict_409(conflicts)

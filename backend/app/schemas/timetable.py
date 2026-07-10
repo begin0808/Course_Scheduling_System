@@ -56,6 +56,7 @@ class CheckRequest(BaseModel):
     period_no: int = Field(ge=1)
     span: int = Field(default=1, ge=1, le=8)
     ignore_entry_id: int | None = None  # 移動既有格位時,忽略自身
+    room_id: int | None = None  # 本格位使用的場地(空=沿用配課場地)
 
 
 class CheckResponse(BaseModel):
@@ -68,6 +69,7 @@ class PlaceRequest(BaseModel):
     weekday: int = Field(ge=1, le=7)
     period_no: int = Field(ge=1)
     span: int = Field(default=1, ge=1, le=8)
+    room_id: int | None = None  # 本格位使用的場地(空=沿用配課場地)
 
 
 class MoveRequest(BaseModel):

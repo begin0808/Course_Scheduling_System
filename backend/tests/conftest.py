@@ -13,7 +13,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api import assignments, audit, auth, basedata, imports, semesters, timetables, wizard
+from app.api import (
+    assignments,
+    audit,
+    auth,
+    basedata,
+    imports,
+    semesters,
+    solver,
+    timetables,
+    wizard,
+)
 from app.core.auth import get_active_user, require_roles
 from app.core.db import Base, get_db
 from app.models.user import Role, User
@@ -62,6 +72,7 @@ def env():
     application.include_router(basedata.router, prefix="/api")
     application.include_router(assignments.router, prefix="/api")
     application.include_router(timetables.router, prefix="/api")
+    application.include_router(solver.router, prefix="/api")
     application.include_router(audit.router, prefix="/api")
     application.include_router(imports.router, prefix="/api")
     application.include_router(wizard.router, prefix="/api")

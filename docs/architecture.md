@@ -187,7 +187,7 @@ erDiagram
 | `block_rule` | 連堂規則 | 連堂長度(2–4)、每週次數(如「每週 6 節,其中 3 連堂×2 次」) |
 | `teacher_time_rule` | 教師時段規則 | 類型:`unavailable`(硬:不可排)/`avoid`(軟:盡量避開)/`prefer`(軟:偏好);對應星期×節次 |
 | `timetable` | 課表版本 | 狀態:`draft` / `published` / `archived`;同學期可多份草稿,僅一份 published |
-| `schedule_entry` | 課表格位 | 課表版本、配課、星期、節次、場地、`locked` 旗標;**唯一性約束在應用層+求解器驗證**(教師/班級/場地同時段不重複) |
+| `schedule_entry` | 課表格位 | 課表版本、配課、星期、節次、`span`(連堂)、`room_id`(空=沿用配課場地)、`locked` 旗標;**唯一性約束在應用層+求解器驗證**(教師/班級/場地同時段不重複) |
 | `leave_request` | 請假 | 教師、假別(公/事/病/婚/喪/產/進修)、起訖日期時間、事由、登記人 |
 | `affected_period` | 受影響節次 | 請假展開後的每一節課;狀態機見 §5.3 |
 | `substitution` | 調代課處置 | 類型:`substitute`(代課)/`swap`(調課)/`merge`(併班)/`self_study`(自習)/`cancel`(不處理);代課教師、是否計鐘點、經費來源標記 |

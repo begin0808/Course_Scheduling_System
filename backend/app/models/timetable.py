@@ -15,6 +15,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
 from app.models.assignment import CourseAssignment
+from app.models.basedata import Room
 
 
 class TimetableStatus(enum.StrEnum):
@@ -59,6 +60,17 @@ class ScheduleEntry(Base):
     period_no: Mapped[int] = mapped_column(Integer)  # 連堂時為起始節次
     span: Mapped[int] = mapped_column(Integer, default=1)  # 佔用連續節數(連堂 >1)
     locked: Mapped[bool] = mapped_column(Boolean, default=False)  # H9 鎖定不得移動
+    # 本格位實際使用的場地;空 = 沿用配課的 room_id。
+    # 排課引擎對「只指定場地類型」的配課逐格挑教室,結果存這裡;調代課的教室異動亦然。
+    room_id: Mapped[int | None] = mapped_column(
+        ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     timetable: Mapped[Timetable] = relationship(back_populates="entries")
     assignment: Mapped[CourseAssignment] = relationship(lazy="selectin")
+    room: Mapped[Room | None] = relationship(lazy="selectin")
+
+    @property
+    def effective_room_id(self) -> int | None:
+        """格位場地優先,未指定則沿用配課場地。"""
+        return self.room_id if self.room_id is not None else self.assignment.room_id

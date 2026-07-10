@@ -67,6 +67,7 @@ def duplicate(db: Session, source: Timetable, name: str) -> Timetable:
         db.add(ScheduleEntry(
             timetable_id=new.id, course_assignment_id=e.course_assignment_id,
             weekday=e.weekday, period_no=e.period_no, span=e.span, locked=e.locked,
+            room_id=e.room_id,
         ))
     db.flush()
     return new

@@ -13,6 +13,7 @@ from app.api import (
     health,
     imports,
     semesters,
+    solver,
     timetables,
     wizard,
 )
@@ -51,6 +52,7 @@ app.include_router(semesters.router, prefix="/api")
 app.include_router(basedata.router, prefix="/api")
 app.include_router(assignments.router, prefix="/api")
 app.include_router(timetables.router, prefix="/api")
+app.include_router(solver.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
 app.include_router(wizard.router, prefix="/api")

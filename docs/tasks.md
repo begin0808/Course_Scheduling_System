@@ -252,7 +252,7 @@ Course_Scheduling_System/
   3. 既有 135 個後端測試不退步
 - **測試方式**:pytest
 
-### [ ] M3-1 Solver 資料層與 pre-flight 檢查
+### [x] M3-1 Solver 資料層與 pre-flight 檢查
 - **描述**:`solver/` 模組骨架:從 DB 讀取學期資料轉為純 dataclass 問題描述(solver 不碰 SQLAlchemy;**DB→dataclass 轉換層放 `app/services/solver_data.py`**,因 loader 必須 import models,放 solver/ 內會違反驗收 3);pre-flight 必要條件檢查(教師配課數≤可排格數、場地供需、班級節數,architecture.md §3.4)+ 班級人數>場地容量警告(D8);檢查報告 API。
 - **補遺(M2 健檢 2026-07-10)**:`schedule_entries.room_id`(nullable FK,空=沿用配課的 room_id)+ 遷移——§2.2 承諾格位帶場地但 M2 未實作;solver 對「指定場地類型而未綁定場地」的配課需逐格指派場地,結果無處可存(M4 教室異動也需要)。conflict_checker `_build_occupancy` 與課表序列化改以 `coalesce(entry.room_id, assignment.room_id)` 取場地。
 - **pre-flight「教師可排格數」定義**:單一節次表(絕大多數學校)=一般課格數 − unavailable 格數;跨表任教的教師以牆鐘區間聯集去重計數(D7 重疊矩陣)。

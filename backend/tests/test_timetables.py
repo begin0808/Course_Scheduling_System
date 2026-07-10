@@ -89,18 +89,20 @@ def _assign(client, sid, *, class_id=None, unit_id=None, subject_id, teacher_ids
     return r.json()
 
 
-def _place(client, tid, aid, weekday, period_no, span=1):
-    return client.post(
-        f"/api/timetables/{tid}/entries",
-        json={"course_assignment_id": aid, "weekday": weekday,
-              "period_no": period_no, "span": span},
-    )
+def _place(client, tid, aid, weekday, period_no, span=1, room_id=None):
+    body = {"course_assignment_id": aid, "weekday": weekday,
+            "period_no": period_no, "span": span}
+    if room_id:
+        body["room_id"] = room_id
+    return client.post(f"/api/timetables/{tid}/entries", json=body)
 
 
-def _check(client, tid, aid, weekday, period_no, span=1, ignore_entry_id=None):
+def _check(client, tid, aid, weekday, period_no, span=1, ignore_entry_id=None, room_id=None):
     body = {"course_assignment_id": aid, "weekday": weekday, "period_no": period_no, "span": span}
     if ignore_entry_id:
         body["ignore_entry_id"] = ignore_entry_id
+    if room_id:
+        body["room_id"] = room_id
     return client.post(f"/api/timetables/{tid}/check-conflict", json=body).json()
 
 
@@ -279,6 +281,60 @@ def test_h3_different_rooms_ok(env2):
                  teacher_ids=[t2["id"]], room_id=r2["id"])
     _place(client, tid, a1["id"], 1, 1)
     assert _check(client, tid, a2["id"], 1, 1)["ok"] is True
+
+
+# ── 格位場地(M3-1:schedule_entries.room_id)────
+def test_entry_room_overrides_assignment_room(env2):
+    """格位放到與配課不同的場地後,H3 以「格位的場地」判定佔用,而非配課上的預設場地。"""
+    client, sid, tid, _ = env2
+    ca, cb = _class(client, sid, 1, "甲"), _class(client, sid, 1, "乙")
+    t1, t2 = _teacher(client, sid, "師一"), _teacher(client, sid, "師二")
+    s = _subject(client, sid, "自然")
+    lab, bio = _room(client, sid, "理化教室"), _room(client, sid, "生物教室")
+    # 甲班的自然課「配課」在理化教室,但這一格改上生物教室
+    a1 = _assign(client, sid, class_id=ca["id"], subject_id=s["id"],
+                 teacher_ids=[t1["id"]], room_id=lab["id"])
+    a2 = _assign(client, sid, class_id=cb["id"], subject_id=s["id"],
+                 teacher_ids=[t2["id"]], room_id=bio["id"])
+    r = _place(client, tid, a1["id"], 1, 1, room_id=bio["id"])
+    assert r.status_code == 201, r.text
+
+    entry = _entries(client, tid)[0]
+    assert entry["room"] == "生物教室"  # 課表顯示的是格位場地
+
+    # 乙班的生物教室課撞上「移過去的那一格」
+    assert "H3" in _codes(_check(client, tid, a2["id"], 1, 1))
+    # 理化教室此時是空的,把乙班的課指過去就不衝突
+    assert _check(client, tid, a2["id"], 1, 1, room_id=lab["id"])["ok"] is True
+
+
+def test_entry_without_room_falls_back_to_assignment_room(env2):
+    """格位未指定場地時沿用配課場地(既有行為不得退步)。"""
+    client, sid, tid, _ = env2
+    ca, cb = _class(client, sid, 1, "甲"), _class(client, sid, 1, "乙")
+    t1, t2 = _teacher(client, sid, "師一"), _teacher(client, sid, "師二")
+    s = _subject(client, sid, "自然")
+    lab = _room(client, sid, "理化教室")
+    a1 = _assign(client, sid, class_id=ca["id"], subject_id=s["id"],
+                 teacher_ids=[t1["id"]], room_id=lab["id"])
+    a2 = _assign(client, sid, class_id=cb["id"], subject_id=s["id"],
+                 teacher_ids=[t2["id"]], room_id=lab["id"])
+    _place(client, tid, a1["id"], 1, 1)
+    entry = _entries(client, tid)[0]
+    assert entry["room"] == "理化教室" and entry["room_id"] == lab["id"]
+    assert "H3" in _codes(_check(client, tid, a2["id"], 1, 1))
+
+
+def test_place_rejects_room_from_other_semester(env2):
+    client, sid, tid, _ = env2
+    c = _class(client, sid, 1, "甲")
+    t = _teacher(client, sid, "師一")
+    s = _subject(client, sid, "自然")
+    a = _assign(client, sid, class_id=c["id"], subject_id=s["id"], teacher_ids=[t["id"]])
+    other = client.post("/api/semesters", json={"academic_year": 116, "term": 1}).json()
+    foreign = _room(client, other["id"], "他校教室")
+    r = _place(client, tid, a["id"], 1, 1, room_id=foreign["id"])
+    assert r.status_code == 400
 
 
 # ── H4 教師不可排時段 ─────────────────

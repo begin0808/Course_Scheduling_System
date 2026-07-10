@@ -10,7 +10,7 @@
 from dataclasses import dataclass
 from datetime import time
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.assignment import (
@@ -19,7 +19,7 @@ from app.models.assignment import (
     SchedulingUnitMember,
     SchedulingUnitType,
 )
-from app.models.basedata import ClassUnit, Subject
+from app.models.basedata import ClassUnit, Room, Subject
 from app.models.period import Period, PeriodType
 from app.models.timetable import ScheduleEntry, Timetable
 from app.services import period_tables as pt_service
@@ -40,6 +40,12 @@ class Placement:
     weekday: int
     period_no: int
     span: int = 1
+    # 本格位實際使用的場地(空=沿用配課場地);手動改教室或引擎逐格指派時帶入
+    room_id: int | None = None
+
+    @property
+    def effective_room_id(self) -> int | None:
+        return self.room_id if self.room_id is not None else self.assignment.room_id
 
 
 @dataclass
@@ -64,6 +70,13 @@ class _Checker:
         self._table_cache: dict[int, int | None] = {}
         self._class_table_cache: dict[int, int | None] = {}
         self._default_table_cache: dict[int, int | None] = {}
+        self._room_name_cache: dict[int, str] = {}
+
+    def _room_name(self, room_id: int) -> str:
+        if room_id not in self._room_name_cache:
+            room = self.db.get(Room, room_id)
+            self._room_name_cache[room_id] = room.name if room else str(room_id)
+        return self._room_name_cache[room_id]
 
     def _period_map(self, table_id: int) -> dict[tuple[int, int], Period]:
         if table_id not in self._pmap_cache:
@@ -139,7 +152,9 @@ class _Checker:
             select(
                 ScheduleEntry.id, ScheduleEntry.weekday, ScheduleEntry.period_no,
                 ScheduleEntry.span, CourseAssignment.id, CourseAssignment.subject_id,
-                CourseAssignment.room_id, CourseAssignment.scheduling_unit_id, Subject.name,
+                # 格位場地優先,未指定才沿用配課場地
+                func.coalesce(ScheduleEntry.room_id, CourseAssignment.room_id),
+                CourseAssignment.scheduling_unit_id, Subject.name,
             )
             .join(CourseAssignment, ScheduleEntry.course_assignment_id == CourseAssignment.id)
             .join(Subject, Subject.id == CourseAssignment.subject_id)
@@ -266,15 +281,16 @@ class _Checker:
                             conflicts.append(Conflict(
                                 "H2", f"教師{t.name} {label} 與同群組另一門課撞課"))
 
-            # H3 場地不衝堂
-            if a.room_id:
+            # H3 場地不衝堂(以格位實際場地判定,非配課上的預設場地)
+            room_id = pl.effective_room_id
+            if room_id:
                 for pno, s, e in covered:
-                    for occ in room_occ.get(a.room_id, []) + batch_room.get(a.room_id, []):
+                    for occ in room_occ.get(room_id, []) + batch_room.get(room_id, []):
                         if self._overlap(occ, wd, table_id, pno, s, e):
-                            room_name = a.room.name if a.room else str(a.room_id)
                             conflicts.append(Conflict(
                                 "H3",
-                                f"場地 {room_name} {self._slot(pmap, wd, pno)} 已有 {occ.desc}"))
+                                f"場地 {self._room_name(room_id)} "
+                                f"{self._slot(pmap, wd, pno)} 已有 {occ.desc}"))
 
             # H10 同班同科目每日上限(連堂除外)
             if pl.span == 1 and not a.block_rules:
@@ -293,17 +309,26 @@ class _Checker:
                 for pno, s, e in covered:
                     batch_teacher.setdefault(at.teacher_id, []).append(
                         _Occ(wd, table_id, pno, s, e, desc))
-            if a.room_id:
+            if room_id:
                 for pno, s, e in covered:
-                    batch_room.setdefault(a.room_id, []).append(_Occ(wd, table_id, pno, s, e, desc))
+                    batch_room.setdefault(room_id, []).append(_Occ(wd, table_id, pno, s, e, desc))
 
         return conflicts
 
 
 def placements_for(
-    db: Session, assignment: CourseAssignment, weekday: int, period_no: int, span: int
+    db: Session,
+    assignment: CourseAssignment,
+    weekday: int,
+    period_no: int,
+    span: int,
+    room_id: int | None = None,
 ) -> list[Placement]:
-    """展開實際要放入的配課:跑班群組 → 群組內全部配課同格(span=1);單班 → 該配課。"""
+    """展開實際要放入的配課:跑班群組 → 群組內全部配課同格(span=1);單班 → 該配課。
+
+    room_id 為「本次放入的場地」,只套用在被拖曳的那一筆配課上;
+    群組內的其他門課各自使用自己的場地(跑班的每組本來就在不同教室)。
+    """
     su = assignment.scheduling_unit
     if su.unit_type == SchedulingUnitType.group.value:
         sibs = list(
@@ -311,8 +336,11 @@ def placements_for(
                 select(CourseAssignment).where(CourseAssignment.scheduling_unit_id == su.id)
             )
         )
-        return [Placement(s, weekday, period_no, 1) for s in sibs]
-    return [Placement(assignment, weekday, period_no, span)]
+        return [
+            Placement(s, weekday, period_no, 1, room_id if s.id == assignment.id else None)
+            for s in sibs
+        ]
+    return [Placement(assignment, weekday, period_no, span, room_id)]
 
 
 def check_conflict(
@@ -323,12 +351,13 @@ def check_conflict(
     period_no: int,
     span: int = 1,
     ignore_entry_ids: set[int] | None = None,
+    room_id: int | None = None,
 ) -> list[Conflict]:
     """檢查將 assignment 放到 (weekday, period_no) 是否違反硬約束。
 
     移動既有格位時傳 ignore_entry_ids(被搬動的那幾格),使其不與自己相衝。
-    回傳空清單表示可放。
+    room_id 為格位指定場地(空=沿用配課場地)。回傳空清單表示可放。
     """
     checker = _Checker(db, timetable)
-    placements = placements_for(db, assignment, weekday, period_no, span)
+    placements = placements_for(db, assignment, weekday, period_no, span, room_id)
     return checker.check(placements, ignore_entry_ids or set())
