@@ -32,7 +32,9 @@ const menuOptions = computed(() => {
   const query = { label: menuLink('timetable-query', '課表查詢'), key: 'timetable-query' }
   // 請假是教師自己要做的事,純教師帳號也看得到
   const leaves = { label: menuLink('leaves', '請假登記'), key: 'leaves' }
-  if (!canManage.value) return [query, leaves]
+  // 教師可查自己的代課鐘點
+  const myStats = { label: menuLink('substitution-stats', '我的代課鐘點'), key: 'substitution-stats' }
+  if (!canManage.value) return [query, leaves, myStats]
   return [
     { label: menuLink('dashboard', '儀表板'), key: 'dashboard' },
     query,
@@ -63,6 +65,7 @@ const menuOptions = computed(() => {
         { label: menuLink('substitutions', '調代課處理'), key: 'substitutions' },
         { label: menuLink('daily-board', '今日調代課'), key: 'daily-board' },
         { label: menuLink('substitution-log', '調代課紀錄'), key: 'substitution-log' },
+        { label: menuLink('substitution-stats', '代課鐘點統計'), key: 'substitution-stats' },
         { label: menuLink('notification-board', '通知確認看板'), key: 'notification-board' },
       ],
     },

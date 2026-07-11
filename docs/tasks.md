@@ -383,12 +383,20 @@ Course_Scheduling_System/
 - **A4 列印頁是獨立路由 `/daily-board/print`**(不套側邊欄版面),`window.open` 新分頁開啟;`@media print` 隱藏工具列、設 `@page A4`。校名取自 config.school_name,隨看板回應帶出(免另設定)。
 - **踩雷:`date`/`start_time` 欄位名遮蔽 datetime 型別**——dataclass/pydantic 內欄位命名為 `date` 後,同類別後續以 `date` 標註型別會被 mypy 視為「用變數當型別」而報錯。以模組別名 `_Date = date` 標註型別解決。
 
-### [ ] M4-5 代課鐘點統計
+### [x] M4-5 代課鐘點統計
 - **描述**:月結統計:依教師彙total(代課節數、計費節數——併班/自習不計、假別、經費來源標記);Excel 匯出;教師個人可查本人明細。
 - **驗收標準**:
   1. fixture 一個月 20 筆處置 → 統計數字與手算一致(含不計費項排除)
   2. 匯出 Excel 欄位:教師/日期/節次/班級/科目/原教師/假別/計費
 - **測試方式**:pytest 計算正確性(邊界:跨月假單拆月計)
+
+**補遺(實作後)**
+- **兩個數字**:代課節數(所有接手處置:代課/調課/併班)vs 計費節數(`counts_toward_hours` 為真者)。自習/不處理沒有處理教師,不計入任何人;併班有接手者但預設不計費(可覆寫)。「併班/自習不計」指的是計費,不是代課節數。
+- **跨月假單自動拆月**:以每一個 `affected_period` 自己的日期分月,不是以假單分月。王師請 1/30~2/2,1 月的節次進 1 月報表、2 月的進 2 月,無需特別處理。
+- **銷假的節次不計但已完成的保留**:`leaves.cancel` 把未完成節次轉 `cancelled`(那堂課沒上)、保留 `completed`(課上過了鐘點照算);統計以 `affected_period.status != cancelled` 過濾,不看假單狀態(才不會漏掉部分銷假的已完成節次)。
+- **RBAC**:組長/主任看全校並匯出 Excel(`/substitution-stats` + `/export`);教師只能查自己(`/substitution-stats/mine`,以 current_teacher 綁定解析,無綁定回空報表)。前端同一頁依角色分流:管理者有教師篩選+匯出鈕,教師版隱藏。教師頁加入路由守衛白名單。
+- **Excel 兩張表**:彙總(教師/代課節數/計費節數)+ 明細(教師/日期/節次/班級/科目/原教師/假別/處置/計費/經費來源);沿用 importer 的 openpyxl Workbook + FastAPI Response(Content-Disposition attachment)。前端以 `window.open` 帶 cookie 觸發下載。
+- **深連結**:統計頁與看板頁一樣支援 `?year=&month=&semester_id=`,便於分享與測試。
 
 ---
 

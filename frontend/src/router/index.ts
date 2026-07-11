@@ -90,6 +90,11 @@ const routes = [
         component: () => import('@/views/substitution/SubstitutionLog.vue'),
       },
       {
+        path: 'substitution-stats',
+        name: 'substitution-stats',
+        component: () => import('@/views/substitution/SubstitutionStats.vue'),
+      },
+      {
         path: 'scheduling/versions',
         name: 'versions',
         component: () => import('@/views/scheduling/Versions.vue'),
@@ -122,7 +127,7 @@ const AUTH_PAGES = new Set(['login', 'change-password'])
 
 // 全域守衛:管控登入、強制改密、首次登入引導至設定精靈
 // 純教師帳號可進入的頁面(請假是教師自己要做的事)
-const TEACHER_PAGES = new Set(['timetable-query', 'leaves'])
+const TEACHER_PAGES = new Set(['timetable-query', 'leaves', 'substitution-stats'])
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
