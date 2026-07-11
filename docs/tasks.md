@@ -460,12 +460,19 @@ Course_Scheduling_System/
 - **非法上傳(驗收②)**:`save_uploaded` 先驗 `PGDMP` 魔數,非法直接拒絕、檔案不落地、不碰資料庫;還原既有備份前也再驗一次檔頭。
 - **實機驗證(docker 整合)**:worker 內 pg_dump 17.10;備份→插入學期→還原→筆數回到備份點 ✅;輪替 3→keep=1→1 ✅;api POST /backups(RQ 阻塞)→201、POST restore→200(自動 presafe 備份)、/auth/me 由 200 轉 401(強制登出,~5s)、重登 200 ✅;非法上傳 400 且無檔案落地(pytest)。
 
-### [ ] M5-3 部署文件與發行工程
+### [x] M5-3 部署文件與發行工程
 - **描述**:`docs/deploy/` 中文圖文:Docker 安裝(Win/Linux/NAS)、三步驟安裝、升級、備份策略、VPS+HTTPS 選配、常見問題;README(中文為主+英文摘要);CHANGELOG;GitHub Release 流程(tag→CI 出雙架構 image);LICENSE(MIT);CONTRIBUTING.md。
 - **驗收標準**:
   1. 依文件在乾淨 VM 從零安裝成功(實測)
   2. `docker compose pull && up -d` 從前一版升級,資料完整、遷移自動執行
 - **測試方式**:乾淨環境實測(記錄於 PR)
+
+**補遺(實作後)**
+- **同一份 compose,兩種部署**:為讓驗收②的 `docker compose pull` 有意義,`docker-compose.yml` 的 web/api/worker 三服務同時掛 `image:`(GHCR)與 `build:`——clone 原始碼者 `up -d` 仍在本機建置(行為不變),只需檔案者 `pull && up -d` 拉官方映像。映像版本由 `.env` 的 `IMAGE_TAG`(預設 latest,建議正式部署釘選版本號)決定。
+- **CI 補版本標籤**:原 `images` job 只推 `:latest` 與 `:sha`,`IMAGE_TAG=v1.0.0` 會拉不到映像。三個映像各補推 `:${github.ref_name}`(main push=`main`、版本標籤=`v1.0.0`),版本釘選才真的成立;版本標籤仍為唯一觸發雙架構(amd64+arm64)的條件。
+- **HTTPS 選配做成一個設定**:Caddyfile 站台位址寫死 `:80` 且烘進映像,拉映像的學校改不到。改為 `{$SITE_ADDRESS::80}` 環境變數(預設 `:80` 內網 HTTP;於 `.env` 設 `SITE_ADDRESS=網域名` 即自動申請/續期 Let's Encrypt 憑證)。compose 補 443 埠映射與 `caddydata` volume(憑證持久化,避免重啟觸發速率限制)。**實測**:預設(無網域)重建 web 後 `/api/health` 與首頁皆 200、web healthy,內網 HTTP 部署未受影響;`docker compose config` 在有/無 `SITE_ADDRESS` 兩路徑皆正確解析。
+- **文件產出**:`docs/deploy/`(index/install/upgrade/backup/https/faq 六篇中文,含 Win/Linux/Synology/QNAP 安裝、異地備援、回滾與 schema 變更提醒、VPS 對外埠與資安)、改寫 `README.md`(英文摘要+功能總覽+雙部署快速開始+文件索引)、新增 `CHANGELOG.md`(Keep a Changelog,彙整 M0–M5)、`CONTRIBUTING.md`(開發環境/品質門檻/任務卡制/發布新版本流程)。`LICENSE`(MIT)M0 已具備。
+- **驗收①「乾淨 VM 實測」的界線**:compose 解析、web 重建與預設 HTTP 服務已在本機 Docker 驗過;真正的「全新 VM 從零 pull 安裝」需待版本標籤推上 GHCR 後才可端到端跑(目前尚無 release tag),此步驟留給實際發布時(或使用者)在乾淨環境驗收並記錄於 PR。
 
 ### [ ] M5-4 E2E 總驗收與效能
 - **描述**:Playwright 全流程情境:精靈建置→匯入→配課→自動排課→發布→請假→代課→月統計;效能驗收;無障礙基本檢查(鍵盤可操作、對比度)。

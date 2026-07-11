@@ -1,73 +1,94 @@
-# 排課與調代課系統
+# 排課與調代課系統 · Course Scheduling System
 
 [![CI](https://github.com/begin0808/Course_Scheduling_System/actions/workflows/ci.yml/badge.svg)](https://github.com/begin0808/Course_Scheduling_System/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-開源免費、單校自架、純 Web 的中小學排課與調代課系統。適用國小、國中、普通型高中、綜合型高中、技術型高中,給教學組長使用。
+**開源免費、單校自架、純 Web 的中小學排課與調代課系統。** 適用國小、國中、普通型高中、綜合型高中、技術型高中,以**教學組長**的日常工作流程為中心設計。
 
-> 目前進度:**M0-1 專案骨架**。功能里程碑見 [docs/tasks.md](docs/tasks.md),架構設計見 [docs/architecture.md](docs/architecture.md)。
+從學期基礎資料、手動與自動排課(OR-Tools CP-SAT 引擎),到學期中最繁瑣的請假、代課、調課、通知與鐘點統計,一套涵蓋。以 Docker Compose 一鍵部署在校內一台主機上,資料不出校。
+
+> **English summary:** A free, open-source (MIT), self-hosted, web-based course-scheduling and teacher-substitution system for Taiwanese K–12 schools. It covers the school-timetabling office's full workflow: semester/period setup, manual drag-and-drop scheduling, automatic scheduling via an OR-Tools CP-SAT engine with human-readable conflict explanation, and the day-to-day of leave requests, substitute assignment, notifications, and substitution-hour reporting. One school, one self-hosted deployment (no multi-tenant SaaS). One-command Docker Compose install. UI is Traditional Chinese with Taiwan educational terminology.
+
+---
+
+## 功能總覽
+
+| 領域 | 內容 |
+|---|---|
+| **基礎資料** | 學期/節次表(多學制範本)、教師/班級/科目/場地、Excel 匯入、設定精靈、開新學期複製、混合學制(班級↔節次表指派) |
+| **配課與手動排課** | 配課管理(跑班群組、協同教學、連堂)、鐘點即時統計、拖拉式週課表、單格衝突檢查(<100ms)、多草稿版本管理與發布 |
+| **自動排課** | OR-Tools CP-SAT 引擎,H1–H10 硬約束 + S1–S8 軟約束加權;背景求解含即時進度;**無解時以教務語言定位衝突**並支援部分排課 |
+| **調代課** | 請假登記與受影響節次展開、代課推薦引擎、調課驗證、指派即生效、站內+Email 通知與確認、今日看板與 A4 公告列印、月結鐘點統計(Excel) |
+| **報表/匯出** | 班級/教師/場地課表匯出 Excel / PDF(內嵌中文字型)/ PNG、全校總表、批次 zip |
+| **維運** | 每日自動備份 + 手動備份 / 下載 / 上傳還原(還原前自動保護、還原後強制重登)、稽核紀錄、RBAC(管理員/主任/組長/教師) |
+
+---
+
+## 快速開始
+
+需先安裝 [Docker](https://docs.docker.com/get-docker/)。**完整步驟(含 Windows / Linux / NAS)見 [部署手冊](docs/deploy/README.md)。**
+
+### 拉取官方映像(推薦)
+
+```bash
+mkdir scheduling && cd scheduling
+curl -fLO https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
+curl -fL  https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/.env.example -o .env
+# 編輯 .env:改 ADMIN_PASSWORD、SCHOOL_NAME、SECRET_KEY
+docker compose pull
+docker compose up -d
+```
+
+### 從原始碼建置
+
+```bash
+git clone https://github.com/begin0808/Course_Scheduling_System.git
+cd Course_Scheduling_System
+cp .env.example .env      # 改 ADMIN_PASSWORD、SCHOOL_NAME、SECRET_KEY
+docker compose up -d      # 首次會建置映像,需數分鐘
+```
+
+啟動後開瀏覽器連 `http://<主機IP>`(本機為 <http://localhost>),以 `.env` 的管理員帳密登入,依設定精靈完成建置。
+
+- 健康檢查:`http://localhost/api/health` → `{"status":"ok"}`
+- 容器狀態:`docker compose ps`(五個容器皆應 healthy)
+
+### 硬體最低需求
+
+2 核 / 4GB RAM / 10GB 磁碟(自動排課建議 4 核 8GB)。支援 x86-64 與 ARM64(NAS / 樹莓派)。
+
+---
+
+## 文件
+
+| 文件 | 內容 |
+|---|---|
+| [部署手冊](docs/deploy/README.md) | 安裝、升級、備份、網域 HTTPS、FAQ |
+| [架構設計](docs/architecture.md) | 需求、資料模型、排課引擎、技術棧(規格權威來源) |
+| [開發任務卡](docs/tasks.md) | Milestone 與逐卡實作紀錄 |
+| [變更紀錄](CHANGELOG.md) | 各版本變更 |
+| [貢獻指南](CONTRIBUTING.md) | 開發環境、程式風格、測試、發布流程 |
+
+---
 
 ## 技術棧
 
 | 層 | 技術 |
 |---|---|
-| 前端 | Vue 3 + TypeScript + Vite + Naive UI |
-| 後端 | Python 3.12 + FastAPI + SQLAlchemy 2 |
+| 前端 | Vue 3 + TypeScript + Vite + Pinia + Naive UI |
+| 後端 | Python 3.12 + FastAPI + SQLAlchemy 2 + Pydantic v2 |
 | 排課引擎 | Google OR-Tools CP-SAT(RQ + Redis 背景執行) |
+| 匯出 | openpyxl(Excel)、WeasyPrint(PDF,內嵌 Noto CJK)、poppler(PNG) |
 | 資料庫 | PostgreSQL 16 |
-| 反向代理 | Caddy |
-| 部署 | Docker Compose(5 容器) |
+| 反向代理 | Caddy(內網 HTTP;設網域即自動 HTTPS) |
+| 部署 | Docker Compose(5 容器:web / api / worker / postgres / redis) |
 
-## 快速開始(正式部署)
+---
 
-需先安裝 [Docker](https://docs.docker.com/get-docker/)。
+## 專案狀態
 
-```bash
-cp .env.example .env      # 修改管理員密碼與校名
-docker compose up -d      # 啟動(首次會建置映像,需數分鐘)
-```
-
-啟動後開瀏覽器連 `http://<主機IP>`(本機為 http://localhost)。
-
-- 健康檢查:`http://localhost/api/health` → `{"status":"ok"}`
-- 查看容器狀態:`docker compose ps`(五個容器皆應為 healthy)
-
-### 硬體最低需求
-
-2 核心 / 4GB RAM / 10GB 磁碟(自動排課建議 4 核 8GB)。支援 x86-64 與 ARM64(NAS/樹莓派)。
-
-## 開發模式(熱重載)
-
-```bash
-cp .env.example .env
-docker compose -f docker-compose.dev.yml up
-```
-
-- 前端(熱重載):http://localhost:5173
-- API 互動文件:http://localhost:8000/api/docs
-
-前後端原始碼皆掛載進容器,存檔即時生效。
-
-### 本機測試
-
-```bash
-# 後端
-cd backend && pip install -e ".[dev]" && pytest
-# 前端單元測試
-cd frontend && npm install && npm run test
-```
-
-### E2E 驗收(Playwright)
-
-對「執行中的 Docker 全棧」驅動真實瀏覽器。需先 `docker compose up -d` 啟動系統,並有一個教學組長帳號 `e2e_scheduler`(密碼 `e2etest1234`)。
-
-```bash
-cd frontend
-npx playwright install chromium   # 首次
-npm run e2e            # 無頭執行
-npm run e2e:headed     # 有頭 + 放慢,可在螢幕上觀看
-```
+**v1.0 發行前工程階段。** 六大里程碑 M0–M4 已完成並自我驗收,M5(報表、備份、發行)進行中。詳見 [docs/tasks.md](docs/tasks.md)。
 
 ## 授權
 
-[MIT](LICENSE)
+[MIT](LICENSE) — 可自由使用、修改、散布。歡迎各校自架與二次開發。

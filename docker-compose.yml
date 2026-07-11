@@ -4,16 +4,28 @@
 #   瀏覽器開 http://<主機IP>
 #
 # 五個容器:web(Caddy+前端)、api、worker、postgres、redis
+#
+# 兩種部署方式,同一份檔案:
+#   從原始碼建置:docker compose up -d           (git clone 本專案後,首次會建置映像)
+#   拉取預建映像:docker compose pull && up -d    (只需本檔+.env,免建置;升級亦同)
+# 映像版本由 .env 的 IMAGE_TAG 決定(預設 latest;正式部署建議釘選版本如 v1.0.0)。
 name: scheduling
 
 services:
   web:
+    image: ghcr.io/begin0808/course_scheduling_system-web:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile.web
     restart: unless-stopped
+    environment:
+      # 預設 :80(內網 HTTP)。於 .env 設 SITE_ADDRESS=網域名 即啟用自動 HTTPS(見 docs/deploy/https.md)
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
       - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"   # 僅在設定網域啟用 HTTPS 時使用;未用亦無妨
+    volumes:
+      - caddydata:/data            # 保存 HTTPS 憑證,重啟不必重新申請(避免觸發 Let's Encrypt 速率限制)
     depends_on:
       - api
     healthcheck:
@@ -24,6 +36,7 @@ services:
       start_period: 20s
 
   api:
+    image: ghcr.io/begin0808/course_scheduling_system-api:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       target: base
@@ -46,6 +59,7 @@ services:
       start_period: 30s
 
   worker:
+    image: ghcr.io/begin0808/course_scheduling_system-worker:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       target: worker
@@ -102,3 +116,4 @@ volumes:
   pgdata:
   redisdata:
   backups:
+  caddydata:

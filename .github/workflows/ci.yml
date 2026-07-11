@@ -117,8 +117,10 @@ jobs:
           target: base
           platforms: ${{ steps.platforms.outputs.value }}
           push: true
+          # ref_name:main push 為 "main";版本標籤推送則為 "v1.0.0"(供 .env 的 IMAGE_TAG 釘選)
           tags: |
             ${{ env.IMAGE_BASE }}-api:latest
+            ${{ env.IMAGE_BASE }}-api:${{ github.ref_name }}
             ${{ env.IMAGE_BASE }}-api:${{ github.sha }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
@@ -131,6 +133,7 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE_BASE }}-worker:latest
+            ${{ env.IMAGE_BASE }}-worker:${{ github.ref_name }}
             ${{ env.IMAGE_BASE }}-worker:${{ github.sha }}
           cache-from: type=gha,scope=worker
           cache-to: type=gha,scope=worker,mode=max
@@ -143,6 +146,7 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE_BASE }}-web:latest
+            ${{ env.IMAGE_BASE }}-web:${{ github.ref_name }}
             ${{ env.IMAGE_BASE }}-web:${{ github.sha }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max

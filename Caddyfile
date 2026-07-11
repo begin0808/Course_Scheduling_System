@@ -1,10 +1,12 @@
 # 正式部署反向代理設定。
-# 內網 IP 存取走 HTTP;若設定網域(將 :80 改為網域名),Caddy 會自動申請 HTTPS 憑證。
+# 站台位址由環境變數 SITE_ADDRESS 決定(於 .env 設定,由 web 容器帶入):
+#   未設定(預設):`:80` — 內網 IP 走 HTTP。
+#   設為網域名(例 school.example.edu.tw):Caddy 自動申請並續期 HTTPS 憑證。
 {
 	admin off
 }
 
-:80 {
+{$SITE_ADDRESS::80} {
 	# API 交給後端
 	handle /api/* {
 		reverse_proxy api:8000
