@@ -12,6 +12,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.basedata import Subject, Teacher
 from app.models.leave import AffectedPeriod, AffectedStatus, LeaveStatus
@@ -57,7 +58,9 @@ def assign(
     """對一個受影響節次做處置。呼叫端負責 commit。"""
     if affected.status == AffectedStatus.cancelled.value:
         raise SubstitutionError("此節次已因銷假取消,無法處置")
-    if affected.status == AffectedStatus.completed.value:
+    if affected.status == AffectedStatus.completed.value or clock.is_past_slot(
+        affected.date, affected.end_time
+    ):
         raise SubstitutionError("此節次已結束,無法變更處置")
     if sub_type not in set(SubstitutionType):
         raise SubstitutionError(f"未知的處置方式:{sub_type}")
@@ -251,6 +254,8 @@ def clear(db: Session, affected: AffectedPeriod, *, actor_name: str) -> None:
     """撤回處置:受影響節次退回『待處理』,已指派的教師收到取消通知。呼叫端負責 commit。"""
     if affected.leave_request.status == LeaveStatus.cancelled.value:
         raise SubstitutionError("此假單已銷假")
+    if clock.is_past_slot(affected.date, affected.end_time):
+        raise SubstitutionError("此節次已結束,無法撤回處置")
     sub = db.scalar(select(Substitution).where(Substitution.affected_period_id == affected.id))
     if sub is None:
         return

@@ -398,9 +398,30 @@ Course_Scheduling_System/
 - **Excel 兩張表**:彙總(教師/代課節數/計費節數)+ 明細(教師/日期/節次/班級/科目/原教師/假別/處置/計費/經費來源);沿用 importer 的 openpyxl Workbook + FastAPI Response(Content-Disposition attachment)。前端以 `window.open` 帶 cookie 觸發下載。
 - **深連結**:統計頁與看板頁一樣支援 `?year=&month=&semester_id=`,便於分享與測試。
 
+### M4 里程碑複審(Fable 5,2026-07-11)與修正
+- **條件 A(已修)——「已完成」不落盤,改讀取時推導**:§5.3 的「已確認→已完成:上課日結束自動轉換」原本無任何程式寫入 `completed`,導致兩道完整性保護失效(銷假會抹掉已上過課的鐘點、可事後改派已上完的代課)。改為 `app/core/clock.py` 的 `is_past_slot(date,end_time)`(以 config.tz 判定):`leaves.cancel` 對已上過的節次不轉 cancelled、`substitutions.assign/clear` 對已上過的節次回 409;顯示層 `leaves.effective_status()` 把 resolved+已過推導為 completed。M5-2 的 RQ scheduler 上線後可再補夜間 sweep 落盤,但正確性不依賴排程。
+- **條件 B(已修)——swap 補課判定漏比對教師**:`availability._already_covering` 的 swap 分支原本只比對 `swap_date`+`period_no`,任一筆調課成立後補課日該節次會誤判**全校**已佔用。改為 join `AffectedPeriod→LeaveRequest` 加 `teacher_id`(補課方=該調課請假的當事人)+ `status=registered` + 節次未取消。
+- **條件 C(已修)——公平計數含幽靈代課**:`_monthly_sub_counts` 未排除已銷假節次,銷假後那筆代課仍計入「本月已代 N 節」,與 M4-5 統計口徑不一。加 `status != cancelled`。公平計數維持以**計費節數**(counts_toward_hours)計,與顯示的「本月已代 N 節」一致。
+- **條件 E(已處理)**:(1) 看板與統計口徑差已記於補遺(唯一分歧=銷假假單中已完成的節次:不上看板但計鐘點,合理);(2) swap 補課可用性退化為 period_no 比對,跨節次表學校有 D7 精度損失,列 v1.x;(3) `notifications` 的 after_commit enqueue 失敗改為 `logger.warning` 留痕,不再無聲吞掉。
+- **條件 D(排入 M5-0)**:學期中重新發布課表後,未來日期的 `affected_period` 仍指向舊格位——見 M5-0。
+
 ---
 
 ## M5 報表、備份與發行
+
+### [ ] M5-0 發行前置(Fable 5 建議,M5-1 前必做)
+- **描述**:一次備妥 M5 各卡的共用基礎設施,避免每張卡各自處理環境。
+  1. **PDF/字型基礎**:worker 映像安裝 WeasyPrint 系統依賴(Pango/Cairo/gdk-pixbuf)與**中文內嵌字型**(Noto Sans TC / Noto Serif TC),供 M5-1 PDF、M5-2 之後的報表共用。字型與重量級原生依賴只裝在 worker(匯出走背景任務),api 映像維持精簡。
+  2. **RQ scheduler 骨架**:立起定時任務排程器(M5-2 每日備份、條件 A 選配夜間 sweep 都掛這裡);docker-compose 加 scheduler 服務,先跑一個 heartbeat/no-op 週期任務驗證存活。
+  3. **效能 fixture**:以 M3-0 的學制 builder 長出 60 班規模資料集,供 M5-1「60 班批次 < 60 秒」與 M5-4 壓測共用;先確認 builder 能產生該規模。
+  4. **條件 D:重新發布重展開受影響節次**:`leaves.expand` 只在登記當下依當時 published 課表展開;學期中重新發布課表後,**今日之後**的 pending/resolved 受影響節次仍指向舊格位(代課老師被派去上已移走的課)。M5-0 先做最小防護——publish 時偵測該學期「今日之後」的受影響節次數 > 0 就於回應與 UI 加警告;完整重跑 expand+diff+通知列為後續增強。
+- **驗收標準**:
+  1. worker 容器內 `python -c "import weasyprint"` 成功,且以內嵌字型渲染中文 PDF 無 tofu(目視一張測試頁)
+  2. scheduler 服務啟動後,週期任務有觸發紀錄(log)
+  3. 60 班 fixture builder 產出資料,基本查詢正常
+- **測試方式**:容器內 smoke test(WeasyPrint 匯入 + 中文 PDF)、scheduler 存活紀錄、fixture builder pytest
+
+### [ ] M5-1 課表匯出
 
 ### [ ] M5-1 課表匯出
 - **描述**:班級/教師/場地課表匯出 Excel(openpyxl)、PDF(WeasyPrint,A4 直式含校名/學期/列印日)、PNG;全校總表 Excel;批次匯出(全部班級一鍵 zip)。

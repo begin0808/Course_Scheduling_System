@@ -18,6 +18,7 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.basedata import Room, Subject, Teacher
 from app.models.leave import (
@@ -265,6 +266,9 @@ def cancel(db: Session, leave: LeaveRequest, *, actor_name: str) -> list[Affecte
     for period in leave.affected_periods:
         if period.status == AffectedStatus.completed.value:
             continue
+        # 已上過的課不因銷假抹除——那堂課發生了,代課鐘點照算(architecture.md §5.3 已完成)
+        if clock.is_past_slot(period.date, period.end_time):
+            continue
         if period.status == AffectedStatus.resolved.value:
             revoked.append(period)
         period.status = AffectedStatus.cancelled.value
@@ -309,3 +313,10 @@ def find_teacher(db: Session, semester_id: int, teacher_id: int) -> Teacher | No
     return db.scalar(
         select(Teacher).where(Teacher.id == teacher_id, Teacher.semester_id == semester_id)
     )
+
+
+def effective_status(status: str, day: date, end_time: time | None) -> str:
+    """顯示用的推導狀態:已指派且已上過的節次顯示為『已完成』(不落盤,見 core.clock)。"""
+    if status == AffectedStatus.resolved.value and clock.is_past_slot(day, end_time):
+        return AffectedStatus.completed.value
+    return status

@@ -7,6 +7,7 @@
 v2 加 webhook / LINE 只需再實作一個 channel、append 進 `CHANNELS`。
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
@@ -16,6 +17,8 @@ from sqlalchemy.orm import Session
 
 from app.models.basedata import Teacher
 from app.models.notification import Notification, NotificationType
+
+logger = logging.getLogger(__name__)
 
 _OUTBOX_KEY = "notification_email_outbox"
 
@@ -109,7 +112,8 @@ def _flush_email_outbox(session: Session) -> None:
         try:
             enqueue_email(msg.to, msg.subject, msg.body)
         except Exception:  # noqa: BLE001 - 佇列不可用不該讓已成功的交易報錯
-            pass
+            # 站內通知已送達;Email 只是加分。但要留痕,否則 Redis 掛掉時無聲消失無從查起
+            logger.warning("代課通知 Email 排入佇列失敗(收件:%s),站內通知不受影響", msg.to)
 
 
 @event.listens_for(Session, "after_rollback")

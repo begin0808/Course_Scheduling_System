@@ -174,15 +174,21 @@ class Availability:
             other = Interval(weekday, period_no, start, end)
             if slot.overlaps(other):
                 return other
-        # (b) 身為調課的補課者(swap 的甲方,補在 swap_date)
+        # (b) 身為調課的補課者(swap 的甲方,補在 swap_date)。
+        # **補課方是該筆調課「請假的當事人」**,不是 handler(乙);必須以
+        # AffectedPeriod→LeaveRequest.teacher_id 比對,否則會把全校在該時段都誤判為已佔用。
         swaps = self.db.execute(
-            select(Substitution.swap_period_no, Substitution.swap_period_name)
+            select(Substitution.swap_period_no)
+            .join(AffectedPeriod, Substitution.affected_period_id == AffectedPeriod.id)
+            .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
             .where(
-                Substitution.handler_teacher_id.isnot(None),
                 Substitution.swap_date == when,
+                LeaveRequest.teacher_id == teacher_id,
+                LeaveRequest.status == LeaveStatus.registered.value,
+                AffectedPeriod.status != AffectedStatus.cancelled.value,
             )
         ).all()
-        for swap_period_no, _name in swaps:
+        for (swap_period_no,) in swaps:
             if swap_period_no == slot.period_no:  # 調課補課以節次號記錄
                 return Interval(slot.weekday, swap_period_no, None, None)
         return None

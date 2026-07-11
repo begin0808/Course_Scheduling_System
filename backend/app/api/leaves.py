@@ -57,9 +57,10 @@ def _serialize(leave: LeaveRequest) -> LeaveRequestOut:
             AffectedPeriodOut(
                 **{k: getattr(p, k) for k in (
                     "id", "date", "weekday", "period_no", "period_name", "start_time",
-                    "end_time", "subject_name", "class_names", "room_name", "status",
+                    "end_time", "subject_name", "class_names", "room_name",
                     "handler_teacher_id",
                 )},
+                status=leave_service.effective_status(p.status, p.date, p.end_time),
                 handler_name=p.handler.name if p.handler else None,
             )
             for p in periods

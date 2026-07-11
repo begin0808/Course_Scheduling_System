@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.basedata import Teacher
-from app.models.leave import AffectedPeriod
+from app.models.leave import AffectedPeriod, AffectedStatus
 from app.models.substitution import Substitution
 from app.services.availability import Availability
 
@@ -72,6 +72,9 @@ def _monthly_sub_counts(db: Session, semester_id: int, month_start: date) -> dic
             Substitution.semester_id == semester_id,
             Substitution.counts_toward_hours.is_(True),
             Substitution.handler_teacher_id.isnot(None),
+            # 銷假後 substitution 列仍在、但節次已取消——不能算進公平計數的幽靈代課
+            # (與 M4-5 統計的 status != cancelled 過濾同口徑)
+            AffectedPeriod.status != AffectedStatus.cancelled.value,
             AffectedPeriod.date >= month_start,
             AffectedPeriod.date < _next_month(month_start),
         )

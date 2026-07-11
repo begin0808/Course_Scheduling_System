@@ -11,13 +11,12 @@ join + 攤平 + 中文標籤,不新增任何真相。看板的「今日」以學
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, time
-from zoneinfo import ZoneInfo
+from datetime import date, time
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core import clock
 from app.models.leave import (
     AFFECTED_STATUS_CN,
     LEAVE_TYPE_CN,
@@ -27,6 +26,7 @@ from app.models.leave import (
     LeaveStatus,
 )
 from app.models.substitution import SUBSTITUTION_TYPE_CN, Substitution
+from app.services import leaves
 
 # 欄位名 date/start_time 會遮蔽同名型別,故以別名標註型別
 _Date = date
@@ -68,7 +68,7 @@ class LogEntry:
 
 def school_today() -> date:
     """學校所在時區的今天(config.tz,預設 Asia/Taipei)。"""
-    return datetime.now(ZoneInfo(settings.tz)).date()
+    return clock.school_today()
 
 
 def _subs_map(db: Session, affected_ids: list[int]) -> dict[int, Substitution]:
@@ -83,6 +83,7 @@ def _subs_map(db: Session, affected_ids: list[int]) -> dict[int, Substitution]:
 
 def _build(ap: AffectedPeriod, sub: Substitution | None) -> LogEntry:
     leave = ap.leave_request
+    status = leaves.effective_status(ap.status, ap.date, ap.end_time)
     handler_id = sub.handler_teacher_id if sub else ap.handler_teacher_id
     handler_name = None
     if sub is not None and sub.handler is not None:
@@ -104,8 +105,8 @@ def _build(ap: AffectedPeriod, sub: Substitution | None) -> LogEntry:
         absent_teacher_name=leave.teacher.name if leave.teacher else "(已移除)",
         leave_type=leave.leave_type,
         leave_type_label=LEAVE_TYPE_CN.get(leave.leave_type, leave.leave_type),
-        status=ap.status,
-        status_label=AFFECTED_STATUS_CN.get(ap.status, ap.status),
+        status=status,
+        status_label=AFFECTED_STATUS_CN.get(status, status),
         disposed=sub is not None,
         sub_type=sub.type if sub else None,
         sub_type_label=SUBSTITUTION_TYPE_CN.get(sub.type) if sub else None,
