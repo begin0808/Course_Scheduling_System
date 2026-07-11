@@ -487,8 +487,22 @@ Course_Scheduling_System/
 - **踩雷:全流程測試的兩個時間性地雷**。(1) 求解要用 **hard-only config**(`SolverConfig.hard_only()`),否則掛軟約束目標函數的 CP-SAT 會為了逼近最佳跑到 `max_seconds` 天花板——三套 fixtures 各跑 120 秒共 6 分鐘;改 hard-only 後全部 15 秒。(2) 學期起訖必須設在**今日之後**:代課處置會用 `clock.is_past_slot` 拒絕已結束的節次,起初用 2025 的日期整批被判為「已結束」而指派失敗。
 - **驗收②(check-conflict p95<100ms)**:`tests/test_perf_scale.py` 以 `build_large_school(60)`(660 配課)塞入 >1500 格合法佔用,量 30 次單格衝突檢查 p95。**頁面載入 p95<2s**:`perf-page-load.spec.ts` 對灌了 60 班的執行中全棧量測。**方法學校正**:最初用重複 `page.goto` 全頁重載量到配課頁 p95≈2.9s——那是每次重新下載/解析 ~1.4MB SPA bundle 的成本(CPU 競爭下放大),不是使用者實際的換頁延遲。改量**應用內導覽**(bundle 已暖):配課頁/課表查詢 p95≈85–89ms;冷啟首載(含 bundle)另記 1069ms,兩者皆 <2s。1.4MB bundle 的冷啟成本仍列 Backlog(按元件 import 縮小)。**自排<10 分**:60 班求解耗時不放進 CI 單元測試(以免每次跑十分鐘),由 M3 的 junior_high <60s 建模測試 + 全流程實測共同保證。
 - **驗收③(4GB 不 OOM)**:新增 `docker-compose.limits.yml`(疊在正式 compose 上,`mem_limit` 合計 3.2GB:worker 1.5G/api 768M/postgres 512M/redis 256M/web 128M,留 ~0.8G 餘裕)。以此上限重建全棧跑完整旅程(含真實 solver),`docker stats` 峰值 api 132M/768M、postgres 36M/512M、worker 於小校求解下寬裕;全五容器 `OOMKilled=false`、`Restarts=0`。此檔亦作為 4GB 主機/NAS 部署參考。
-- **無障礙基本檢查**:`a11y.spec.ts` 三案——(1) 僅鍵盤(Tab/輸入/Enter)完成登入直達儀表板;(2) 連續 Tab 焦點可達可互動元素;(3) 以 WCAG 相對亮度公式量對比:內文 ≥4.5:1(1.4.3 正常文字)、主要按鈕 ≥3:1(1.4.11 非文字元件)。
-- **品質門檻**:後端 ruff/mypy 乾淨、pytest **371 passed**(+4);前端 eslint/vue-tsc build/vitest 11 綠;Playwright 全套(既有 26 + 新增 a11y 3 / 全旅程 1 / 頁面載入 1)。M5 里程碑完成,v1.0 可發行(打 `v1.0.0` 標籤觸發雙架構映像,見 CONTRIBUTING「發布新版本」)。
+- **無障礙基本檢查**:`a11y.spec.ts` 三案——(1) 僅鍵盤(Tab/輸入/Enter)完成登入直達儀表板;(2) 連續 Tab 焦點可達可互動元素;(3) 以 WCAG 相對亮度公式量對比:內文 ≥4.5:1(1.4.3 正常文字)。**誠實揭露(Fable 5 M5 複審 H)**:主要按鈕白字 on 主題綠(#18a058)≈ 3.4:1,只達 1.4.11 非文字元件的 3:1 底線,**未達 AA 文字標準 4.5:1**;測試僅以 ≥3:1 為最低防線並註明此限制,主題色調整列 Backlog(v1.x)。
+- **品質門檻**:後端 ruff/mypy 乾淨、pytest **371 passed**(+4);前端 eslint/vue-tsc build/vitest 11 綠;Playwright 全套(既有 26 + 新增 a11y 3 / 全旅程 1 / 頁面載入 1)。
+
+### M5 里程碑複審(Fable 5,2026-07-11)與修正
+M5 完成後由 Fable 5 做獨立技術審查,判決「**有條件可發行**」:核心(備份資料路徑、匯出正確性、排程時區)健全,裂縫集中在佇列互踩與發行流程未演練。以下 A/B/D/E/F 已修(各附回歸測試 `tests/test_m5_hardening.py`),H 誠實化,C 待使用者決定公開時機一起走。
+
+- **A(已修)——單一佇列阻塞式派工互踩,逾時的還原仍會晚點偷跑**:排課佔住單一 worker 時,還原排在後面;api 逾時回失敗,worker 空下來後卻仍執行還原→資料庫被無預警覆蓋。修:`queue._run_blocking`/`render_export` 逾時後 `job.cancel()`(不留在佇列裡等著跑);`queue.solver_busy()` 偵測排課進行/排隊中,`backups._restore` 在還原前檢查,進行中回 **409「排課進行中,請待排課完成後再還原」**。分出 ops 佇列 + 第二 worker 行程為更完整解,但會引入行程/容器/記憶體(4GB 預算)複雜度,列 Backlog 專卡處理;A 的資料安全洞已由 cancel + 409 封死。
+- **B(已修)——每日備份鏈一次失敗即永久靜默斷裂**:`daily_backup_job` 先備份再排下一次,任一次失敗→例外→下次永不排入→自動備份無聲停止。修:`daily_backup_job` 改 try/finally 先在 finally 排下一次;`scheduler.heartbeat` 同改 try/finally,並順帶自癒——每小時檢查 `DAILY_BACKUP_JOB_ID` 不在 `ScheduledJobRegistry` 就補排。
+- **D(已修)——`:latest` 對 ARM 用戶是地雷**:main push 只建 amd64 卻覆蓋 `:latest`,ARM NAS(`IMAGE_TAG=latest`)pull 到無 arm64 manifest 會起不來。修:CI `images` job 以 channel 區分——main push 推 `:main`,`:latest` 只在版本標籤(雙架構)時更新。
+- **E(已修)——pg_restore exit 1 容忍面太寬、警告不進 UI**:exit 1 涵蓋任何被忽略錯誤,某張表 COPY 失敗也是 exit 1,只憑 returncode 會把資料缺漏報成成功。修:`backup._classify_restore_stderr` 白名單化——只容忍「設定參數不認得」(跨版本 GUC),其餘 `pg_restore: error` 一律視為失敗(presafe 在,可回退);可忽略警告經 `RestoreResult.warnings` 上接,前端 `System.vue` 以對話框顯示給管理員(不再只留 log)。
+- **F(已修)——session_epoch 落盤耐久性**:Redis 預設 RDB 條件下這個單一 SET 可能一小時未落盤,還原後 Redis 崩潰→epoch 遺失→舊 cookie 復活。修:`force_logout_all` 設 key 後補 `bgsave()`(盡力而為,失敗不擋)。
+- **H(已誠實化)——a11y 對比主張過度**:主色按鈕實為文字(適用 4.5:1)卻套了 3:1 非文字門檻。已在 `a11y.spec.ts` 與上方補遺如實標註「達 3:1、未達 AA 文字 4.5:1」;主題色調整列 Backlog。
+- **C(待處理,發行阻擋-流程,非程式)**:repo 私有→`raw.githubusercontent` 匿名 404、GHCR 映像 private→`docker compose pull` 被拒、`IMAGE_TAG=v1.0.0` 依賴的版本標籤從未推過(雙架構 arm64 build 一次都沒跑),驗收①「乾淨 VM 從零 pull 安裝」實質未驗。**處置**:發行前 repo/GHCR 轉 public + 先打 `v1.0.0-rc1` 演練(驗雙架構 build + 乾淨環境 pull 安裝)再打 `v1.0.0`。**留待使用者決定公開時機一起走。**
+- **v1.x 可延(Fable 5 判定合理,不阻擋發行)**:G(還原溯源 append-only log、stale 提示持久化;presafe 檔名時戳現已足夠)、以及既有 Backlog。
+
+**修正後品質門檻**:pytest **392 passed**(+21,含 test_m5_hardening 12)、ruff/mypy 乾淨;前端 eslint/vue-tsc build/vitest 綠;Playwright 全套迴歸;docker 實測 A(排課中還原被 409 擋)、B(備份失敗鏈仍存活)。M5 里程碑完成,**有條件可發行**(待清 C)。
 
 ---
 
@@ -515,6 +529,9 @@ Course_Scheduling_System/
 
 ## Backlog(開發中冒出的點子記這裡,不排程)
 
+- 【Fable 5 M5 複審 A 正解】背景任務分 `default`(排課)/`ops`(匯出/備份/還原)兩佇列 + 第二個 worker 行程,讓快慢任務隔離——目前排課佔住單一 worker 時,組長匯出課表會逾時失敗(已由 cancel-on-timeout + 還原前 409 封死資料安全洞,但匯出體驗仍受影響)。需評估行程管理、4GB 記憶體預算與部署文件(5→6 容器或單容器雙進程)。
+- 【Fable 5 M5 複審 H】主題主色 `#18a058` 白字按鈕對比僅 ~3.4:1,未達 WCAG AA 文字 4.5:1;調深主色或加粗按鈕字重(不動整體設計),v1.x 處理。
+- 【Fable 5 M5 複審 G】還原溯源:`backup_dir` 加 append-only `restore.log`(誰於何時還原哪份),因目前稽核寫進還原後 DB 有溯源斷點(presafe 檔名時戳暫可佐證);條件 D 的 stale 警告改為今日看板持久徽章而非一閃即逝的 toast。
 - 前端 bundle 偏大(~1.4MB,主因 `app.use(naive)` 全量註冊 Naive UI)。M2 課表頁完成後改為按元件 import 或用 `naive-ui/es` 自動匯入,縮小體積。
 - M0-3 CI 的 Playwright E2E job 尚未加入(目前無 E2E 測試),待 M5-4 建立 e2e 測試時補進 workflow。
 - 前端 CI 用 `npm install`(未提交 package-lock.json);日後可提交 lock 檔改用 `npm ci` 以完全重現。

@@ -30,3 +30,4 @@ class BackupOut(BaseModel):
 class RestoreResult(BaseModel):
     restored_from: str
     presafe_backup: str  # 還原前自動建立的現狀備份(可反悔)
+    warnings: list[str] = []  # pg_restore 可忽略的警告(如跨版本 GUC),顯示給管理員

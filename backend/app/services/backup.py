@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 
 _NAME_RE = re.compile(r"^backup_(\d{8}_\d{6})_([a-z]+)\.dump$")
 
+# pg_restore 進較舊伺服器時,新版 pg_dump 寫入的跨版本 GUC(如 v17 的 transaction_timeout)
+# 會讓該筆 SET 失敗但資料不受影響。這類「設定參數不認得」是唯一被容忍的錯誤;
+# 其餘任何 `pg_restore: error` 都可能代表資料真的沒還原完整,一律視為失敗。
+_IGNORABLE_RESTORE = re.compile(r"unrecognized configuration parameter", re.IGNORECASE)
+
 
 class BackupError(Exception):
     """備份/還原失敗(呼叫端轉為 4xx/5xx)。"""
@@ -153,8 +158,31 @@ def _terminate_other_connections(p: dict[str, str]) -> None:
         pass
 
 
-def restore_backup(name: str) -> None:
-    """從指定備份還原(先驗證檔頭)。呼叫端負責事後強制重新登入。"""
+def _classify_restore_stderr(stderr: str) -> list[str]:
+    """檢視 pg_restore 的 stderr,回傳可忽略的警告摘要。
+
+    只有「設定參數不認得」(跨版本 GUC 噪音)被容忍;出現任何其他 `pg_restore: error`
+    就擲 BackupError——只憑 returncode==1 分不出「跨版本噪音」與「某張表 COPY 失敗」,
+    後者若被當成成功,會把資料缺漏報成還原成功。
+    """
+    warnings: list[str] = []
+    for raw in stderr.splitlines():
+        s = raw.strip()
+        if not s:
+            continue
+        low = s.lower()
+        if "pg_restore: error" in low or "; error while" in low:
+            if _IGNORABLE_RESTORE.search(s):
+                warnings.append(s)
+                continue
+            raise BackupError(f"還原時出現非預期錯誤:{s}")
+        if "warning" in low or "errors ignored on restore" in low:
+            warnings.append(s)
+    return warnings
+
+
+def restore_backup(name: str) -> list[str]:
+    """從指定備份還原(先驗證檔頭)。回傳可忽略的警告摘要;呼叫端負責事後強制重新登入。"""
     path = _path(name)
     if not os.path.exists(path):
         raise BackupError("找不到備份檔")
@@ -170,12 +198,13 @@ def restore_backup(name: str) -> None:
         )
     except FileNotFoundError as e:
         raise BackupError("找不到 pg_restore(需在 worker 映像執行)") from e
-    # pg_restore 慣例:0=完全成功,1=完成但有可忽略的錯誤(如跨版本的 SET GUC),
-    # 資料仍已還原;>1 才是真正失敗。可忽略錯誤留 log 存證。
+    # returncode>1 直接失敗;==1 需逐行判別是「可忽略的跨版本噪音」還是真正的資料錯誤。
     if proc.returncode > 1:
         raise BackupError(f"還原失敗:{proc.stderr or proc.returncode}")
-    if proc.returncode == 1:
-        logger.warning("pg_restore 完成但有可忽略的錯誤:%s", proc.stderr.strip())
+    warnings = _classify_restore_stderr(proc.stderr) if proc.returncode == 1 else []
+    if warnings:
+        logger.warning("pg_restore 完成但有可忽略的警告:%s", " | ".join(warnings))
+    return warnings
 
 
 def save_uploaded(name_hint: str, data: bytes) -> str:

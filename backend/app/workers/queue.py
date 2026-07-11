@@ -48,6 +48,15 @@ class RenderError(RuntimeError):
     """PDF/PNG 渲染失敗或逾時(呼叫端轉為 5xx)。"""
 
 
+def _cancel_quietly(job) -> None:
+    """逾時後把仍在佇列中的 job 取消,避免 worker 空下來後才「補跑」一個沒人等的任務
+    (對還原尤其危險:api 已回失敗,幾分鐘後資料庫卻被無預警覆蓋)。"""
+    try:
+        job.cancel()
+    except Exception:  # noqa: BLE001 - 取消失敗不影響對呼叫端的錯誤回報
+        pass
+
+
 def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
     """在 worker 渲染 PDF/PNG,阻塞等待結果並回傳 bytes(api 匯出端點呼叫)。
 
@@ -59,12 +68,35 @@ def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
     job = default_queue.enqueue(func, html, job_timeout=timeout + 30, result_ttl=120)
     result = job.latest_result(timeout=timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
-        detail = getattr(result, "exc_string", None) or "未知錯誤"
+        if result is None:
+            _cancel_quietly(job)
+        detail = getattr(result, "exc_string", None) or "背景忙碌或逾時,請稍後再試"
         raise RenderError(f"課表{fmt.upper()}渲染失敗:{detail}")
     data = result.return_value
     if not isinstance(data, bytes):
         raise RenderError(f"課表{fmt.upper()}渲染回傳非預期型別")
     return data
+
+
+def solver_busy() -> bool:
+    """是否有自動排課任務正在執行或排隊中(供還原前置檢查)。
+
+    單一 worker 序列執行:排課可佔住 10 分鐘,期間丟進去的還原會排在後面。若不擋下,
+    api 端會逾時回「失敗」,但 worker 空下來後仍會執行還原——資料庫被無預警覆蓋。
+    """
+    from rq.registry import StartedJobRegistry
+
+    def _is_solve(job) -> bool:
+        return bool(job and job.func_name and "run_auto_schedule" in job.func_name)
+
+    try:
+        started = StartedJobRegistry(queue=default_queue)
+        for jid in started.get_job_ids():
+            if _is_solve(default_queue.fetch_job(jid)):
+                return True
+        return any(_is_solve(job) for job in default_queue.jobs)
+    except Exception:  # noqa: BLE001 - 無法判斷時保守放行(不因 Redis 抖動擋住還原)
+        return False
 
 
 class BackupJobError(RuntimeError):
@@ -75,7 +107,9 @@ def _run_blocking(func, *args, timeout: int):
     job = default_queue.enqueue(func, *args, job_timeout=timeout + 30, result_ttl=300)
     result = job.latest_result(timeout=timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
-        detail = getattr(result, "exc_string", None) or "未知錯誤"
+        if result is None:
+            _cancel_quietly(job)  # 逾時的任務不留在佇列裡等著晚點才跑
+        detail = getattr(result, "exc_string", None) or "背景忙碌或逾時"
         raise BackupJobError(detail)
     return result.return_value
 
@@ -86,7 +120,7 @@ def run_backup(reason: str = "manual", *, timeout: int = 120) -> dict:
     return _run_blocking(create_backup_job, reason, timeout=timeout)
 
 
-def run_restore(name: str, *, timeout: int = 180) -> None:
-    """在 worker 跑 pg_restore,阻塞等待完成(api 呼叫)。"""
+def run_restore(name: str, *, timeout: int = 180) -> list[str]:
+    """在 worker 跑 pg_restore,阻塞等待完成(api 呼叫)。回傳可忽略的警告摘要。"""
     from app.workers.backup_job import restore_job
-    _run_blocking(restore_job, name, timeout=timeout)
+    return _run_blocking(restore_job, name, timeout=timeout)

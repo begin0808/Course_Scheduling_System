@@ -32,9 +32,26 @@ def _schedule_next() -> None:
 
 
 def heartbeat() -> None:
-    """排程器存活心跳;執行時把下一次排進去(自我續期)。"""
-    logger.info("排程器心跳 OK,下次 %s 後", _interval())
-    _schedule_next()
+    """排程器存活心跳;執行時把下一次排進去(自我續期)。
+
+    順帶自癒每日備份鏈:若 daily-backup 因某次失敗而未再排入(見 backup_job),
+    這裡補排回去——備份系統最忌諱的是靜默斷裂,心跳每小時兜底一次。
+    """
+    try:
+        logger.info("排程器心跳 OK,下次 %s 後", _interval())
+        _ensure_daily_backup_scheduled()
+    finally:
+        _schedule_next()  # 無論本次是否出錯,下一次心跳一定排入
+
+
+def _ensure_daily_backup_scheduled() -> None:
+    try:
+        registry = ScheduledJobRegistry(queue=default_queue)
+        if DAILY_BACKUP_JOB_ID not in set(registry.get_job_ids()):
+            schedule_daily_backup()
+            logger.warning("偵測到每日備份未排入,已補排,下次 %s", _next_backup_time())
+    except Exception:  # noqa: BLE001 - 自癒失敗不該讓心跳掛掉
+        logger.warning("檢查/補排每日備份失敗(Redis 不可用?)")
 
 
 def _next_backup_time() -> datetime:

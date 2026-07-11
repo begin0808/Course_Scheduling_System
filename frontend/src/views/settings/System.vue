@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import {
   NButton, NCard, NCheckbox, NInput, NInputNumber, NPopconfirm, NSpace, NTag, NText, NUpload,
-  useMessage,
+  useDialog, useMessage,
 } from 'naive-ui'
 import type { UploadCustomRequestOptions } from 'naive-ui'
-import { onMounted, ref } from 'vue'
+import { h, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import {
   createBackup, deleteBackup, downloadBackup, listBackups, restoreBackup, restoreUpload,
 } from '@/api/backups'
-import type { Backup } from '@/api/backups'
+import type { Backup, RestoreResult } from '@/api/backups'
 import { getSmtp, saveSmtp } from '@/api/notifications'
 import { resetWizard } from '@/api/wizard'
 import { useAuthStore } from '@/stores/auth'
@@ -18,6 +18,7 @@ import { useWizardStore } from '@/stores/wizard'
 
 const router = useRouter()
 const message = useMessage()
+const dialog = useDialog()
 const wizard = useWizardStore()
 const auth = useAuthStore()
 
@@ -57,18 +58,37 @@ async function onDeleteBackup(name: string) {
   await reloadBackups()
 }
 
-async function afterRestore(presafe: string) {
-  // 還原後所有 session 已失效,導回登入頁重新登入
-  message.success(`還原完成(現狀已備份為 ${presafe}),請重新登入`)
+async function redirectToLogin() {
   await auth.logout().catch(() => {})
   router.push({ name: 'login' })
+}
+
+async function afterRestore(r: RestoreResult) {
+  // 還原後所有 session 已失效,需重新登入。若有可忽略的警告,先以對話框讓管理員看見
+  // (訊息在導向登入頁後會消失,警告不能只用一閃即逝的 toast)。
+  if (r.warnings.length > 0) {
+    dialog.warning({
+      title: '還原完成,但有可忽略的警告',
+      content: () => h('div', [
+        h('p', `現狀已備份為 ${r.presafe_backup}。以下警告不影響資料,通常為跨版本的設定參數:`),
+        ...r.warnings.map((w) => h('p', { style: 'font-size:12px;color:#999;margin:4px 0' }, w)),
+      ]),
+      positiveText: '知道了,重新登入',
+      maskClosable: false,
+      onPositiveClick: redirectToLogin,
+      onClose: redirectToLogin,
+    })
+    return
+  }
+  message.success(`還原完成(現狀已備份為 ${r.presafe_backup}),請重新登入`)
+  await redirectToLogin()
 }
 
 async function onRestore(name: string) {
   busy.value = true
   try {
     const r = await restoreBackup(name)
-    await afterRestore(r.presafe_backup)
+    await afterRestore(r)
   } catch (e) {
     message.error((e as ApiError).message || '還原失敗')
   } finally {
@@ -81,7 +101,7 @@ async function onUploadRestore({ file, onFinish, onError }: UploadCustomRequestO
   try {
     const r = await restoreUpload(file.file as File)
     onFinish()
-    await afterRestore(r.presafe_backup)
+    await afterRestore(r)
   } catch (e) {
     onError()
     message.error((e as Error).message || '上傳還原失敗')

@@ -85,26 +85,34 @@ def delete_backup(name: str, db: Session = Depends(get_db), user: User = Depends
 
 def _restore(user: User, target_name: str) -> RestoreResult:
     """先備份現狀,再還原;完成後強制全員重新登入。"""
+    # 排課進行中不可還原:單一 worker 會讓還原排在排課後面,api 逾時回失敗、
+    # worker 卻仍會執行還原,造成資料庫被無預警覆蓋(Fable 5 M5 複審 A)。
+    if job_queue.solver_busy():
+        raise HTTPException(status.HTTP_409_CONFLICT, "排課進行中,請待排課完成後再還原")
     try:
         presafe = job_queue.run_backup("presafe")
-        job_queue.run_restore(target_name)
+        warnings = job_queue.run_restore(target_name)
     except job_queue.BackupJobError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"還原失敗:{e}") from e
     # 還原已覆蓋整個資料庫並中止舊連線(含本請求的連線),且原本的資料已被取代;
     # 稽核要以**新連線**寫進**還原後**的資料庫,否則不是連線已死就是紀錄被覆蓋掉。
     from app.core.db import SessionLocal, engine
     engine.dispose()
+    audit_detail = f"還原自 {target_name};現狀已備份為 {presafe['name']}"
+    if warnings:
+        audit_detail += f";可忽略警告 {len(warnings)} 則"
     try:
         with SessionLocal() as fresh:
             fresh.add(AuditLog(
                 user_id=user.id, username=user.username, action="restore_backup",
-                target_type="backup", target_id=None,
-                detail=f"還原自 {target_name};現狀已備份為 {presafe['name']}",
+                target_type="backup", target_id=None, detail=audit_detail[:500],
             ))
             fresh.commit()
     except Exception:  # noqa: BLE001 - 稽核補寫失敗不該推翻已完成的還原
         logger.warning("還原後補寫稽核失敗", exc_info=True)
-    return RestoreResult(restored_from=target_name, presafe_backup=presafe["name"])
+    return RestoreResult(
+        restored_from=target_name, presafe_backup=presafe["name"], warnings=warnings,
+    )
 
 
 @router.post("/backups/{name}/restore", response_model=RestoreResult)

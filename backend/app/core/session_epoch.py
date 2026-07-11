@@ -42,4 +42,10 @@ def force_logout_all() -> None:
         _redis.set(_KEY, str(time.time()))
         _cache["exp"] = 0.0  # 使本行程快取失效,立即生效
     except Exception:  # noqa: BLE001
+        return
+    # 立即落盤:預設 RDB 快照條件下這個單一 key 可能一小時內都未持久化,
+    # 若還原後 Redis 隨即崩潰,epoch 遺失會讓舊 cookie 復活。盡力而為,失敗不擋。
+    try:
+        _redis.bgsave()
+    except Exception:  # noqa: BLE001 - 落盤失敗不影響強制登出本身
         pass

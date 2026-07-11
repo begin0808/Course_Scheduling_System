@@ -13,6 +13,7 @@ export interface Backup {
 export interface RestoreResult {
   restored_from: string
   presafe_backup: string
+  warnings: string[]
 }
 
 export const listBackups = (): Promise<Backup[]> => apiGet('/backups')

@@ -94,13 +94,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: 計算映像名稱(需小寫)
         run: echo "IMAGE_BASE=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
-      - name: 決定建置架構
+      - name: 決定建置架構與 channel 標籤
         id: platforms
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "value=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
+            # 只有版本標籤(雙架構)才更新 :latest;main push 僅單架構,不可覆蓋 :latest
+            # 否則 ARM 用戶(IMAGE_TAG=latest)pull 到只有 amd64 的 manifest 會起不來
+            echo "channel=latest" >> "$GITHUB_OUTPUT"
           else
             echo "value=linux/amd64" >> "$GITHUB_OUTPUT"
+            echo "channel=main" >> "$GITHUB_OUTPUT"
           fi
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -119,7 +123,7 @@ jobs:
           push: true
           # ref_name:main push 為 "main";版本標籤推送則為 "v1.0.0"(供 .env 的 IMAGE_TAG 釘選)
           tags: |
-            ${{ env.IMAGE_BASE }}-api:latest
+            ${{ env.IMAGE_BASE }}-api:${{ steps.platforms.outputs.channel }}
             ${{ env.IMAGE_BASE }}-api:${{ github.ref_name }}
             ${{ env.IMAGE_BASE }}-api:${{ github.sha }}
           cache-from: type=gha,scope=api
@@ -132,7 +136,7 @@ jobs:
           platforms: ${{ steps.platforms.outputs.value }}
           push: true
           tags: |
-            ${{ env.IMAGE_BASE }}-worker:latest
+            ${{ env.IMAGE_BASE }}-worker:${{ steps.platforms.outputs.channel }}
             ${{ env.IMAGE_BASE }}-worker:${{ github.ref_name }}
             ${{ env.IMAGE_BASE }}-worker:${{ github.sha }}
           cache-from: type=gha,scope=worker
@@ -145,7 +149,7 @@ jobs:
           platforms: ${{ steps.platforms.outputs.value }}
           push: true
           tags: |
-            ${{ env.IMAGE_BASE }}-web:latest
+            ${{ env.IMAGE_BASE }}-web:${{ steps.platforms.outputs.channel }}
             ${{ env.IMAGE_BASE }}-web:${{ github.ref_name }}
             ${{ env.IMAGE_BASE }}-web:${{ github.sha }}
           cache-from: type=gha,scope=web
