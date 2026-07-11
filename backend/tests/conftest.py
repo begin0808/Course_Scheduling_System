@@ -17,6 +17,7 @@ from app.api import (
     assignments,
     audit,
     auth,
+    backups,
     basedata,
     exports,
     imports,
@@ -92,6 +93,7 @@ def env():
     application.include_router(substitution_stats.router, prefix="/api")
     application.include_router(notifications.router, prefix="/api")
     application.include_router(settings_api.router, prefix="/api")
+    application.include_router(backups.router, prefix="/api")
 
     @application.get("/api/_protected")
     def _protected(user: User = Depends(get_active_user)) -> dict:

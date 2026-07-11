@@ -443,13 +443,22 @@ Course_Scheduling_System/
 - **中文檔名**:Content-Disposition 用 RFC 5987 `filename*=UTF-8''`,前端以 fetch blob 下載並解出檔名(順帶處理 4xx/5xx 與載入狀態)。
 - **驗收②**:60 班批次為 CPU-bound(60 個 openpyxl workbook),與資料庫無關,pytest 用 `build_large_school` 實測 < 60 秒。**驗收①**:E2E 下載班級 PNG(走 worker WeasyPrint→pdftoppm)存檔目視:標題/校名/學期/列印日、節次×星期格線、早自習/午休淡色、週三第一節顯示國文/王老師,繁中無 tofu。
 
-### [ ] M5-2 備份與還原
+### [x] M5-2 備份與還原
 - **描述**:每日 02:00 自動 pg_dump(保留 30 份,RQ scheduler);管理 UI:立即備份/下載/上傳還原(還原前自動先備份現狀+二次確認);還原後強制全員重新登入。
 - **驗收標準**:
   1. 備份→改資料→還原→資料回到備份點
   2. 上傳非法檔案被拒絕且系統無損
   3. 自動備份保留數正確輪替
 - **測試方式**:pytest + docker 整合測試
+
+**補遺(實作後)**
+- **pg 工具版本**:基底映像已是 Debian trixie(非 bookworm),其 main 內含 postgresql-client **17**;pg_dump 17 可備份 postgres:16 伺服器(client ≥ server 允許)。原想從 PGDG 裝 client 16,但 PGDG 的 libpq5 18 在 trixie 有相依衝突,故直接用發行版的 client。pg 工具只裝在 **worker** 映像(與 M5-1 的 WeasyPrint 同層),api 維持精簡。
+- **跨版本還原的可忽略錯誤**:pg_dump 17 的備份含 `SET transaction_timeout`(v17 GUC),pg_restore 進 v16 伺服器會噴一個可忽略錯誤、exit code=1。依 pg_restore 慣例(0=全成功、1=完成但有忽略錯誤、>1=失敗)放行 exit 1 並記 log,資料仍正確還原(實測 revert OK)。
+- **api/worker 分工**:清單/下載/上傳由 api 直接讀寫共掛的 `backups` volume;pg_dump/pg_restore 派到 worker(`queue.run_backup`/`run_restore` 阻塞式)。每日備份掛 M5-0 的排程器(`schedule_daily_backup` 於 backup_hour 排 enqueue_at,執行後自我續期;固定 job_id 重啟不堆疊)。
+- **強制全員重新登入**:session 是無狀態簽章 cookie,還原資料庫不會使其失效。改在 **Redis** 記一個「最小有效簽發時間」(`session_epoch`),還原後設為現在;`get_current_user` 拒絕簽發早於此的 session。Redis 只是被還原的 PostgreSQL 之外的存放點。auth 端有 5 秒行程內快取(fail-open),故強制登出有 ≤5 秒傳播延遲(可接受)。
+- **還原後補寫稽核的坑**:還原會 `pg_terminate_backend` 中止所有其他連線(含本請求的 DB 連線),且還原本身會覆蓋整個資料庫——所以還原前寫的稽核會被蓋掉、還原後用舊連線寫會失敗。正解:還原後 `engine.dispose()` 再開新連線,把稽核寫進**還原後**的資料庫。
+- **非法上傳(驗收②)**:`save_uploaded` 先驗 `PGDMP` 魔數,非法直接拒絕、檔案不落地、不碰資料庫;還原既有備份前也再驗一次檔頭。
+- **實機驗證(docker 整合)**:worker 內 pg_dump 17.10;備份→插入學期→還原→筆數回到備份點 ✅;輪替 3→keep=1→1 ✅;api POST /backups(RQ 阻塞)→201、POST restore→200(自動 presafe 備份)、/auth/me 由 200 轉 401(強制登出,~5s)、重登 200 ✅;非法上傳 400 且無檔案落地(pytest)。
 
 ### [ ] M5-3 部署文件與發行工程
 - **描述**:`docs/deploy/` 中文圖文:Docker 安裝(Win/Linux/NAS)、三步驟安裝、升級、備份策略、VPS+HTTPS 選配、常見問題;README(中文為主+英文摘要);CHANGELOG;GitHub Release 流程(tag→CI 出雙架構 image);LICENSE(MIT);CONTRIBUTING.md。

@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import password_fingerprint, read_session_token
+from app.core.security import password_fingerprint, read_session_token, session_issued_at
+from app.core.session_epoch import min_issued_at
 from app.models.user import Role, User
 
 COOKIE_NAME = "session"
@@ -36,6 +37,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="登入已失效,請重新登入"
         )
+    # 全域強制重新登入(如資料庫還原後):簽發時間早於門檻的 session 失效
+    epoch = min_issued_at()
+    if epoch > 0:
+        issued = session_issued_at(token, settings.session_max_age_seconds)
+        if issued is not None and issued < epoch:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="系統已還原或重設,請重新登入",
+            )
     return user
 
 

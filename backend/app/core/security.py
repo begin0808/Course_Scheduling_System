@@ -50,3 +50,12 @@ def read_session_token(token: str, max_age: int) -> dict | None:
         return data
     except (BadSignature, SignatureExpired, ValueError, TypeError):
         return None
+
+
+def session_issued_at(token: str, max_age: int) -> float | None:
+    """token 的簽發時間(unix 秒);用於全域強制重新登入(M5-2)。失效回 None。"""
+    try:
+        _data, ts = _serializer.loads(token, max_age=max_age, return_timestamp=True)
+        return ts.timestamp()
+    except (BadSignature, SignatureExpired, ValueError, TypeError):
+        return None

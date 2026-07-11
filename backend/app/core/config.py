@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     tz: str = "Asia/Taipei"
     # 排程器心跳間隔(秒);週期任務骨架用,M5-2 每日備份亦掛此排程器
     scheduler_heartbeat_seconds: int = 3600
+    # 備份(M5-2):存放目錄(api 與 worker 共掛的 volume)、保留份數、每日自動備份時刻
+    backup_dir: str = "/backups"
+    backup_keep: int = 30
+    backup_hour: int = 2  # 每日自動備份的小時(學校時區)
 
     # 資料庫與佇列
     database_url: str = "postgresql+psycopg://scheduler:scheduler@postgres:5432/scheduler"

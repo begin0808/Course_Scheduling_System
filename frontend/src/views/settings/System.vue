@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import {
-  NButton, NCard, NCheckbox, NInput, NInputNumber, NPopconfirm, NSpace, NTag, NText, useMessage,
+  NButton, NCard, NCheckbox, NInput, NInputNumber, NPopconfirm, NSpace, NTag, NText, NUpload,
+  useMessage,
 } from 'naive-ui'
+import type { UploadCustomRequestOptions } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
+import {
+  createBackup, deleteBackup, downloadBackup, listBackups, restoreBackup, restoreUpload,
+} from '@/api/backups'
+import type { Backup } from '@/api/backups'
 import { getSmtp, saveSmtp } from '@/api/notifications'
 import { resetWizard } from '@/api/wizard'
 import { useAuthStore } from '@/stores/auth'
@@ -16,6 +22,73 @@ const wizard = useWizardStore()
 const auth = useAuthStore()
 
 const isAdmin = () => auth.hasRole('admin')
+
+// ── 備份與還原 ──
+const backups = ref<Backup[]>([])
+const busy = ref(false)
+
+function humanSize(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function reloadBackups() {
+  if (!isAdmin()) return
+  backups.value = await listBackups()
+}
+
+async function onCreateBackup() {
+  busy.value = true
+  try {
+    await createBackup()
+    message.success('已建立備份')
+    await reloadBackups()
+  } catch (e) {
+    message.error((e as ApiError).message || '備份失敗')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function onDeleteBackup(name: string) {
+  await deleteBackup(name)
+  message.success('已刪除備份')
+  await reloadBackups()
+}
+
+async function afterRestore(presafe: string) {
+  // 還原後所有 session 已失效,導回登入頁重新登入
+  message.success(`還原完成(現狀已備份為 ${presafe}),請重新登入`)
+  await auth.logout().catch(() => {})
+  router.push({ name: 'login' })
+}
+
+async function onRestore(name: string) {
+  busy.value = true
+  try {
+    const r = await restoreBackup(name)
+    await afterRestore(r.presafe_backup)
+  } catch (e) {
+    message.error((e as ApiError).message || '還原失敗')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function onUploadRestore({ file, onFinish, onError }: UploadCustomRequestOptions) {
+  busy.value = true
+  try {
+    const r = await restoreUpload(file.file as File)
+    onFinish()
+    await afterRestore(r.presafe_backup)
+  } catch (e) {
+    onError()
+    message.error((e as Error).message || '上傳還原失敗')
+  } finally {
+    busy.value = false
+  }
+}
 
 const smtp = ref({
   host: '', port: 25, user: '', password: '', sender: '', use_tls: false,
@@ -30,6 +103,7 @@ onMounted(async () => {
   smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender, use_tls: s.use_tls }
   configured.value = s.configured
   hasPassword.value = s.has_password
+  await reloadBackups()
 })
 
 async function onSaveSmtp() {
@@ -103,6 +177,63 @@ async function onResetWizard() {
       </n-space>
     </n-card>
 
+    <n-card v-if="isAdmin()" title="資料備份與還原" data-testid="backup-card">
+      <n-space vertical>
+        <n-space align="center">
+          <n-text depth="3">
+            每日凌晨自動備份(保留 30 份);也可立即備份、下載保存,或上傳備份檔還原。
+            還原前系統會自動先備份現狀,還原後所有人需重新登入。
+          </n-text>
+        </n-space>
+        <n-space align="center">
+          <n-button
+            type="primary" :loading="busy" data-testid="backup-now" @click="onCreateBackup"
+          >
+            立即備份
+          </n-button>
+          <n-upload
+            :custom-request="onUploadRestore" :show-file-list="false" accept=".dump"
+            :disabled="busy"
+          >
+            <n-button :disabled="busy" data-testid="backup-upload">上傳備份檔並還原</n-button>
+          </n-upload>
+        </n-space>
+
+        <n-text v-if="!backups.length" depth="3">尚無備份。</n-text>
+        <table v-else class="data-table" data-testid="backup-table">
+          <thead>
+            <tr><th>時間</th><th>來源</th><th>大小</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in backups" :key="b.name" data-testid="backup-row">
+              <td>{{ new Date(b.created_at).toLocaleString('zh-TW', { hour12: false }) }}</td>
+              <td><n-tag size="small">{{ b.reason_label }}</n-tag></td>
+              <td>{{ humanSize(b.size_bytes) }}</td>
+              <td>
+                <n-space size="small">
+                  <n-button size="tiny" @click="downloadBackup(b.name)">下載</n-button>
+                  <n-popconfirm @positive-click="() => onRestore(b.name)">
+                    <template #trigger>
+                      <n-button size="tiny" type="warning" data-testid="backup-restore">
+                        還原
+                      </n-button>
+                    </template>
+                    還原將覆蓋目前所有資料(現狀會先自動備份),確定?
+                  </n-popconfirm>
+                  <n-popconfirm @positive-click="() => onDeleteBackup(b.name)">
+                    <template #trigger>
+                      <n-button size="tiny" tertiary>刪除</n-button>
+                    </template>
+                    確定刪除此備份?
+                  </n-popconfirm>
+                </n-space>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </n-space>
+    </n-card>
+
     <n-card title="設定精靈">
       <n-space vertical>
         <n-text depth="3">重新執行首次設定的引導流程(不會刪除既有資料)。</n-text>
@@ -116,3 +247,11 @@ async function onResetWizard() {
     </n-card>
   </n-space>
 </template>
+
+<style scoped>
+.data-table { border-collapse: collapse; width: 100%; }
+.data-table th, .data-table td {
+  border: 1px solid var(--n-border-color, #e0e0e0); padding: 6px 10px; text-align: left;
+}
+.data-table th { background: rgba(128, 128, 128, 0.08); font-weight: 600; }
+</style>

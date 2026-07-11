@@ -31,6 +31,8 @@ services:
     env_file: .env
     environment:
       TZ: ${TZ:-Asia/Taipei}
+    volumes:
+      - backups:/backups   # 清單/下載/上傳(實際 pg_dump 在 worker)
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,6 +54,8 @@ services:
     env_file: .env
     environment:
       TZ: ${TZ:-Asia/Taipei}
+    volumes:
+      - backups:/backups   # pg_dump 寫入、pg_restore 讀取
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,3 +101,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  backups:

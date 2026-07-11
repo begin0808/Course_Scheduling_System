@@ -9,6 +9,7 @@ from app.api import (
     assignments,
     audit,
     auth,
+    backups,
     basedata,
     exports,
     health,
@@ -69,6 +70,7 @@ app.include_router(substitution_log.router, prefix="/api")
 app.include_router(substitution_stats.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(settings_api.router, prefix="/api")
+app.include_router(backups.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
 app.include_router(wizard.router, prefix="/api")

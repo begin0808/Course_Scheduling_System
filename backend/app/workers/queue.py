@@ -65,3 +65,28 @@ def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
     if not isinstance(data, bytes):
         raise RenderError(f"課表{fmt.upper()}渲染回傳非預期型別")
     return data
+
+
+class BackupJobError(RuntimeError):
+    """備份/還原任務失敗或逾時(呼叫端轉為 5xx)。"""
+
+
+def _run_blocking(func, *args, timeout: int):
+    job = default_queue.enqueue(func, *args, job_timeout=timeout + 30, result_ttl=300)
+    result = job.latest_result(timeout=timeout)
+    if result is None or result.type != result.Type.SUCCESSFUL:
+        detail = getattr(result, "exc_string", None) or "未知錯誤"
+        raise BackupJobError(detail)
+    return result.return_value
+
+
+def run_backup(reason: str = "manual", *, timeout: int = 120) -> dict:
+    """在 worker 跑 pg_dump,阻塞等待並回傳備份資訊(api 呼叫)。"""
+    from app.workers.backup_job import create_backup_job
+    return _run_blocking(create_backup_job, reason, timeout=timeout)
+
+
+def run_restore(name: str, *, timeout: int = 180) -> None:
+    """在 worker 跑 pg_restore,阻塞等待完成(api 呼叫)。"""
+    from app.workers.backup_job import restore_job
+    _run_blocking(restore_job, name, timeout=timeout)

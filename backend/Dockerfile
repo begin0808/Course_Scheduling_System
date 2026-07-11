@@ -1,7 +1,8 @@
 # 後端映像:兩個 target。
 #   base   → api 服務(精簡)
-#   worker → 背景任務(額外裝 WeasyPrint 系統依賴與中文內嵌字型,供 M5-1 PDF 匯出)
-FROM python:3.12-slim AS base
+#   worker → 背景任務(額外裝 WeasyPrint 系統依賴/中文字型與 PostgreSQL client)
+# 明確鎖 trixie:其 main 內含 postgresql-client(17),pg_dump 可備份 v16 伺服器。
+FROM python:3.12-slim-trixie AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -34,6 +35,9 @@ CMD ["api"]
 # poppler-utils 供匯出 PNG 與驗證用(PDF→影像)。
 FROM base AS worker
 
+# PDF/PNG(WeasyPrint + poppler + 中文字型)+ 備份(postgresql-client,M5-2)。
+# trixie 的 postgresql-client 為 17,可 pg_dump/pg_restore 對上 postgres:16 伺服器
+# (client ≥ server 允許;server 較新才是不支援的方向)。
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpango-1.0-0 \
         libpangocairo-1.0-0 \
@@ -44,6 +48,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libjpeg62-turbo \
         fonts-noto-cjk \
         poppler-utils \
+        postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install '.[export]'
