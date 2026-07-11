@@ -136,6 +136,29 @@ def test_swap_makeup_blocks_only_the_makeup_teacher(w):
     assert av.conflict_for(w.teachers["林師"], WED2, makeup_slot) is None
 
 
+# ── 條件 D:重新發布課表提醒未來的調代課依舊課表 ───────────
+def test_republish_flags_stale_future_affected(w):
+    w.teacher("王師", ["國文"])
+    w.place("王師", "國文", "701", 0)
+    w.publish()
+    # 依已發布課表登記一張未來假單 → 受影響節次以此版課表展開
+    w.leave("王師")
+
+    # 重新發布另一版課表:回應應提醒有未來的調代課依舊課表安排
+    tt2 = w.client.post(f"/api/timetables{w.q}", json={"name": "草稿B"}).json()["id"]
+    r = w.client.post(f"/api/timetables/{tt2}/publish?force=true")
+    assert r.status_code == 200
+    assert r.json()["stale_affected"] >= 1
+
+
+def test_first_publish_has_no_stale(w):
+    w.teacher("王師", ["國文"])
+    w.place("王師", "國文", "701", 0)
+    r = w.client.post(f"/api/timetables/{w.tt}/publish?force=true")
+    assert r.status_code == 200
+    assert r.json()["stale_affected"] == 0
+
+
 # ── 條件 C:公平計數排除幽靈代課 ───────────────────────────
 def test_monthly_fair_count_excludes_cancelled(w):
     """林師代的那節被銷假後,推薦別節時他的『本月已代』應回到 0。"""

@@ -33,6 +33,7 @@ export interface Timetable {
   name: string
   status: string
   entries: ScheduleEntry[]
+  stale_affected?: number // 發布後:依舊課表展開、今日之後的調代課數(>0 需重新檢視)
 }
 export interface Conflict {
   code: string

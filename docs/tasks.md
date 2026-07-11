@@ -409,7 +409,7 @@ Course_Scheduling_System/
 
 ## M5 報表、備份與發行
 
-### [ ] M5-0 發行前置(Fable 5 建議,M5-1 前必做)
+### [x] M5-0 發行前置(Fable 5 建議,M5-1 前必做)
 - **描述**:一次備妥 M5 各卡的共用基礎設施,避免每張卡各自處理環境。
   1. **PDF/字型基礎**:worker 映像安裝 WeasyPrint 系統依賴(Pango/Cairo/gdk-pixbuf)與**中文內嵌字型**(Noto Sans TC / Noto Serif TC),供 M5-1 PDF、M5-2 之後的報表共用。字型與重量級原生依賴只裝在 worker(匯出走背景任務),api 映像維持精簡。
   2. **RQ scheduler 骨架**:立起定時任務排程器(M5-2 每日備份、條件 A 選配夜間 sweep 都掛這裡);docker-compose 加 scheduler 服務,先跑一個 heartbeat/no-op 週期任務驗證存活。
@@ -420,6 +420,12 @@ Course_Scheduling_System/
   2. scheduler 服務啟動後,週期任務有觸發紀錄(log)
   3. 60 班 fixture builder 產出資料,基本查詢正常
 - **測試方式**:容器內 smoke test(WeasyPrint 匯入 + 中文 PDF)、scheduler 存活紀錄、fixture builder pytest
+
+**補遺(實作後)**
+- **多階段 Dockerfile(base / worker)**:api 用 `base`(精簡),worker 用 `worker`(額外裝 Pango/Cairo/gdk-pixbuf + `fonts-noto-cjk` + poppler-utils + `pip .[export]` 的 WeasyPrint)。compose 與 CI 皆以 `target:` 指定;CI 另推 `-worker` 映像。`app/services/pdf.py` 的 `render_pdf` 延遲匯入 weasyprint,api 匯入不會失敗(匯出一律走 worker 背景任務)。**實機驗證**:worker 容器內 weasyprint 69.0 匯入成功,渲染繁中 PDF→PNG 目視無 tofu(排課/調代課/王小明/國文/甲乙丙丁…/藝術與人文 皆清晰)。
+- **排程器骨架**:worker 已 `with_scheduler=True`;不加獨立容器(單校部署少一個行程),改用「執行時排下一次」的自我續期心跳(固定 job_id,重啟不堆疊),`ensure_scheduled()` 於 worker 啟動時排入。M5-2 每日備份、條件 A 選配夜間 sweep 都掛此模式。**實機驗證**:ScheduledJobRegistry 含 `scheduler-heartbeat`,手動觸發 job 狀態 FINISHED 且自我重排成功。
+- **60 班效能 fixture**:`tests/fixtures/scale.py` 的 `build_large_school(num_classes=60)`,以貪婪「最少負載且不超 base」指派教師(不保證可完全排課,量為主);pytest 驗 60 班 660 配課、無教師超鐘點。
+- **條件 D 最小防護(已做)**:`timetable_publish.stale_future_affected_count` 算「今日之後、依先前課表展開」的待處理/已指派受影響節次;發布回應加 `stale_affected`,前端發布成功後 >0 則跳警告 toast(請至今日看板/調代課紀錄重新檢視)。完整解(重跑 expand+diff+通知)仍列後續增強。
 
 ### [ ] M5-1 課表匯出
 

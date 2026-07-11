@@ -241,7 +241,10 @@ def publish_timetable(
         )
     pub.publish(db, tt, user, forced=not report["complete"])
     db.commit()
-    return get_timetable(timetable_id, db, None)
+    # 條件 D:重新發布後,提醒仍有多少「今日之後」的調代課是依舊課表展開的
+    out = get_timetable(timetable_id, db, None)
+    out.stale_affected = pub.stale_future_affected_count(db, tt.semester_id)
+    return out
 
 
 @router.delete("/timetables/{timetable_id}", status_code=status.HTTP_204_NO_CONTENT)

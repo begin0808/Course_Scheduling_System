@@ -29,6 +29,11 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
 ]
+# 匯出(M5-1 起):PDF 產生。系統依賴(Pango 等)與中文字型只裝在 worker 映像;
+# api 映像維持精簡,匯出一律走背景任務(worker)。見 Dockerfile 的 worker 階段。
+export = [
+    "weasyprint>=63",
+]
 
 [tool.ruff]
 line-length = 100

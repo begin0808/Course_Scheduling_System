@@ -75,11 +75,20 @@ const warnShow = ref(false)
 const report = ref<Completeness | null>(null)
 const publishTarget = ref<TimetableBrief | null>(null)
 
+function warnStale(n?: number) {
+  if (n && n > 0) {
+    message.warning(
+      `有 ${n} 筆今日之後的調代課是依先前課表安排的,請至今日看板/調代課紀錄重新檢視`,
+      { duration: 8000 })
+  }
+}
+
 async function onPublish(t: TimetableBrief) {
   publishTarget.value = t
   try {
-    await publishTimetable(t.id)
+    const r = await publishTimetable(t.id)
     message.success(`已發布「${t.name}」`)
+    warnStale(r.stale_affected)
     await reload()
   } catch (e) {
     const r = publishReport((e as ApiError).detail)
@@ -94,9 +103,10 @@ async function onPublish(t: TimetableBrief) {
 async function onForcePublish() {
   if (!publishTarget.value) return
   try {
-    await publishTimetable(publishTarget.value.id, true)
+    const r = await publishTimetable(publishTarget.value.id, true)
     warnShow.value = false
     message.success('已強制發布(仍有未排完課務)')
+    warnStale(r.stale_affected)
     await reload()
   } catch (e) {
     message.error((e as ApiError).detail as string || '發布失敗')

@@ -114,6 +114,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backend
+          target: base
           platforms: ${{ steps.platforms.outputs.value }}
           push: true
           tags: |
@@ -121,6 +122,18 @@ jobs:
             ${{ env.IMAGE_BASE }}-api:${{ github.sha }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
+      - name: 建置並推送 worker 映像(含 PDF/字型依賴)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: worker
+          platforms: ${{ steps.platforms.outputs.value }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}-worker:latest
+            ${{ env.IMAGE_BASE }}-worker:${{ github.sha }}
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,scope=worker,mode=max
       - name: 建置並推送 web 映像
         uses: docker/build-push-action@v6
         with:

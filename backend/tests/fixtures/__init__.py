@@ -11,6 +11,7 @@
 from ._common import Builder, Fixture, room_demand, teacher_available_slots
 from .elementary import build_elementary_small
 from .junior_high import build_junior_high_mid
+from .scale import build_large_school
 from .vocational import build_vocational_high
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "Fixture",
     "build_elementary_small",
     "build_junior_high_mid",
+    "build_large_school",
     "build_vocational_high",
     "room_demand",
     "teacher_available_slots",

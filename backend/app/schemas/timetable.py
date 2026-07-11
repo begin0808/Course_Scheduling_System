@@ -43,6 +43,8 @@ class TimetableOut(BaseModel):
     name: str
     status: str
     entries: list[ScheduleEntryOut] = []
+    # 發布後回填:今日之後、依舊課表展開的受影響節次數(>0 提醒組長重新檢視調代課)
+    stale_affected: int = 0
 
 
 class ConflictOut(BaseModel):

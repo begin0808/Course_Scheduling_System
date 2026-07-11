@@ -26,6 +26,7 @@ services:
   api:
     build:
       context: ./backend
+      target: base
     restart: unless-stopped
     env_file: .env
     environment:
@@ -45,6 +46,7 @@ services:
   worker:
     build:
       context: ./backend
+      target: worker
     command: ["worker"]
     restart: unless-stopped
     env_file: .env

@@ -7,8 +7,10 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.models.assignment import CourseAssignment
 from app.models.audit import AuditLog
+from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import User
 
@@ -52,6 +54,28 @@ def completeness(db: Session, timetable: Timetable) -> dict:
         "complete": not unplaced,
         "unplaced": unplaced,
     }
+
+
+def stale_future_affected_count(db: Session, semester_id: int) -> int:
+    """今日之後仍待處理/已指派的受影響節次數。
+
+    這些節次的快照是依**先前**已發布課表展開的;學期中重新發布課表後,它們可能指向
+    已移走的格位(代課老師被派去上一節新課表裡不存在的課)。回傳數量供發布後提醒組長
+    重新檢視。完整解(重跑 expand + diff + 通知)見 tasks.md M5-0 條件 D。
+    """
+    return db.scalar(
+        select(func.count())
+        .select_from(AffectedPeriod)
+        .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
+        .where(
+            AffectedPeriod.semester_id == semester_id,
+            LeaveRequest.status == LeaveStatus.registered.value,
+            AffectedPeriod.status.in_(
+                [AffectedStatus.pending.value, AffectedStatus.resolved.value]
+            ),
+            AffectedPeriod.date >= clock.school_today(),
+        )
+    ) or 0
 
 
 def duplicate(db: Session, source: Timetable, name: str) -> Timetable:

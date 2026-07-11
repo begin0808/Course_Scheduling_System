@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     debug: bool = False
     # 學校所在時區,用於「今日/本週」等領域判定(見 architecture.md D6)
     tz: str = "Asia/Taipei"
+    # 排程器心跳間隔(秒);週期任務骨架用,M5-2 每日備份亦掛此排程器
+    scheduler_heartbeat_seconds: int = 3600
 
     # 資料庫與佇列
     database_url: str = "postgresql+psycopg://scheduler:scheduler@postgres:5432/scheduler"
