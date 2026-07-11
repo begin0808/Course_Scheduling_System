@@ -1,0 +1,18 @@
+# M5-4 驗收③:以總量 ~4GB 的記憶體上限跑整套系統,驗證全流程不 OOM。
+# 疊在正式 compose 之上使用:
+#   docker compose -f docker-compose.yml -f docker-compose.limits.yml up -d
+# 五容器上限合計約 3.2GB,留約 0.8GB 給主機與尖峰;worker 分到最多(排課引擎 + PDF 匯出)。
+# 亦可作為 4GB 主機/NAS 的部署參考。
+name: scheduling
+
+services:
+  postgres:
+    mem_limit: 512m
+  redis:
+    mem_limit: 256m
+  api:
+    mem_limit: 768m
+  worker:
+    mem_limit: 1536m
+  web:
+    mem_limit: 128m

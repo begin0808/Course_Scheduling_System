@@ -58,6 +58,9 @@ extend-immutable-calls = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "perf: 效能量測測試(規模資料下的時間門檻)",
+]
 
 [tool.mypy]
 python_version = "3.12"

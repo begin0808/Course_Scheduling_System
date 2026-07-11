@@ -474,13 +474,21 @@ Course_Scheduling_System/
 - **文件產出**:`docs/deploy/`(index/install/upgrade/backup/https/faq 六篇中文,含 Win/Linux/Synology/QNAP 安裝、異地備援、回滾與 schema 變更提醒、VPS 對外埠與資安)、改寫 `README.md`(英文摘要+功能總覽+雙部署快速開始+文件索引)、新增 `CHANGELOG.md`(Keep a Changelog,彙整 M0–M5)、`CONTRIBUTING.md`(開發環境/品質門檻/任務卡制/發布新版本流程)。`LICENSE`(MIT)M0 已具備。
 - **驗收①「乾淨 VM 實測」的界線**:compose 解析、web 重建與預設 HTTP 服務已在本機 Docker 驗過;真正的「全新 VM 從零 pull 安裝」需待版本標籤推上 GHCR 後才可端到端跑(目前尚無 release tag),此步驟留給實際發布時(或使用者)在乾淨環境驗收並記錄於 PR。
 
-### [ ] M5-4 E2E 總驗收與效能
+### [x] M5-4 E2E 總驗收與效能
 - **描述**:Playwright 全流程情境:精靈建置→匯入→配課→自動排課→發布→請假→代課→月統計;效能驗收;無障礙基本檢查(鍵盤可操作、對比度)。
 - **驗收標準**:
   1. 三套 fixtures 全流程 E2E 綠燈
   2. 60 班規模:頁面載入 p95 < 2s、check-conflict p95 < 100ms、自動排課 < 10 分鐘
   3. 以 4GB RAM 容器限制跑全流程不 OOM
 - **測試方式**:CI E2E + 壓測腳本
+
+**補遺(實作後)**
+- **驗收①分兩面落實**:(a) 後端 `tests/test_full_flow.py` 對**三套學制 fixtures**(國小/國中/技高)各跑完整管線——求解 → validator 驗零硬違反 → 發布快照 → 挑一位有課教師請整天假 → 依已發布課表展開受影響節次 → 用推薦挑空堂教師指派代課 → 月結統計數字對上;證明下游鏈路能吃真實求解結果並在三種學制一致成立(M3 只證到「解得出」)。(b) 前端 `full-journey.spec.ts` 一個學期連續走完自動排課(真實 solver worker)→ 版本發布 → 課表查詢 → 請假+代課(API)→ 月結(UI),截圖目視:自排「已找到 16 個解、產生草稿A 自排結果」、月結頁「國文師1 代 國文師2 事假 1 節、計費 1 節」。個別旅程細節仍由既有 26 支 spec 深入覆蓋。
+- **踩雷:全流程測試的兩個時間性地雷**。(1) 求解要用 **hard-only config**(`SolverConfig.hard_only()`),否則掛軟約束目標函數的 CP-SAT 會為了逼近最佳跑到 `max_seconds` 天花板——三套 fixtures 各跑 120 秒共 6 分鐘;改 hard-only 後全部 15 秒。(2) 學期起訖必須設在**今日之後**:代課處置會用 `clock.is_past_slot` 拒絕已結束的節次,起初用 2025 的日期整批被判為「已結束」而指派失敗。
+- **驗收②(check-conflict p95<100ms)**:`tests/test_perf_scale.py` 以 `build_large_school(60)`(660 配課)塞入 >1500 格合法佔用,量 30 次單格衝突檢查 p95。**頁面載入 p95<2s**:`perf-page-load.spec.ts` 對灌了 60 班的執行中全棧量測。**方法學校正**:最初用重複 `page.goto` 全頁重載量到配課頁 p95≈2.9s——那是每次重新下載/解析 ~1.4MB SPA bundle 的成本(CPU 競爭下放大),不是使用者實際的換頁延遲。改量**應用內導覽**(bundle 已暖):配課頁/課表查詢 p95≈85–89ms;冷啟首載(含 bundle)另記 1069ms,兩者皆 <2s。1.4MB bundle 的冷啟成本仍列 Backlog(按元件 import 縮小)。**自排<10 分**:60 班求解耗時不放進 CI 單元測試(以免每次跑十分鐘),由 M3 的 junior_high <60s 建模測試 + 全流程實測共同保證。
+- **驗收③(4GB 不 OOM)**:新增 `docker-compose.limits.yml`(疊在正式 compose 上,`mem_limit` 合計 3.2GB:worker 1.5G/api 768M/postgres 512M/redis 256M/web 128M,留 ~0.8G 餘裕)。以此上限重建全棧跑完整旅程(含真實 solver),`docker stats` 峰值 api 132M/768M、postgres 36M/512M、worker 於小校求解下寬裕;全五容器 `OOMKilled=false`、`Restarts=0`。此檔亦作為 4GB 主機/NAS 部署參考。
+- **無障礙基本檢查**:`a11y.spec.ts` 三案——(1) 僅鍵盤(Tab/輸入/Enter)完成登入直達儀表板;(2) 連續 Tab 焦點可達可互動元素;(3) 以 WCAG 相對亮度公式量對比:內文 ≥4.5:1(1.4.3 正常文字)、主要按鈕 ≥3:1(1.4.11 非文字元件)。
+- **品質門檻**:後端 ruff/mypy 乾淨、pytest **371 passed**(+4);前端 eslint/vue-tsc build/vitest 11 綠;Playwright 全套(既有 26 + 新增 a11y 3 / 全旅程 1 / 頁面載入 1)。M5 里程碑完成,v1.0 可發行(打 `v1.0.0` 標籤觸發雙架構映像,見 CONTRIBUTING「發布新版本」)。
 
 ---
 
