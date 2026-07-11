@@ -20,6 +20,12 @@ const routes = [
     component: () => import('@/views/wizard/Wizard.vue'),
   },
   {
+    // 獨立 A4 通知單列印頁,不套用側邊欄版面(乾淨一頁供列印)
+    path: '/daily-board/print',
+    name: 'daily-board-print',
+    component: () => import('@/views/substitution/DailyBoardPrint.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     children: [
@@ -72,6 +78,16 @@ const routes = [
         path: 'notification-board',
         name: 'notification-board',
         component: () => import('@/views/substitution/NotificationBoard.vue'),
+      },
+      {
+        path: 'daily-board',
+        name: 'daily-board',
+        component: () => import('@/views/substitution/DailyBoard.vue'),
+      },
+      {
+        path: 'substitution-log',
+        name: 'substitution-log',
+        component: () => import('@/views/substitution/SubstitutionLog.vue'),
       },
       {
         path: 'scheduling/versions',

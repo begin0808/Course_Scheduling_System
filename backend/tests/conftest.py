@@ -23,6 +23,7 @@ from app.api import (
     notifications,
     semesters,
     solver,
+    substitution_log,
     substitutions,
     timetables,
     wizard,
@@ -84,6 +85,7 @@ def env():
     application.include_router(wizard.router, prefix="/api")
     application.include_router(leaves.router, prefix="/api")
     application.include_router(substitutions.router, prefix="/api")
+    application.include_router(substitution_log.router, prefix="/api")
     application.include_router(notifications.router, prefix="/api")
     application.include_router(settings_api.router, prefix="/api")
 

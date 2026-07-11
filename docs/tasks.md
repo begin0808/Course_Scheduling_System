@@ -368,12 +368,20 @@ Course_Scheduling_System/
 - **開發用 mailhog**:docker-compose 加 `mailhog`(profile `dev`,不影響正式部署);`docker compose --profile dev up` 才啟動,Web UI :8025。
 - **E2E 教訓**:共用 e2e_teacher 帳號 + 發布課表的測試會用「最近學期」預設互相污染;測試中途失敗會跳過收尾清理,故改用 `test.afterEach` 兜底刪除學期。另 Naive 的 message toast 與 tag 同字串會觸發 strict-mode(getByText 命中兩個),toast 文案要與 tag 區隔。
 
-### [ ] M4-4 今日看板與調代課日誌
+### [x] M4-4 今日看板與調代課日誌
 - **描述**:儀表板「今日調代課看板」(今日全部異動:誰代誰的課、教室異動);當日調代課通知單列印(A4,傳統公告格式);歷史查詢(依教師/日期/假別篩選)。
 - **驗收標準**:
   1. 看板即時反映今日已確認處置;無異動顯示「今日無調代課」
   2. 列印版面 A4 一頁內,含節次/班級/原教師/代課教師
 - **測試方式**:Playwright 快照
+
+**補遺(實作後)**
+- **看板/日誌不新增真相,只攤平**:`substitution_log.py` 把「受影響節次 + 處置」join 成一列列可讀紀錄,今日看板與歷史查詢共用同一 `LogEntry`。真相仍在 `affected_period`(快照)與 `substitution`(處置決定)。
+- **「今日」以學校時區判定**(config.tz,預設 Asia/Taipei),不是 UTC——台灣凌晨的 UTC 仍是前一天(D6)。前端深連結可帶 `?date=&semester_id=` 指定任一天,未帶則後端以 `school_today()` 為準。
+- **看板含待處理節次**,好讓組長一眼看出還有幾節沒排代課;排除已銷假(cancelled)的節次(那天沒有異動)。列印通知單則只列已安排的處置(公告只公告已定案的)。
+- **歷史查詢的 `teacher_id` 同時比對缺課當事人與接手代課者**——查一位教師,他缺的課與他代的課都算相關(以冗餘的 `affected_period.handler_teacher_id` 命中接手方)。
+- **A4 列印頁是獨立路由 `/daily-board/print`**(不套側邊欄版面),`window.open` 新分頁開啟;`@media print` 隱藏工具列、設 `@page A4`。校名取自 config.school_name,隨看板回應帶出(免另設定)。
+- **踩雷:`date`/`start_time` 欄位名遮蔽 datetime 型別**——dataclass/pydantic 內欄位命名為 `date` 後,同類別後續以 `date` 標註型別會被 mypy 視為「用變數當型別」而報錯。以模組別名 `_Date = date` 標註型別解決。
 
 ### [ ] M4-5 代課鐘點統計
 - **描述**:月結統計:依教師彙total(代課節數、計費節數——併班/自習不計、假別、經費來源標記);Excel 匯出;教師個人可查本人明細。

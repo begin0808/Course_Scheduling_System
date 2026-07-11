@@ -67,6 +67,15 @@ class AffectedStatus(enum.StrEnum):
     cancelled = "cancelled"  # 已取消(銷假)
 
 
+# 以字串為 key:與 LEAVE_TYPE_CN 一致,查表時不必先轉回 enum
+AFFECTED_STATUS_CN: dict[str, str] = {
+    AffectedStatus.pending.value: "待處理",
+    AffectedStatus.resolved.value: "已處置",
+    AffectedStatus.completed.value: "已完成",
+    AffectedStatus.cancelled.value: "已取消",
+}
+
+
 class LeaveRequest(Base):
     __tablename__ = "leave_requests"
 

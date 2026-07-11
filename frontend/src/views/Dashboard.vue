@@ -1,23 +1,36 @@
 <script setup lang="ts">
-import { NButton, NCard, NEmpty, NSpace, NStatistic, NText } from 'naive-ui'
-import { onMounted, ref } from 'vue'
+import { NButton, NCard, NEmpty, NSpace, NStatistic, NTag } from 'naive-ui'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listSemesters } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
+import { getDailyBoard } from '@/api/substitutionLog'
+import type { DailyBoard } from '@/api/substitutionLog'
 import { getSemesterSummary } from '@/api/wizard'
 import type { SemesterSummary } from '@/api/wizard'
+
+const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
 const router = useRouter()
 const semester = ref<SemesterListItem | null>(null)
 const summary = ref<SemesterSummary | null>(null)
+const board = ref<DailyBoard | null>(null)
 const loading = ref(true)
+
+const boardDateLabel = computed(() =>
+  board.value ? `${board.value.date}(${WEEKDAYS[board.value.weekday % 7]})` : '')
+const pendingCount = computed(() =>
+  board.value ? board.value.entries.filter((e) => !e.disposed).length : 0)
 
 onMounted(async () => {
   try {
     const semesters = await listSemesters()
     if (semesters.length) {
       semester.value = semesters[0]
-      summary.value = await getSemesterSummary(semesters[0].id)
+      ;[summary.value, board.value] = await Promise.all([
+        getSemesterSummary(semesters[0].id),
+        getDailyBoard(semesters[0].id).catch(() => null),
+      ])
     }
   } finally {
     loading.value = false
@@ -48,6 +61,22 @@ onMounted(async () => {
       </n-empty>
     </n-card>
 
-    <n-text depth="3">後續里程碑將在此顯示今日調代課看板與待辦事項。</n-text>
+    <n-card v-if="semester && board" data-testid="dash-today" :title="`今日調代課 · ${boardDateLabel}`">
+      <n-space v-if="board.entries.length" vertical>
+        <n-space align="center">
+          <n-statistic label="今日異動" :value="board.entries.length" />
+          <n-tag v-if="pendingCount" type="warning" data-testid="dash-pending">
+            尚有 {{ pendingCount }} 節待安排
+          </n-tag>
+          <n-tag v-else type="success">今日皆已安排</n-tag>
+        </n-space>
+        <div>
+          <n-button type="primary" @click="router.push({ name: 'daily-board' })">
+            查看今日看板
+          </n-button>
+        </div>
+      </n-space>
+      <n-empty v-else description="今日無調代課" data-testid="dash-noboard" />
+    </n-card>
   </n-space>
 </template>

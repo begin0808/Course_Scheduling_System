@@ -16,6 +16,7 @@ from app.api import (
     notifications,
     semesters,
     solver,
+    substitution_log,
     substitutions,
     timetables,
     wizard,
@@ -61,6 +62,7 @@ app.include_router(timetables.router, prefix="/api")
 app.include_router(solver.router, prefix="/api")
 app.include_router(leaves.router, prefix="/api")
 app.include_router(substitutions.router, prefix="/api")
+app.include_router(substitution_log.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(settings_api.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
