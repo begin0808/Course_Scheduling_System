@@ -42,3 +42,26 @@ def enqueue_email(to: str, subject: str, body: str) -> None:
     from app.workers.email_job import send_notification_email
 
     default_queue.enqueue(send_notification_email, to, subject, body, job_timeout=60)
+
+
+class RenderError(RuntimeError):
+    """PDF/PNG 渲染失敗或逾時(呼叫端轉為 5xx)。"""
+
+
+def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
+    """在 worker 渲染 PDF/PNG,阻塞等待結果並回傳 bytes(api 匯出端點呼叫)。
+
+    api 映像無 WeasyPrint 依賴,故一律派到 worker;結果經 RQ result 取回。
+    """
+    from app.workers.export_job import render_timetable_pdf, render_timetable_png
+
+    func = render_timetable_pdf if fmt == "pdf" else render_timetable_png
+    job = default_queue.enqueue(func, html, job_timeout=timeout + 30, result_ttl=120)
+    result = job.latest_result(timeout=timeout)
+    if result is None or result.type != result.Type.SUCCESSFUL:
+        detail = getattr(result, "exc_string", None) or "未知錯誤"
+        raise RenderError(f"課表{fmt.upper()}渲染失敗:{detail}")
+    data = result.return_value
+    if not isinstance(data, bytes):
+        raise RenderError(f"課表{fmt.upper()}渲染回傳非預期型別")
+    return data

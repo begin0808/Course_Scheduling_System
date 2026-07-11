@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { NCard, NEmpty, NRadioButton, NRadioGroup, NSelect, NSpace, NTag, NText } from 'naive-ui'
+import {
+  NButton, NButtonGroup, NCard, NEmpty, NRadioButton, NRadioGroup, NSelect, NSpace, NTag, NText,
+  useMessage,
+} from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import type { GridEntry, PeriodCell } from '@/components/timetable/types'
 import { getMyTeacher, getPublishedTimetable, publishedSemesters } from '@/api/timetables'
 import type { NamedBrief, PublicSemester, PublishedTimetable } from '@/api/timetables'
+import {
+  exportBatchZip, exportSchoolWorkbook, exportTimetable,
+} from '@/api/exports'
+import type { ExportFmt } from '@/api/exports'
+import { useAuthStore } from '@/stores/auth'
 
 const semesters = ref<PublicSemester[]>([])
 const sid = ref<number | null>(null)
@@ -12,10 +20,44 @@ const data = ref<PublishedTimetable | null>(null)
 const me = ref<NamedBrief | null>(null)
 const loading = ref(true)
 
+const message = useMessage()
+const auth = useAuthStore()
+const canManage = computed(() =>
+  auth.hasRole('admin') || auth.hasRole('scheduler') || auth.hasRole('director'))
+
 const view = ref<'class' | 'teacher' | 'room'>('class')
 const classId = ref<number | null>(null)
 const teacherId = ref<number | null>(null)
 const roomId = ref<number | null>(null)
+const exporting = ref(false)
+
+const targetId = computed(() =>
+  view.value === 'class' ? classId.value
+    : view.value === 'teacher' ? teacherId.value : roomId.value)
+
+async function onExport(fmt: ExportFmt) {
+  if (sid.value === null || targetId.value === null) return
+  exporting.value = true
+  try {
+    await exportTimetable(sid.value, view.value, targetId.value, fmt)
+  } catch (e) {
+    message.error((e as Error).message || '匯出失敗')
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function onExportAll(kind: 'school' | 'batch') {
+  if (sid.value === null) return
+  exporting.value = true
+  try {
+    await (kind === 'school' ? exportSchoolWorkbook(sid.value) : exportBatchZip(sid.value))
+  } catch (e) {
+    message.error((e as Error).message || '匯出失敗')
+  } finally {
+    exporting.value = false
+  }
+}
 
 const semesterOptions = computed(() => semesters.value.map((s) => ({ label: s.label, value: s.id })))
 const classOptions = computed(() =>
@@ -121,6 +163,45 @@ const entries = computed<GridEntry[]>(() => {
         <n-tag v-if="me && view === 'teacher' && teacherId === me.id" size="small" type="info">
           本人課表
         </n-tag>
+      </n-space>
+
+      <n-space align="center" :wrap="true">
+        <n-text depth="3" style="font-size: 13px">匯出目前課表:</n-text>
+        <n-button-group>
+          <n-button
+            size="small" :disabled="targetId === null || exporting"
+            data-testid="export-xlsx" @click="onExport('xlsx')"
+          >
+            Excel
+          </n-button>
+          <n-button
+            size="small" :loading="exporting" :disabled="targetId === null"
+            data-testid="export-pdf" @click="onExport('pdf')"
+          >
+            PDF
+          </n-button>
+          <n-button
+            size="small" :loading="exporting" :disabled="targetId === null"
+            data-testid="export-png" @click="onExport('png')"
+          >
+            PNG
+          </n-button>
+        </n-button-group>
+        <template v-if="canManage">
+          <n-text depth="3" style="font-size: 13px">全校:</n-text>
+          <n-button
+            size="small" :disabled="exporting" data-testid="export-school"
+            @click="onExportAll('school')"
+          >
+            總表 Excel
+          </n-button>
+          <n-button
+            size="small" :disabled="exporting" data-testid="export-batch"
+            @click="onExportAll('batch')"
+          >
+            批次 zip
+          </n-button>
+        </template>
       </n-space>
 
       <n-card size="small" data-testid="tq-grid">

@@ -429,12 +429,19 @@ Course_Scheduling_System/
 
 ### [ ] M5-1 課表匯出
 
-### [ ] M5-1 課表匯出
+### [x] M5-1 課表匯出
 - **描述**:班級/教師/場地課表匯出 Excel(openpyxl)、PDF(WeasyPrint,A4 直式含校名/學期/列印日)、PNG;全校總表 Excel;批次匯出(全部班級一鍵 zip)。
 - **驗收標準**:
   1. 三種格式與畫面課表內容一致;PDF 中文無亂碼(內嵌字型)
   2. 60 班批次匯出 < 60 秒
 - **測試方式**:pytest 內容比對(Excel 讀回驗證)+ 人工檢視 PDF 版面
+
+**補遺(實作後)**
+- **共用格線模型**:`timetable_export.py` 把已發布課表(D4 快照)攤成 `Grid`(節次列 × 星期欄,連堂以 span 合併),三種對象(班級=科目/教師/教室、教師=科目/班級/教室、場地=科目/班級/教師)與三種格式共用,確保內容一致(驗收①)。
+- **Excel 在 api、PDF/PNG 在 worker**:openpyxl 輕量,班級/教師/場地/全校總表/批次 zip 皆 api 同步產生。PDF 需 WeasyPrint(系統依賴+中文字型只在 worker,見 M5-0),故 PDF/PNG 由 api 以 `queue.render_export` **阻塞式**派到 worker 渲染再取回(RQ result);PNG = WeasyPrint 出 PDF 後 poppler `pdftoppm` 轉單頁。
+- **全校總表 vs 批次**:總表=一個 Excel 每班一分頁;批次=每班各一 Excel 打包 zip。單一課表匯出開放所有登入者(課表本就全校可查),總表/批次限教學組長以上。
+- **中文檔名**:Content-Disposition 用 RFC 5987 `filename*=UTF-8''`,前端以 fetch blob 下載並解出檔名(順帶處理 4xx/5xx 與載入狀態)。
+- **驗收②**:60 班批次為 CPU-bound(60 個 openpyxl workbook),與資料庫無關,pytest 用 `build_large_school` 實測 < 60 秒。**驗收①**:E2E 下載班級 PNG(走 worker WeasyPrint→pdftoppm)存檔目視:標題/校名/學期/列印日、節次×星期格線、早自習/午休淡色、週三第一節顯示國文/王老師,繁中無 tofu。
 
 ### [ ] M5-2 備份與還原
 - **描述**:每日 02:00 自動 pg_dump(保留 30 份,RQ scheduler);管理 UI:立即備份/下載/上傳還原(還原前自動先備份現狀+二次確認);還原後強制全員重新登入。

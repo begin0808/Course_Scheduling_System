@@ -10,6 +10,7 @@ from app.api import (
     audit,
     auth,
     basedata,
+    exports,
     health,
     imports,
     leaves,
@@ -61,6 +62,7 @@ app.include_router(basedata.router, prefix="/api")
 app.include_router(assignments.router, prefix="/api")
 app.include_router(timetables.router, prefix="/api")
 app.include_router(solver.router, prefix="/api")
+app.include_router(exports.router, prefix="/api")
 app.include_router(leaves.router, prefix="/api")
 app.include_router(substitutions.router, prefix="/api")
 app.include_router(substitution_log.router, prefix="/api")

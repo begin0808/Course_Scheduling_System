@@ -18,6 +18,7 @@ from app.api import (
     audit,
     auth,
     basedata,
+    exports,
     imports,
     leaves,
     notifications,
@@ -81,6 +82,7 @@ def env():
     application.include_router(assignments.router, prefix="/api")
     application.include_router(timetables.router, prefix="/api")
     application.include_router(solver.router, prefix="/api")
+    application.include_router(exports.router, prefix="/api")
     application.include_router(audit.router, prefix="/api")
     application.include_router(imports.router, prefix="/api")
     application.include_router(wizard.router, prefix="/api")
