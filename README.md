@@ -63,7 +63,8 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 
 | 文件 | 內容 |
 |---|---|
-| [部署手冊](docs/deploy/README.md) | 安裝、升級、備份、網域 HTTPS、FAQ |
+| [**教學組長操作手冊**](https://begin0808.github.io/Course_Scheduling_System/)（[原始檔](docs/index.html)） | 給使用者:設定精靈、配課、排課、調代課、匯出、備份、FAQ(11 章圖文網頁) |
+| [部署手冊](docs/deploy/README.md) | 給安裝者:安裝、升級、備份、網域 HTTPS、FAQ |
 | [架構設計](docs/architecture.md) | 需求、資料模型、排課引擎、技術棧(規格權威來源) |
 | [開發任務卡](docs/tasks.md) | Milestone 與逐卡實作紀錄 |
 | [變更紀錄](CHANGELOG.md) | 各版本變更 |
