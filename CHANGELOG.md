@@ -6,7 +6,23 @@
 
 ## [Unreleased]
 
-尚在 v1.0 發行前工程階段。以下為即將發行的 **v1.0.0** 累積內容;待 M5-4 總驗收完成後打上 `v1.0.0` 標籤正式發行。
+尚無變更。
+
+## [1.0.0] — 2026-07-12
+
+**首次公開發行。** 完整涵蓋一所學校從基礎資料建置、配課、手動與自動排課、發布,到學期中調代課、匯出與備份的全流程。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.0.0`
+
+### 安全與發行前強化
+- **SECRET_KEY 防呆**:未設定(仍為預設/範例值)時自動改用隨機金鑰並警告,避免以公開金鑰簽署 session cookie。
+- **HTTPS 自動安全 cookie**:設定 `SITE_ADDRESS` 網域(啟用 HTTPS)時,登入 cookie 自動加上 `Secure` 旗標。
+- **請求體上限**:Caddy 限制 200MB,避免超大上傳耗盡單校主機記憶體。
+- **背景任務韌性**:排課進行中禁止還原(避免資料庫被無預警覆蓋);阻塞式任務逾時即取消;每日備份鏈具自我續期與心跳自癒。
+- **還原容錯收緊**:`pg_restore` 僅容忍跨版本設定參數噪音,其餘錯誤一律視為失敗(避免資料缺漏被誤報為成功);可忽略警告顯示於介面。
+- 新增 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)(第三方元件授權揭露,皆與 MIT 相容)。
+- 新增[教學組長操作手冊](https://begin0808.github.io/Course_Scheduling_System/)(11 章網頁)。
 
 ### 部署與發行(M5-3)
 - `docker-compose.yml` 同時支援兩種部署:從原始碼 `docker compose up -d` 建置,或 `docker compose pull` 拉取官方預建映像;映像版本由 `.env` 的 `IMAGE_TAG` 控制(預設 `latest`,建議正式部署釘選版本)。
@@ -45,4 +61,5 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/commits/main
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/begin0808/Course_Scheduling_System/releases/tag/v1.0.0
