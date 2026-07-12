@@ -44,6 +44,8 @@ services:
     env_file: .env
     environment:
       TZ: ${TZ:-Asia/Taipei}
+      # 讓 api 也知道站台位址:設了網域(HTTPS)時自動開啟 cookie Secure 旗標
+      SITE_ADDRESS: ${SITE_ADDRESS:-}
     volumes:
       - backups:/backups   # 清單/下載/上傳(實際 pg_dump 在 worker)
     depends_on:

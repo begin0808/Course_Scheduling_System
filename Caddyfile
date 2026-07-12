@@ -7,6 +7,13 @@
 }
 
 {$SITE_ADDRESS::80} {
+	# 請求體上限,防止(內部誤操作或被盜帳號的)超大上傳打爆單校主機記憶體。
+	# 200MB 容得下真實資料庫還原的 .dump 與 Excel 匯入;超大資料庫還原改用 volume 複製法
+	# (見 docs/deploy/backup.md),不走網頁上傳。
+	request_body {
+		max_size 200MB
+	}
+
 	# API 交給後端
 	handle /api/* {
 		reverse_proxy api:8000

@@ -504,6 +504,14 @@ M5 完成後由 Fable 5 做獨立技術審查,判決「**有條件可發行**」
 
 **修正後品質門檻**:pytest **392 passed**(+21,含 test_m5_hardening 12)、ruff/mypy 乾淨;前端 eslint/vue-tsc build/vitest 綠;Playwright 全套迴歸;docker 實測 A(排課中還原被 409 擋)、B(備份失敗鏈仍存活)。M5 里程碑完成,**有條件可發行**(待清 C)。
 
+### 最終發行前總體檢(Fable 5,2026-07-12)與修正
+公開發行 v1.0.0 前,Fable 5 做全系統(非逐卡)總體檢。**核心健全**:逐一核對每個 API 端點的 RBAC——管理類全由 viewer/editor/admin_only 守住,教師類全部限縮本人(`_get_leave`、`_get_own_notification`、`substitution-stats/mine` 忽略用戶端 teacher_id),跨學期寫入有 `semester_id` 校驗,**無 IDOR 洞**;無 SQL 注入面(全 ORM)、無 v-html/XSS;正式 compose 只對外 80/443;`.env` 不進映像;15 個遷移 downgrade 全部有實作(可逆)。判「有條件可發行」——裂縫集中在「交給非資訊背景教師自架時的安全預設」。發行阻擋 A/B/C + F 已修(回歸測試 `tests/test_config_hardening.py` 9 個):
+- **A(SECRET_KEY 預設無防呆)**:`config.py` 加 `_harden` 驗證器——secret_key 落在不安全值集合(`dev-insecure-change-me`/`please-change-this-...`/空)即以 `secrets.token_hex(32)` 取代並 `logger.warning`。避免以公開金鑰簽署 session。
+- **B(HTTPS 部署 cookie 未帶 Secure)**:`site_address` 為真實網域且未顯式設 `cookie_secure` → 自動 True;`docker-compose.yml` 把 `SITE_ADDRESS` 也傳給 api;`.env.example` 補 `COOKIE_SECURE` 說明。
+- **C(無請求體上限→單校 OOM)**:Caddyfile 加 `request_body { max_size 200MB }`(容得下真實 .dump 還原與 Excel 匯入);`backup.md` 註明超大 DB 還原改用 volume 複製法。相關端點皆需 editor/admin,屬內部誤操作等級。
+- **F(第三方授權揭露)**:新增 `THIRD-PARTY-NOTICES.md`(psycopg=LGPL、poppler/pdftoppm=GPL 子行程、Noto CJK=OFL,皆動態相依/子行程使用,MIT 相容),README 連結。
+- D/E/G 列 v1.x(下方 Backlog)。
+
 ---
 
 ## 測試策略總則
@@ -529,6 +537,10 @@ M5 完成後由 Fable 5 做獨立技術審查,判決「**有條件可發行**」
 
 ## Backlog(開發中冒出的點子記這裡,不排程)
 
+- 【Fable 5 總體檢 D】CORS `cors_origins` 內建 localhost 且不可由 .env 設定;同源部署下無害,v1.x 改為可設定並於正式部署收斂。
+- 【Fable 5 總體檢 E】清單查詢未分頁(`audit-logs`、`substitution-log`、`leaves` 等),整年資料會越拉越大;v1.x 加分頁。單校 v1.0 規模可接受。
+- 【Fable 5 總體檢 G】`/api/docs` 與 openapi 在正式環境公開(端點皆有權限守著,非漏洞,僅資訊揭露);v1.x 於正式模式關閉或加權限,尤其 VPS+公開網域部署。
+- 【Fable 5 總體檢 C 後續】`restore-upload` 目前 `await file.read()` 整包進記憶體;v1.x 改為串流落地,免大備份佔滿 api 記憶體(現以 Caddy 200MB 上限 + 超大 DB 走 volume 複製法緩解)。
 - 【Fable 5 M5 複審 A 正解】背景任務分 `default`(排課)/`ops`(匯出/備份/還原)兩佇列 + 第二個 worker 行程,讓快慢任務隔離——目前排課佔住單一 worker 時,組長匯出課表會逾時失敗(已由 cancel-on-timeout + 還原前 409 封死資料安全洞,但匯出體驗仍受影響)。需評估行程管理、4GB 記憶體預算與部署文件(5→6 容器或單容器雙進程)。
 - 【Fable 5 M5 複審 H】主題主色 `#18a058` 白字按鈕對比僅 ~3.4:1,未達 WCAG AA 文字 4.5:1;調深主色或加粗按鈕字重(不動整體設計),v1.x 處理。
 - 【Fable 5 M5 複審 G】還原溯源:`backup_dir` 加 append-only `restore.log`(誰於何時還原哪份),因目前稽核寫進還原後 DB 有溯源斷點(presafe 檔名時戳暫可佐證);條件 D 的 stale 警告改為今日看板持久徽章而非一閃即逝的 toast。

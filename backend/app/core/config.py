@@ -1,8 +1,27 @@
 """應用程式設定。所有設定值由環境變數提供(見專案根目錄 .env)。"""
 
+import logging
+import secrets
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+# 已知不安全的 SECRET_KEY 值(程式碼預設 + .env.example 範例)。啟動時若仍是這些,
+# 代表部署者沒設定——用隨機金鑰取代並警告,避免以公開金鑰簽署 session。
+_INSECURE_SECRETS = {
+    "dev-insecure-change-me",
+    "please-change-this-to-a-random-secret",
+    "",
+}
+
+
+def _is_real_domain(site_address: str) -> bool:
+    """SITE_ADDRESS 是否為真實網域(而非內網 HTTP 的預設 :80/空)。"""
+    s = site_address.strip()
+    return bool(s) and s != ":80" and not s.startswith(":")
 
 
 class Settings(BaseSettings):
@@ -33,7 +52,10 @@ class Settings(BaseSettings):
     # 用於簽署 session cookie;正式部署務必於 .env 設定隨機值
     secret_key: str = "dev-insecure-change-me"
     session_max_age_seconds: int = 60 * 60 * 8  # 登入有效時間,預設 8 小時
-    cookie_secure: bool = False  # 有 HTTPS 網域時設 True
+    # 站台位址(與 Caddy 共用同一 .env 變數):設為網域即代表走 HTTPS
+    site_address: str = ""
+    # cookie Secure 旗標。預設 False(內網 HTTP);SITE_ADDRESS 為網域時自動 True(見 _harden)
+    cookie_secure: bool = False
     # 登入失敗鎖定
     max_failed_logins: int = 5
     lockout_minutes: int = 15
@@ -44,6 +66,20 @@ class Settings(BaseSettings):
 
     # CORS(開發模式前端 dev server 來源)
     cors_origins: list[str] = ["http://localhost", "http://localhost:5173"]
+
+    @model_validator(mode="after")
+    def _harden(self) -> "Settings":
+        # A:SECRET_KEY 仍為預設/範例值 → 換隨機金鑰,避免以公開金鑰簽署 session
+        if self.secret_key in _INSECURE_SECRETS:
+            self.secret_key = secrets.token_hex(32)
+            logger.warning(
+                "未設定 SECRET_KEY,已改用隨機金鑰(重啟會使所有登入失效);"
+                "請於 .env 設定固定的 SECRET_KEY(例:openssl rand -hex 32)。"
+            )
+        # B:設了網域(走 HTTPS)但未顯式指定 COOKIE_SECURE → 自動開啟 Secure 旗標
+        if "cookie_secure" not in self.model_fields_set and _is_real_domain(self.site_address):
+            self.cookie_secure = True
+        return self
 
 
 @lru_cache

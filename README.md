@@ -93,3 +93,5 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 ## 授權
 
 [MIT](LICENSE) — 可自由使用、修改、散布。歡迎各校自架與二次開發。
+
+執行時使用的第三方元件與其授權見 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)(皆與 MIT 相容)。
