@@ -88,7 +88,18 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 
 ## 專案狀態
 
-**v1.0 發行前工程階段。** 六大里程碑 M0–M4 已完成並自我驗收,M5(報表、備份、發行)進行中。詳見 [docs/tasks.md](docs/tasks.md)。
+**v1.0.0 已發行(2026-07-12)。** 六大里程碑 M0–M5 全部完成,官方映像(amd64 + arm64)已發布於 GHCR。詳見 [CHANGELOG](CHANGELOG.md) 與 [docs/tasks.md](docs/tasks.md)。
+
+---
+
+## 回報問題與意見回饋
+
+發現錯誤、有功能建議,或想分享貴校的使用經驗,都非常歡迎:
+
+- **回報問題 / 提出建議**:於本專案開 [GitHub Issue](https://github.com/begin0808/Course_Scheduling_System/issues)(附上操作步驟與 `docker compose logs` 片段會更快解決)
+- **來信聯絡**:專案開發者 **國立南大附中 李佳恩老師** — [begin0808@gmail.com](mailto:begin0808@gmail.com)
+
+這套系統是為第一線教學組長而寫的,你的實際使用回饋對它的改進最有幫助。
 
 ## 授權
 
