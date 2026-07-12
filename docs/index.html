@@ -153,11 +153,10 @@
   .cal.scene .lab{color:var(--accent-2)}
 
   /* screenshot placeholder */
-  figure.shot{margin:22px 0;border:1.5px dashed var(--border-strong);border-radius:12px;
-    background:repeating-linear-gradient(45deg,var(--surface-2),var(--surface-2) 12px,transparent 12px,transparent 24px);
-    padding:30px 22px;text-align:center}
-  figure.shot .ic{font-size:1.6rem;opacity:.7}
-  figure.shot figcaption{margin-top:8px;font-size:.86rem;color:var(--text-soft)}
+  figure.shot{margin:26px 0}
+  figure.shot img{width:100%;height:auto;display:block;border:1px solid var(--border-strong);
+    border-radius:10px;background:var(--surface)}
+  figure.shot figcaption{margin-top:10px;font-size:.85rem;color:var(--text-soft);text-align:center}
   figure.shot b{color:var(--accent-2)}
 
   /* tables */
@@ -347,7 +346,7 @@
           <li><span class="st-t">以管理員帳密登入</span>——帳號密碼由安裝系統時的設定決定(見部署文件)。</li>
           <li><span class="st-t">依提示修改密碼</span>——第一次登入會強制改一次密碼,改完才會進入系統。</li>
         </ol>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>登入頁</b>(輸入帳號/密碼的畫面)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/01-login.png" alt="登入頁(輸入帳號/密碼的畫面)" loading="lazy"><figcaption><b>登入頁</b>(輸入帳號/密碼的畫面)</figcaption></figure>
 
         <h4>精靈五步驟</h4>
         <ol class="steps">
@@ -357,7 +356,7 @@
           <li><span class="st-t">匯入資料</span>——下載 Excel 範本,填入教師、班級、科目後上傳,批次建立(可略過,稍後於「基礎資料」補建)。</li>
           <li><span class="st-t">完成</span>——顯示已建立的資料摘要(科目、教師、班級、場地各幾筆),按「完成,前往基礎資料」。</li>
         </ol>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>設定精靈</b>(頂端五步驟進度條的畫面)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/02-wizard.png" alt="設定精靈(頂端五步驟進度條的畫面)" loading="lazy"><figcaption><b>設定精靈</b>(頂端五步驟進度條的畫面)</figcaption></figure>
 
         <div class="cal note"><div class="lab">📌 注意</div><p>中途關掉瀏覽器沒關係——下次登入會從上次的步驟接續。日後想重跑精靈,可到 <span class="path"><b>系統管理</b></span> 重新啟動。</p></div>
       </section>
@@ -376,7 +375,7 @@
           <li><span class="st-t">填每週節數</span>——例如 5 節。</li>
           <li><span class="st-t">(選填)連堂與場地需求</span>——如需 2 節連上,設定連堂;需要特定場地(如實驗室)可指定場地類型。</li>
         </ol>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>配課管理</b>頁(含右側鐘點統計側欄)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/03-assignments.png" alt="配課管理頁(含右側鐘點統計側欄)" loading="lazy"><figcaption><b>配課管理</b>頁(含右側鐘點統計側欄)</figcaption></figure>
 
         <h3>進階結構</h3>
         <div class="tw"><table>
@@ -406,7 +405,7 @@
           <li><span class="st-t">鎖定重要格位</span>——不希望被更動的課,點鎖定圖示固定住。</li>
           <li><span class="st-t">移除</span>——把格子裡的課拖回左側清單即取消。</li>
         </ol>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>排課工作台</b>(左側未排清單 + 週課表,含一個衝突紅框)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/04-workbench.png" alt="排課工作台(左側未排清單 + 週課表,含一個衝突紅框)" loading="lazy"><figcaption><b>排課工作台</b>(左側未排清單 + 週課表,含一個衝突紅框)</figcaption></figure>
 
         <h3>好用的輔助</h3>
         <ul>
@@ -432,7 +431,7 @@
           <li><span class="st-t">(可選)提前結束</span>——找到解後可按「提前結束」,直接取當前最佳解。</li>
           <li><span class="st-t">取得結果</span>——排好後產生一份新草稿「<em>來源名 自排結果</em>」,<strong>來源草稿不會被動到</strong>,排壞了隨時可丟。</li>
         </ol>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>自動排課</b>頁(排課進度 + 軟約束達成度報告)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/05-auto-schedule.png" alt="自動排課頁(排課進度 + 軟約束達成度報告)" loading="lazy"><figcaption><b>自動排課</b>頁(排課進度 + 軟約束達成度報告)</figcaption></figure>
 
         <h3>排不出來怎麼辦?系統會說人話</h3>
         <p>如果條件互相矛盾排不出來,系統不會只丟一句「失敗」,而是做<strong>衝突定位</strong>,告訴你是哪幾件事湊在一起、鬆開哪一個就好,並附上具體數字與建議。例如:</p>
@@ -455,7 +454,7 @@
           <li><span class="st-t">按「發布」</span>——若有未排完的課,會再問一次;確認後可強制發布。</li>
           <li><span class="st-t">舊版自動封存</span>——發布新版後,同學期原本已發布的那份會轉為「已封存」。</li>
         </ol>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>版本與發布</b>頁(草稿列表,狀態顯示草稿/已發布/已封存)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/06-versions.png" alt="版本與發布頁(草稿列表,狀態顯示草稿/已發布/已封存)" loading="lazy"><figcaption><b>版本與發布</b>頁(草稿列表,狀態顯示草稿/已發布/已封存)</figcaption></figure>
 
         <div class="cal note"><div class="lab">📌 已發布課表是「定格快照」</div><p>發布後那份課表就固定下來,即使你之後改草稿也不影響它——這樣調代課才有穩定的依據。要更新,就發布新的一份。</p></div>
 
@@ -484,7 +483,7 @@
           <li><span class="st-t">系統自動展開受影響節次</span>——依已發布課表,列出這段期間他原本要上的每一節。跨週末只會展開上課日。</li>
         </ol>
         <div class="cal note"><div class="lab">📌 銷假</div><p>若要銷假,系統會級聯處理:已指派的代課老師會收到取消通知;已經上完的課不受影響(鐘點照算)。</p></div>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>請假登記</b>頁(展開的受影響節次清單)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/07-leaves.png" alt="請假登記頁(展開的受影響節次清單)" loading="lazy"><figcaption><b>請假登記</b>頁(展開的受影響節次清單)</figcaption></figure>
 
         <h3>8.2 調代課處理</h3>
         <p><span class="path"><b>調代課</b><i>›</i><b>調代課處理</b></span></p>
@@ -508,7 +507,7 @@
 
         <h3>8.4 今日調代課看板</h3>
         <p><span class="path"><b>調代課</b><i>›</i><b>今日調代課</b></span>(儀表板上也有)——一眼看到今天全部異動:誰代誰的課、教室有沒有變。可<strong>列印 A4 公告單</strong>(傳統公告格式)貼出來或發群組。</p>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>今日調代課看板</b>與 <b>A4 列印通知單</b></figcaption></figure>
+        <figure class="shot"><img src="manual-img/08-daily-board.png" alt="今日調代課看板與 A4 列印通知單" loading="lazy"><figcaption><b>今日調代課看板</b>與 <b>A4 列印通知單</b></figcaption></figure>
 
         <h3>8.5 調代課紀錄</h3>
         <p><span class="path"><b>調代課</b><i>›</i><b>調代課紀錄</b></span>——歷史查詢,可依教師、日期、假別篩選。查一位老師時,他「缺的課」和他「代的課」都會出現。</p>
@@ -533,7 +532,7 @@
           </tbody>
         </table></div>
         <div class="cal note"><div class="lab">📌 權限</div><p>單一課表所有登入者都能匯出(課表本就全校可查);全校總表與批次打包限教學組長以上。檔名為中文,直接就能歸檔。</p></div>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>課表查詢</b>頁的匯出按鈕與匯出的 PDF 課表</figcaption></figure>
+        <figure class="shot"><img src="manual-img/09-timetable-query.png" alt="課表查詢頁的匯出按鈕與匯出的 PDF 課表" loading="lazy"><figcaption><b>課表查詢</b>頁的匯出按鈕與匯出的 PDF 課表</figcaption></figure>
       </section>
 
       <!-- 10 -->
@@ -550,7 +549,7 @@
         </ul>
         <div class="cal danger"><div class="lab">🛑 小心</div><p>還原會<strong>覆蓋目前所有資料</strong>。務必確認選對備份檔。所幸有「還原前保護」這道自動備份墊底,誤操作仍可救回。</p></div>
         <div class="cal warn"><div class="lab">⚠️ 異地備援</div><p>備份檔存在同一台主機。<strong>硬碟壞掉就一起沒了</strong>。請定期把備份檔下載到另一台電腦或雲端硬碟(詳見部署文件的「備份與還原」)。</p></div>
-        <figure class="shot"><div class="ic">📷</div><figcaption>此處截圖:<b>系統管理 → 資料備份與還原</b>卡片</figcaption></figure>
+        <figure class="shot"><img src="manual-img/10-backup.png" alt="系統管理 → 資料備份與還原卡片" loading="lazy"><figcaption><b>系統管理 → 資料備份與還原</b>卡片</figcaption></figure>
 
         <h3>Email 通知(SMTP,選填)</h3>
         <p>填入學校的 SMTP 主機資訊,調代課通知才會寄 Email。<strong>沒設定也沒關係</strong>——系統照常運作,只是僅有站內鈴鐺通知。可按「寄測試信」當場驗證。</p>
