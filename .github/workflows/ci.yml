@@ -99,9 +99,14 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "value=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
-            # 只有版本標籤(雙架構)才更新 :latest;main push 僅單架構,不可覆蓋 :latest
-            # 否則 ARM 用戶(IMAGE_TAG=latest)pull 到只有 amd64 的 manifest 會起不來
-            echo "channel=latest" >> "$GITHUB_OUTPUT"
+            if [[ "${{ github.ref_name }}" == *-* ]]; then
+              # 預發布(如 v1.0.0-rc1):建雙架構供演練,但 channel 用自身標籤,不動 :latest
+              echo "channel=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            else
+              # 正式版才更新 :latest;main push 僅單架構,不可覆蓋 :latest
+              # 否則 ARM 用戶(IMAGE_TAG=latest)pull 到只有 amd64 的 manifest 會起不來
+              echo "channel=latest" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "value=linux/amd64" >> "$GITHUB_OUTPUT"
             echo "channel=main" >> "$GITHUB_OUTPUT"
