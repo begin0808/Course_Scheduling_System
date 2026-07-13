@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { SEM_END, SEM_START, WED } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
@@ -19,7 +20,7 @@ async function selectSemester(page: Page, year: number) {
 async function seed(page: Page, year: number) {
   const sem = await post(page, '/api/semesters', {
     academic_year: year, term: 1, template_key: 'junior_high',
-    start_date: '2026-09-01', end_date: '2027-01-20',
+    start_date: SEM_START, end_date: SEM_END,
   })
   const sid = sem.id
   const subjects: Record<string, number> = {}
@@ -66,7 +67,7 @@ async function seed(page: Page, year: number) {
 
   const leave = await post(page, `/api/leaves?semester_id=${sid}`, {
     teacher_id: T['王師'], leave_type: 'sick',
-    start_date: '2026-11-11', end_date: '2026-11-11',
+    start_date: WED, end_date: WED,
   })
   return { sid, affectedId: leave.affected_periods[0].id as number }
 }
@@ -122,7 +123,7 @@ test('調代課處理:無人可代時提示併班/自習並可直接設定', asy
   // 只有王師與陳師,且陳師該節也有課 → 無人可代
   const sem = await post(page, '/api/semesters', {
     academic_year: YEAR, term: 1, template_key: 'junior_high',
-    start_date: '2026-09-01', end_date: '2027-01-20',
+    start_date: SEM_START, end_date: SEM_END,
   })
   const sid = sem.id
   const guo = (await (await page.request.get(
@@ -151,7 +152,7 @@ test('調代課處理:無人可代時提示併班/自習並可直接設定', asy
   }
   await page.request.post(`/api/timetables/${tt}/publish?force=true`)
   await post(page, `/api/leaves?semester_id=${sid}`, {
-    teacher_id: wang, leave_type: 'sick', start_date: '2026-11-11', end_date: '2026-11-11',
+    teacher_id: wang, leave_type: 'sick', start_date: WED, end_date: WED,
   })
 
   await page.goto('/substitutions')

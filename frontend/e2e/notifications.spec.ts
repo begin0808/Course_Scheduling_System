@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { SEM_END, SEM_START, WED } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
@@ -70,7 +71,7 @@ async function seedAssignment(page: Page, sid: number, chenId: number) {
   await page.request.post(`/api/timetables/${tt}/publish?force=true`)
 
   const affected = (await post(page, `/api/leaves?semester_id=${sid}`, {
-    teacher_id: wang, leave_type: 'sick', start_date: '2026-11-11', end_date: '2026-11-11',
+    teacher_id: wang, leave_type: 'sick', start_date: WED, end_date: WED,
   })).affected_periods[0]
   await page.request.put(`/api/affected-periods/${affected.id}/substitution`,
     { data: { type: 'substitute', handler_teacher_id: chenId } })
@@ -97,7 +98,7 @@ test.describe('通知系統', () => {
 
     const sem = await post(page, '/api/semesters', {
       academic_year: YEAR, term: 1, template_key: 'junior_high',
-      start_date: '2026-09-01', end_date: '2027-01-20',
+      start_date: SEM_START, end_date: SEM_END,
     })
     const chenId = await bindTeacher(page, sem.id)
     await seedAssignment(page, sem.id, chenId)
@@ -128,7 +129,7 @@ test.describe('通知系統', () => {
       await deleteSemesterByYearTerm(page, YEAR, 1)
       const sem = await post(page, '/api/semesters', {
         academic_year: YEAR, term: 1, template_key: 'junior_high',
-        start_date: '2026-09-01', end_date: '2027-01-20',
+        start_date: SEM_START, end_date: SEM_END,
       })
       const chenId = await bindTeacher(page, sem.id)
       await seedAssignment(page, sem.id, chenId)

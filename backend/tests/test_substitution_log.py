@@ -7,20 +7,16 @@
 - RBAC:純教師不得存取行政看板。
 """
 
-from datetime import date
 
 import pytest
 
 from app.models.user import Role
 from app.services import substitution_log as log_service
 from tests.conftest import make_user
+from tests.dates import SEM_END, SEM_START, WED, WED2  # 日期一律由執行當日推算,不硬編
 from tests.test_substitutions import _World
 
 PW = "password123"
-SEM_START = date(2026, 9, 1)
-SEM_END = date(2027, 1, 20)
-WED = date(2026, 11, 11)   # 週三
-WED2 = date(2026, 11, 18)
 
 
 @pytest.fixture

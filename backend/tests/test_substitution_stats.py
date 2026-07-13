@@ -5,7 +5,6 @@
 """
 
 import io
-from datetime import date
 
 import pytest
 from openpyxl import load_workbook
@@ -13,12 +12,18 @@ from openpyxl import load_workbook
 from app.models.basedata import Teacher
 from app.models.user import Role
 from tests.conftest import make_user
+
+# 日期一律由執行當日推算,不硬編(見 tests/dates.py)。
+# CROSS_WED / CROSS_WED2 是相鄰但分屬不同月份的兩個週三,供跨月拆帳驗證。
+from tests.dates import CROSS_WED, CROSS_WED2, SEM_END, SEM_START, WED
 from tests.test_substitutions import _World
 
 PW = "password123"
-SEM_START = date(2026, 9, 1)
-SEM_END = date(2027, 1, 20)
-WED = date(2026, 11, 11)   # 週三
+
+
+def _other_month(day):
+    """一個確定沒有任何代課紀錄的月份(基準日的下個月)。"""
+    return (day.year + 1, 1) if day.month == 12 else (day.year, day.month + 1)
 
 
 @pytest.fixture
@@ -33,7 +38,10 @@ def w(env):
     return _World(client, db, sid)
 
 
-def _stats(w, year=2026, month=11, **params):
+def _stats(w, year=None, month=None, **params):
+    """預設查「基準週那個月」——受影響節次都落在那裡。"""
+    year = WED.year if year is None else year
+    month = WED.month if month is None else month
     qs = "".join(f"&{k}={v}" for k, v in params.items() if v is not None)
     return w.client.get(f"/api/substitution-stats{w.q}&year={year}&month={month}{qs}").json()
 
@@ -85,16 +93,21 @@ def test_month_filter_excludes_other_months(w):
     w.teacher("陳師", ["國文"])
     w.place("王師", "國文", "701", 0)
     w.publish()
-    ap = w.leave("王師", when=WED)  # 11 月
+    ap = w.leave("王師", when=WED)
     w.assign(ap[0]["id"], type="substitute", handler_teacher_id=w.teachers["陳師"])
 
-    assert _stats(w, month=11)["summaries"]         # 11 月有
-    assert _stats(w, month=12)["summaries"] == []   # 12 月無
+    other_year, other_month = _other_month(WED)
+    assert _stats(w)["summaries"]                                          # 當月有
+    assert _stats(w, year=other_year, month=other_month)["summaries"] == []  # 別的月份沒有
 
 
 # ── 邊界:跨月假單拆月計 ─────────────────────────────────────
 def test_cross_month_leave_splits_by_period_date(w):
-    """林師請 11/25~12/02 的假(含兩個週三:11/25 與 12/02),各月各計一節。"""
+    """林師請的假橫跨月底(含兩個週三,分屬前後兩個月),各月各計一節。
+
+    分月依據是「每個受影響節次自己的日期」,不是假單的起始月。
+    """
+    assert CROSS_WED.month != CROSS_WED2.month, "前置條件:兩個週三必須跨月"
     w.teacher("林師", ["數學"])
     w.teacher("周師", ["數學"])
     w.place("林師", "數學", "701", 0, weekday=3)  # 每週三第一節
@@ -102,19 +115,17 @@ def test_cross_month_leave_splits_by_period_date(w):
 
     leave = w.client.post(f"/api/leaves{w.q}", json={
         "teacher_id": w.teachers["林師"], "leave_type": "official",
-        "start_date": "2026-11-25", "end_date": "2026-12-02"}).json()
+        "start_date": CROSS_WED.isoformat(), "end_date": CROSS_WED2.isoformat()}).json()
     aps = leave["affected_periods"]
     dates = sorted(p["date"] for p in aps)
-    assert dates == ["2026-11-25", "2026-12-02"], dates
+    assert dates == [CROSS_WED.isoformat(), CROSS_WED2.isoformat()], dates
     for p in aps:
         w.assign(p["id"], type="substitute", handler_teacher_id=w.teachers["周師"])
 
-    nov_sums = _stats(w, month=11)["summaries"]
-    dec_sums = _stats(w, year=2026, month=12)["summaries"]
-    nov = next(s for s in nov_sums if s["teacher_name"] == "周師")
-    dec = next(s for s in dec_sums if s["teacher_name"] == "周師")
-    assert nov["billable_count"] == 1
-    assert dec["billable_count"] == 1
+    first = _stats(w, year=CROSS_WED.year, month=CROSS_WED.month)["summaries"]
+    second = _stats(w, year=CROSS_WED2.year, month=CROSS_WED2.month)["summaries"]
+    assert next(s for s in first if s["teacher_name"] == "周師")["billable_count"] == 1
+    assert next(s for s in second if s["teacher_name"] == "周師")["billable_count"] == 1
 
 
 # ── 銷假的節次不計 ───────────────────────────────────────────
@@ -154,7 +165,8 @@ def test_mine_shows_only_own(w):
 
     w.client.post("/api/auth/logout")
     w.client.post("/api/auth/login", json={"username": "chenacc", "password": PW})
-    mine = w.client.get(f"/api/substitution-stats/mine{w.q}&year=2026&month=11").json()
+    mine = w.client.get(
+        f"/api/substitution-stats/mine{w.q}&year={WED.year}&month={WED.month}").json()
     names = {d["handler_name"] for d in mine["details"]}
     assert names == {"陳師"}, names
     assert len(mine["details"]) == 1
@@ -164,7 +176,7 @@ def test_teacher_cannot_view_full_stats(w):
     make_user(w.db, "t", PW, roles=[Role.teacher])
     w.client.post("/api/auth/logout")
     w.client.post("/api/auth/login", json={"username": "t", "password": PW})
-    r = w.client.get(f"/api/substitution-stats{w.q}&year=2026&month=11")
+    r = w.client.get(f"/api/substitution-stats{w.q}&year={WED.year}&month={WED.month}")
     assert r.status_code == 403
 
 
@@ -177,7 +189,8 @@ def test_export_xlsx(w):
     ap = w.leave("王師")
     w.assign(ap[0]["id"], type="substitute", handler_teacher_id=w.teachers["陳師"])
 
-    r = w.client.get(f"/api/substitution-stats/export{w.q}&year=2026&month=11")
+    r = w.client.get(
+        f"/api/substitution-stats/export{w.q}&year={WED.year}&month={WED.month}")
     assert r.status_code == 200
     assert "spreadsheetml" in r.headers["content-type"]
 

@@ -520,13 +520,18 @@ M5 完成後由 Fable 5 做獨立技術審查,判決「**有條件可發行**」
 目標:2026 年 8 月排課季前發布 v1.1。依序做,M6-2 先定容器架構,後面的文件與 E2E 疊在其上。
 CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍須遵守既有 DoD(含真 PostgreSQL 實測與截圖目視)。
 
-### [ ] M6-1 E2E/測試硬編日期動態化(死線:2026-11 前)
+### [x] M6-1 E2E/測試硬編日期動態化(死線:2026-11 前)
 - **描述**:多處測試硬編未來日期,真實日期越過後 `clock.is_past_slot` 會拒絕代課指派,CI 將無聲轉紅。已知:`frontend/e2e/substitution-stats.spec.ts`(`DAY='2026-11-11'`)、`full-journey.spec.ts`、`backend/tests/test_full_flow.py`(`_SEM_START=2026-09-01`、`_SEM_END=2027-01-31`)等;開工先全案掃一次(grep `2026-`/`2027-`)。改為以「執行當日」推算:請假日=下一個週三(或其他固定星期),學期起訖=今天前後推(起=今天往前一個月、訖=往後六個月之類),集中成 helper(前端 `e2e/helpers.ts`、後端 conftest 或 fixtures)供各 spec 共用。
 - **驗收標準**:
   1. 全案無「會過期」的硬編日期(節次表等與日曆無關的常數不在此列)
   2. 日期 helper 有單元測試(含「今天就是週三」邊界)
   3. 全套 pytest 與 e2e 綠
 - **測試方式**:pytest + Playwright 全套;人工檢視 grep 結果確認無漏網
+- **實作後(commit 待補)**:兩支 helper——`backend/tests/dates.py` 與 `frontend/e2e/dates.ts`(同一套規則),由「執行當日」推算出一個**基準週**(距今 ≥14 天:確保基準週每一節都還沒上過,不受執行時刻影響)。範圍比卡上預估大:後端 8 個測試檔、前端 9 支 spec 全數改用 helper 常數。
+- **基準週必須「當週到下週三同月」——這是硬需求,不是美觀**:代課推薦的公平計數與月結統計都以「受影響節次那一天的月份」為範圍(`_monthly_sub_counts` 用 `affected.date.replace(day=1)`)。第一版 helper 只保證「距今 ≥14 天」,今天(2026-07-14)推出來的基準週剛好是 WED=7/29、WED2=8/5 **跨月**,於是 `test_fewer_monthly_sub_periods_ranks_higher`(林師本月已代 1 節、陳師 0 節)與 `test_cancelling_leave_keeps_already_taught_period` 當場翻車——**動態化第一天就抓到自己的設計缺陷**。修正:`base_monday()` 往後找到「週一 +9 天仍同月」的那一週;跨月案例改由 `cross_month_wednesday()`(相鄰兩個週三分屬前後月)專門負責,月結拆帳測試仍驗得到。
+- **順手修掉一個假 fallback**:`full-journey.spec.ts` 的 `leaveDay || '2026-11-11'` 是死路徑(兩邊同值),真正該做的是「請假日跟著該格位的星期走」,已改為 `dayOfBaseWeek(entry.weekday)`。
+- **`manual-shots.spec.ts`(手冊截圖產生器,非迴歸)**:改為向示範站查學期,取「學期內、今日之後的第一個週三」;學期已過期則明確報錯要求重建示範資料,不再靜默產出錯的圖。
+- **驗證**:pytest **452 綠**(+59,含 helper 的參數化單元測試:每種「今天」落點、跨年、閏年、以及「不論今天是哪一天,WED/WED2 都同月」40 組)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;乾淨全棧(schedci,:8090)e2e **30/30 綠**;截圖目視確認 UI 顯示的是動態算出的「2026-08-05(週三)」而非硬編日期。
 
 ### [ ] M6-2 背景任務佇列拆分(default / ops)
 - **描述**:單一 RQ worker 循序執行,排課(可達數分鐘)期間匯出/備份逾時失敗(M5 複審 A 的正解)。拆 `ops` 佇列:匯出(`render_export`)、備份/還原(`_run_blocking`)、email 改走 `ops`;自動排課獨走 `default`。同一 worker 映像加第二個容器(如 `worker-ops`,`command` 帶佇列名;`app/workers/worker.py` 支援指定佇列)。**資料安全語意不變**:排課中還原仍須 409(還原覆蓋整個 DB,與排課寫回互斥),`solver_busy()` 只看 `default` 佇列即可;每日備份排程器要決定歸屬(建議 ops)。更新 `docker-compose.yml`(5→6 容器)、`docker-compose.limits.yml`(worker-ops 建議 512M,總和仍 ≤4GB)、部署/升級文件(docs/deploy/)、CONTRIBUTING 架構描述。
@@ -615,7 +620,7 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - 求解前先跑一次 hard-only 可行性探測(約 1 秒):既能提早回報「這份資料無解」,又能把該解當成正式求解的 warm start。目前是在失敗之後才探測。
 - 部分排課的 timeout 幾乎必定用滿:CP-SAT 找到最佳的「未排 2 節」很快,但要證明「不可能只少排 1 節」很慢。可考慮找到解後以未排節數為上界再收斂,或給部分排課獨立的較短預設時限。
 - 衝突定位的旋鈕清單未含「班級可排節次」與「連堂結構」;`structural` 模式目前只列最吃緊的班級/教師,沒有具體到「哪一門課改成連堂就好」。
-- 【E2E 進 CI 後的定時炸彈,2026-07-13 發現】多支 e2e spec 硬編未來日期(如 `substitution-stats`/`full-journey` 的 `2026-11-11`、學期起訖 2026-09..2027-01):真實日期越過後 `clock.is_past_slot` 會拒絕代課指派,CI 將無聲轉紅。應改為「以今天起算的下一個週三 + 動態學期起訖」;**須於 2026-11 前處理**。
+- ~~【E2E 進 CI 後的定時炸彈,2026-07-13 發現】多支 e2e spec 硬編未來日期~~ **已於 M6-1 修畢(2026-07-14)**:前後端各一支 `dates` helper 由執行當日推算基準週,全案 17 個測試檔改用;引信拆除。
 
 ---
 

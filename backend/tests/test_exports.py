@@ -4,7 +4,6 @@
 
 import io
 import zipfile
-from datetime import date
 
 import pytest
 from openpyxl import load_workbook
@@ -12,11 +11,10 @@ from openpyxl import load_workbook
 from app.models.user import Role
 from app.services import timetable_export as tex
 from tests.conftest import make_user
+from tests.dates import SEM_END, SEM_START  # 日期一律由執行當日推算,不硬編
 from tests.test_substitutions import _World
 
 PW = "password123"
-SEM_START = date(2026, 9, 1)
-SEM_END = date(2027, 1, 20)
 
 
 @pytest.fixture

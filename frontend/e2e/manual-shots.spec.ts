@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { iso, onOrAfter } from './dates'
 
 // 操作手冊補圖產生器(不是驗收測試)。對「已灌好示範資料的乾淨測試站」逐頁截圖 → docs/manual-img/。
 //   npx playwright test manual-shots.spec.ts
@@ -10,7 +11,6 @@ const SHOTS = '../docs/manual-img'
 const ADMIN = 'admin'
 const PW = 'DemoManual2026!'
 const SID = 1
-const LEAVE_DAY = '2026-11-11' // 週三
 
 test.use({
   baseURL: process.env.E2E_BASE_URL || 'http://localhost:8081',
@@ -19,6 +19,20 @@ test.use({
 
 const post = async (p: Page, url: string, data: object) => (await p.request.post(url, { data })).json()
 const get = async (p: Page, url: string) => (await p.request.get(url)).json()
+
+/** 示範站學期內、今日之後的第一個週三(代課不能指派已上過的節次,故不可取過去的日子)。 */
+async function pickLeaveDay(page: Page): Promise<string> {
+  const sem = await get(page, `/api/semesters/${SID}`)
+  const earliest = new Date()
+  earliest.setDate(earliest.getDate() + 1)
+  const start = new Date(sem.start_date)
+  const from = start > earliest ? start : earliest
+  const wed = onOrAfter(3, from)
+  if (iso(wed) > sem.end_date) {
+    throw new Error(`示範站學期(${sem.start_date}~${sem.end_date})已過期,請重建示範資料再截圖`)
+  }
+  return iso(wed)
+}
 
 async function selectSemester(page: Page) {
   const sel = page.locator('.n-base-selection').first()
@@ -80,12 +94,13 @@ test('產生操作手冊截圖(03–10)', async ({ page }) => {
   await page.screenshot({ path: `${SHOTS}/06-versions.png` })
 
   // ── 準備請假 + 代課(供 07/08 截圖)──
+  const leaveDay = await pickLeaveDay(page)
   const teachers = await get(page, `/api/teachers?semester_id=${SID}`)
   const wang = teachers.find((t: { name: string }) => t.name === '王大明')
   const existing = await get(page, `/api/leaves?semester_id=${SID}`)
   if (!existing.length && wang) {
     const aps = (await post(page, `/api/leaves?semester_id=${SID}`, {
-      teacher_id: wang.id, leave_type: 'sick', start_date: LEAVE_DAY, end_date: LEAVE_DAY,
+      teacher_id: wang.id, leave_type: 'sick', start_date: leaveDay, end_date: leaveDay,
     })).affected_periods
     for (const ap of aps.slice(0, 2)) {
       const rec = await get(page, `/api/affected-periods/${ap.id}/recommendations`)
@@ -103,7 +118,7 @@ test('產生操作手冊截圖(03–10)', async ({ page }) => {
   await page.screenshot({ path: `${SHOTS}/07-leaves.png` })
 
   // ── 08 今日調代課看板 ──
-  await page.goto(`/daily-board?semester_id=${SID}&date=${LEAVE_DAY}`)
+  await page.goto(`/daily-board?semester_id=${SID}&date=${leaveDay}`)
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(900)
   await page.screenshot({ path: `${SHOTS}/08-daily-board.png` })

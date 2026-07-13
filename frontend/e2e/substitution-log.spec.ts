@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { SEM_END, SEM_START, THU, WED } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
-const DAY = '2026-11-11'   // 週三
+const DAY = WED
 const YEARS = [144, 145]
 
 const post = async (page: Page, url: string, data: object) =>
@@ -21,7 +22,7 @@ async function seed(page: Page, year: number): Promise<number> {
   await deleteSemesterByYearTerm(page, year, 1)
   const sid = (await post(page, '/api/semesters', {
     academic_year: year, term: 1, template_key: 'junior_high',
-    start_date: '2026-09-01', end_date: '2027-01-20',
+    start_date: SEM_START, end_date: SEM_END,
   })).id
   const q = `?semester_id=${sid}`
   const guo = (await post(page, `/api/subjects${q}`, { name: '國文' })).id
@@ -81,7 +82,7 @@ test.describe('今日看板與調代課日誌', () => {
     await popup.close()
 
     // 無異動日:今日無調代課
-    await page.goto(`/daily-board?semester_id=${sid}&date=2026-11-12`)  // 週四,無請假
+    await page.goto(`/daily-board?semester_id=${sid}&date=${THU}`)  // 週四,無請假
     await expect(page.getByTestId('board-empty')).toBeVisible()
   })
 

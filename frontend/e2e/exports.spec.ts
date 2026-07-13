@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { SEM_END, SEM_START } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
@@ -14,7 +15,7 @@ async function seed(page: Page, year: number): Promise<number> {
   await deleteSemesterByYearTerm(page, year, 1)
   const sid = (await post(page, '/api/semesters', {
     academic_year: year, term: 1, template_key: 'junior_high',
-    start_date: '2026-09-01', end_date: '2027-01-20',
+    start_date: SEM_START, end_date: SEM_END,
   })).id
   const q = `?semester_id=${sid}`
   const guo = (await post(page, `/api/subjects${q}`, { name: '國文' })).id

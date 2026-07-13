@@ -2,11 +2,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { SEM_END, SEM_START, STATS_QUERY, WED } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-const DAY = '2026-11-11'   // 週三
+const DAY = WED
 const YEARS = [146]
 const TEACHER_USER = 'e2e_teacher'
 const TEACHER_PASS = 'e2eteacher1234'
@@ -89,15 +90,15 @@ test.describe('代課鐘點統計', () => {
     await deleteSemesterByYearTerm(page, 146, 1)
     const sem = await post(page, '/api/semesters', {
       academic_year: 146, term: 1, template_key: 'junior_high',
-      start_date: '2026-09-01', end_date: '2027-01-20',
+      start_date: SEM_START, end_date: SEM_END,
     })
     const chenId = await bindTeacher(page, sem.id)
     await seed(page, sem.id, chenId)
     await ensureTeacherPassword(page)
 
-    // ── 組長:2026-11 彙總 + 明細 ──
+    // ── 組長:請假當月的彙總 + 明細 ──
     await login(page)
-    await page.goto(`/substitution-stats?semester_id=${sem.id}&year=2026&month=11`)
+    await page.goto(`/substitution-stats?semester_id=${sem.id}${STATS_QUERY}`)
     const sumRow = page.getByTestId('stats-summary-row').filter({ hasText: '陳老師' }).first()
     await expect(sumRow).toContainText('陳老師')
     // 代課節數 2、計費節數 1(代課計、併班不計)
@@ -117,7 +118,7 @@ test.describe('代課鐘點統計', () => {
     // ── 教師陳老師:只看自己,無匯出鈕、無教師篩選 ──
     await page.request.post('/api/auth/logout')
     await login(page, TEACHER_USER, TEACHER_PASS)
-    await page.goto(`/substitution-stats?semester_id=${sem.id}&year=2026&month=11`)
+    await page.goto(`/substitution-stats?semester_id=${sem.id}${STATS_QUERY}`)
     await expect(page.getByRole('heading', { name: '我的代課鐘點' })).toBeVisible()
     await expect(page.getByTestId('stats-detail-row')).toHaveCount(2)
     await expect(page.getByTestId('stats-export')).toHaveCount(0)

@@ -7,8 +7,6 @@
 日期邊界是重點:週末、學期起訖外、跨週、半天、連堂。
 """
 
-from datetime import date
-
 import pytest
 
 from app.models.leave import AffectedStatus, LeaveRequest, LeaveStatus
@@ -16,16 +14,22 @@ from app.models.notification import Notification, NotificationType
 from app.models.user import Role
 from tests.conftest import make_user
 
-PW = "password123"
+# 日期一律由執行當日推算(硬編會過期,見 tests/dates.py):
+# MON/WED/FRI/SAT 同屬一個未來的基準週,SUN 是該週日、NEXT_MON 是下週一。
+from tests.dates import (
+    AFTER_SEM,
+    BEFORE_SEM,
+    FRI,
+    MON,
+    NEXT_MON,
+    SAT,
+    SEM_END,
+    SEM_START,
+    SUN,
+    WED,
+)
 
-# 115 學年度第 1 學期:2026-09-01(週二)~ 2027-01-20(週三)
-SEM_START = date(2026, 9, 1)
-SEM_END = date(2027, 1, 20)
-# 2026-11-09 是週一,11-11 週三,11-13 週五,11-14 週六,11-15 週日
-MON = date(2026, 11, 9)
-WED = date(2026, 11, 11)
-FRI = date(2026, 11, 13)
-SAT = date(2026, 11, 14)
+PW = "password123"
 
 
 @pytest.fixture
@@ -113,9 +117,8 @@ def test_full_day_leave_expands_every_period_that_day(school):
 # ── 驗收②:跨週末只展開上課日 ───────────────────────────────
 def test_leave_across_a_weekend_skips_non_school_days(school):
     client, _db, sid, tid = school
-    # 週三 ~ 下週一(11/11 ~ 11/16),中間夾週六日
-    next_mon = date(2026, 11, 16)
-    r = _leave(client, sid, tid, start_date=WED.isoformat(), end_date=next_mon.isoformat())
+    # 週三 ~ 下週一,中間夾週六日
+    r = _leave(client, sid, tid, start_date=WED.isoformat(), end_date=NEXT_MON.isoformat())
     body = r.json()
 
     days = sorted({p["date"] for p in body["affected_periods"]})
@@ -125,8 +128,7 @@ def test_leave_across_a_weekend_skips_non_school_days(school):
 
 def test_a_leave_entirely_on_the_weekend_affects_nothing(school):
     client, _db, sid, tid = school
-    r = _leave(client, sid, tid, start_date=SAT.isoformat(),
-               end_date=date(2026, 11, 15).isoformat())
+    r = _leave(client, sid, tid, start_date=SAT.isoformat(), end_date=SUN.isoformat())
     assert r.status_code == 201
     assert r.json()["affected_count"] == 0  # 假單成立,只是沒有課要處理
 
@@ -167,13 +169,13 @@ def test_multi_day_leave_applies_times_only_to_the_boundary_days(school):
 
 # ── 日期邊界:學期起訖外一律拒絕 ─────────────────────────────
 @pytest.mark.parametrize(("start", "end", "reason"), [
-    ("2026-08-31", "2026-08-31", "學期開始前"),
-    ("2027-01-21", "2027-01-21", "學期結束後"),
-    ("2026-11-13", "2026-11-11", "結束早於開始"),
+    (BEFORE_SEM, BEFORE_SEM, "學期開始前"),
+    (AFTER_SEM, AFTER_SEM, "學期結束後"),
+    (FRI, WED, "結束早於開始"),
 ])
 def test_dates_outside_the_semester_are_rejected(school, start, end, reason):
     client, _db, sid, tid = school
-    r = _leave(client, sid, tid, start_date=start, end_date=end)
+    r = _leave(client, sid, tid, start_date=start.isoformat(), end_date=end.isoformat())
     assert r.status_code == 400, reason
 
 
@@ -193,7 +195,7 @@ def test_semester_without_dates_cannot_accept_leaves(env):
     t = client.post(f"/api/teachers?semester_id={sid}",
                     json={"name": "王師", "base_periods": 20}).json()
 
-    r = _leave(client, sid, t["id"], start_date="2026-11-11", end_date="2026-11-11")
+    r = _leave(client, sid, t["id"], start_date=WED.isoformat(), end_date=WED.isoformat())
     assert r.status_code == 400
     assert "學期尚未設定起訖日期" in r.json()["detail"]
 

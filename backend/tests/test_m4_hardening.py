@@ -5,7 +5,7 @@ B. availability 的 swap 補課判定只擋「該筆調課的補課方」,不誤
 C. 推薦引擎的本月代課公平計數排除已銷假的幽靈代課。
 """
 
-from datetime import date, datetime
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -15,14 +15,14 @@ from app.models.leave import AffectedPeriod, AffectedStatus
 from app.models.user import Role
 from app.services.availability import Availability, Interval
 from tests.conftest import make_user
+from tests.dates import SEM_END, SEM_START, WED, WED2  # 日期一律由執行當日推算,不硬編
 from tests.test_substitutions import _find_entry, _World
 
 PW = "password123"
-SEM_START = date(2026, 9, 1)
-SEM_END = date(2027, 1, 20)
-WED = date(2026, 11, 11)    # 週三
-WED2 = date(2026, 11, 18)   # 下週三
-AFTER = datetime(2026, 12, 1, tzinfo=ZoneInfo("Asia/Taipei"))  # 兩個週三都已過
+# 假造的「現在」:兩個週三都已過(用於驗證 is_past_slot 的完整性關口)
+AFTER = datetime.combine(
+    WED2 + timedelta(days=1), time(23, 0), tzinfo=ZoneInfo("Asia/Taipei")
+)
 
 
 @pytest.fixture
@@ -37,8 +37,10 @@ def w(env):
     return _World(client, db, sid)
 
 
-def _stats(w, month=11):
-    return w.client.get(f"/api/substitution-stats{w.q}&year=2026&month={month}").json()
+def _stats(w):
+    """查基準週那個月的月結(受影響節次都落在那裡)。"""
+    return w.client.get(
+        f"/api/substitution-stats{w.q}&year={WED.year}&month={WED.month}").json()
 
 
 # ── 條件 A:已完成推導 ───────────────────────────────────────

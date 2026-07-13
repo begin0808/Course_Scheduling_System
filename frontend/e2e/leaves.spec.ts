@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { NEXT_MON, SEM_END, SEM_START, WED, WED2, withWeekday } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
@@ -25,7 +26,7 @@ async function fillDate(page: Page, testId: string, value: string) {
 async function seedPublishedSchool(page: Page, year: number) {
   const sem = await post(page, '/api/semesters', {
     academic_year: year, term: 1, template_key: 'junior_high',
-    start_date: '2026-09-01', end_date: '2027-01-20',
+    start_date: SEM_START, end_date: SEM_END,
   })
   const sid = sem.id
   const subjects: Record<string, number> = {}
@@ -75,14 +76,14 @@ test('請假登記:組長代登整天假,展開受影響節次,銷假後級聯�
   // 代登:選教師 → 假別 → 日期
   await page.getByTestId('lv-teacher').click()
   await page.locator('.n-base-select-option', { hasText: '王師' }).click()
-  await fillDate(page, 'lv-start', '2026-11-11') // 週三
-  await fillDate(page, 'lv-end', '2026-11-11')
+  await fillDate(page, 'lv-start', WED) // 週三
+  await fillDate(page, 'lv-end', WED)
   await page.getByTestId('lv-reason').locator('input').fill('流感')
   await page.getByTestId('lv-submit').click()
 
   // 週三整天 → 5 節課,節次一律顯示節次表的名稱
   const card = page.getByTestId('lv-card').first()
-  await expect(card).toContainText('王師 · 病假 · 2026-11-11(週三) 整天')
+  await expect(card).toContainText(`王師 · 病假 · ${withWeekday(WED)} 整天`)
   await expect(page.getByTestId('lv-pending').first()).toHaveText('待處理 5 節')
 
   const table = page.getByTestId('lv-affected').first()
@@ -90,7 +91,7 @@ test('請假登記:組長代登整天假,展開受影響節次,銷假後級聯�
   await expect(table).toContainText('第一節')
   await expect(table).toContainText('701')
   await expect(table).toContainText('國文')
-  await expect(table).toContainText('2026-11-11(週三)')  // 沒有星期就看不出為什麼只有這天有課
+  await expect(table).toContainText(withWeekday(WED))  // 沒有星期就看不出為什麼只有這天有課
   await page.screenshot({ path: `${SHOTS}/leave-1-affected.png` })
 
   // 銷假 → 所有節次轉為已取消
@@ -116,19 +117,19 @@ test('請假登記:跨週末只展開上課日;上午請假不含下午的課', 
   await deleteSemesterByYearTerm(page, YEAR, 1)
   const { sid, teacherId } = await seedPublishedSchool(page, YEAR)
 
-  // 11/11(三)~ 11/16(一):中間夾週六日,王師只有週三有課
+  // 週三 ~ 下週一:中間夾週六日,王師只有週三有課
   const across = await post(page, `/api/leaves?semester_id=${sid}`, {
     teacher_id: teacherId, leave_type: 'official',
-    start_date: '2026-11-11', end_date: '2026-11-16',
+    start_date: WED, end_date: NEXT_MON,
   })
   expect(across.affected_count).toBe(5)
   expect([...new Set(across.affected_periods.map((p: { date: string }) => p.date))])
-    .toEqual(['2026-11-11'])
+    .toEqual([WED])
 
-  // 11/25(三)上午:不該把下午的課列進來
+  // 下週三上午:不該把下午的課列進來
   const half = await post(page, `/api/leaves?semester_id=${sid}`, {
     teacher_id: teacherId, leave_type: 'personal',
-    start_date: '2026-11-25', end_date: '2026-11-25',
+    start_date: WED2, end_date: WED2,
     start_time: '08:00', end_time: '12:00',
   })
   expect(half.affected_count).toBeGreaterThan(0)
@@ -137,7 +138,7 @@ test('請假登記:跨週末只展開上課日;上午請假不含下午的課', 
   await page.goto('/leaves')
   await selectSemester(page, YEAR)
   await expect(page.getByTestId('lv-card')).toHaveCount(2)
-  await expect(page.getByText('2026-11-25(週三) 08:00~12:00')).toBeVisible()
+  await expect(page.getByText(`${withWeekday(WED2)} 08:00~12:00`)).toBeVisible()
   const pendingColor = await page.getByTestId('lv-affected').first()
     .getByTestId('lv-status').first().evaluate((el) => getComputedStyle(el).color)
   expect(pendingColor).toBe(PENDING_ORANGE)

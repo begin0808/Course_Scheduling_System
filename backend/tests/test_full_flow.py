@@ -8,7 +8,7 @@ M3 的建模測試已各自證明三套 fixture「解得出且零硬約束違反
 UI 端的連續旅程另見 frontend/e2e/full-journey.spec.ts。
 """
 
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
@@ -26,6 +26,7 @@ from app.solver.problem import SolverConfig
 from app.solver.validator import validate
 from app.workers.solve_job import write_result
 from tests.conftest import make_user
+from tests.dates import MON, SEM_END, SEM_START, on_or_after
 from tests.fixtures import (
     build_elementary_small,
     build_junior_high_mid,
@@ -43,19 +44,17 @@ CASES = [
     ("vocational_high", build_vocational_high),
 ]
 
-# 學期起訖必須落在「今日之後」:代課處置會拒絕已結束的節次(clock.is_past_slot),
-# 故用未來的學期範圍,受影響節次才可被指派代課。範圍夠寬以涵蓋任一星期的請假日。
-_SEM_START = date(2026, 9, 1)
-_SEM_END = date(2027, 1, 31)
+# 請假日必須落在「今日之後」:代課處置會拒絕已結束的節次(clock.is_past_slot)。
+# 一律由執行當日推算(tests/dates.py),硬編日期會在某天過期並讓整套測試無聲轉紅。
+_SEM_START = SEM_START
+_SEM_END = SEM_END
 
 
 def _first_date_with_isoweekday(weekday: int) -> date:
-    """在學期範圍內找第一個 isoweekday 等於 weekday 的日期(1=週一)。"""
-    d = _SEM_START
-    while d.isoweekday() != weekday:
-        d += timedelta(days=1)
-    assert d <= _SEM_END
-    return d
+    """基準週(必在未來)中 isoweekday 等於 weekday 的那一天(1=週一)。"""
+    day = on_or_after(weekday, MON)
+    assert _SEM_START <= day <= _SEM_END
+    return day
 
 
 def _pick_teacher_and_weekday(db, published):

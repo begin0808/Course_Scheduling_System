@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { SEM_END, SEM_START } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 // M5-4 驗收②(前端面):60 班規模下,關鍵頁面載入 p95 < 2s。
@@ -59,7 +60,7 @@ test.describe('頁面載入效能(60 班)', () => {
     await deleteSemesterByYearTerm(page, YEAR, 1)
     const sem = await post(page, '/api/semesters', {
       academic_year: YEAR, term: 1, template_key: 'junior_high',
-      start_date: '2026-09-01', end_date: '2027-01-20',
+      start_date: SEM_START, end_date: SEM_END,
     })
     await seed60(page, sem.id)
 

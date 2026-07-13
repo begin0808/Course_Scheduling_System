@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { dayOfBaseWeek, SEM_END, SEM_START, statsQuery } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 // M5-4 驗收①(UI 連續情境):一個學期從建立 → 自動排課 → 發布 → 請假 → 代課 → 月結,
@@ -8,7 +9,6 @@ import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
 const YEAR = 148
-const LEAVE_DAY = '2026-11-11' // 週三
 const post = async (page: Page, url: string, data: object) =>
   (await page.request.post(url, { data })).json()
 const get = async (page: Page, url: string) => (await page.request.get(url)).json()
@@ -60,7 +60,7 @@ test('全流程:建學期 → 自動排課 → 發布 → 請假 → 代課 → 
   // ── 1) 建學期 + 基礎資料(API 準備)──
   const sem = await post(page, '/api/semesters', {
     academic_year: YEAR, term: 1, template_key: 'junior_high',
-    start_date: '2026-09-01', end_date: '2027-01-20',
+    start_date: SEM_START, end_date: SEM_END,
   })
   await seedSchool(page, sem.id)
   await post(page, `/api/timetables?semester_id=${sem.id}`, { name: '草稿A' })
@@ -94,15 +94,16 @@ test('全流程:建學期 → 自動排課 → 發布 → 請假 → 代課 → 
   const published = (await get(page, `/api/timetables?semester_id=${sem.id}`))
     .find((t: { name: string; status: string }) => t.status === 'published')
   const entries = (await get(page, `/api/timetables/${published.id}`)).entries
-  // 找一筆週三(weekday=3)的格位,取其教師請整天假
+  // 找一筆週三(weekday=3)的格位,取其教師請整天假;請假日必須落在該格位的星期,
+  // 否則展不出受影響節次(退而求其次用第一筆格位時,請假日也跟著它的星期走)
   const wedEntry = entries.find((e: { weekday: number }) => e.weekday === 3) || entries[0]
   const assignment = (await get(page, `/api/assignments?semester_id=${sem.id}`))
     .find((a: { id: number }) => a.id === wedEntry.course_assignment_id)
   const absentId = assignment.teachers[0].teacher_id
-  const leaveDay = wedEntry.weekday === 3 ? LEAVE_DAY : null
+  const leaveDay = dayOfBaseWeek(wedEntry.weekday)
   const aps = (await post(page, `/api/leaves?semester_id=${sem.id}`, {
     teacher_id: absentId, leave_type: 'personal',
-    start_date: leaveDay || '2026-11-11', end_date: leaveDay || '2026-11-11',
+    start_date: leaveDay, end_date: leaveDay,
   })).affected_periods
   expect(aps.length).toBeGreaterThan(0)
 
@@ -115,7 +116,7 @@ test('全流程:建學期 → 自動排課 → 發布 → 請假 → 代課 → 
     { data: { type: 'substitute', handler_teacher_id: handlerId } })
 
   // ── 6) 月結統計(UI):接手教師的代課節數與計費節數呈現在畫面上 ──
-  await page.goto(`/substitution-stats?semester_id=${sem.id}&year=2026&month=11`)
+  await page.goto(`/substitution-stats?semester_id=${sem.id}${statsQuery(leaveDay)}`)
   await expect(page.getByRole('heading', { name: /代課鐘點/ })).toBeVisible()
   await expect(page.getByTestId('stats-detail-row').first()).toBeVisible()
   await expect(page.getByTestId('stats-summary-row')).not.toHaveCount(0)
