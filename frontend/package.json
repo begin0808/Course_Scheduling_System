@@ -9,8 +9,10 @@
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.ts",
     "test": "vitest run",
-    "e2e": "playwright test",
-    "e2e:headed": "cross-env HEADED=1 playwright test --headed"
+    "e2e": "playwright test --project=chromium",
+    "e2e:headed": "cross-env HEADED=1 playwright test --project=chromium --headed",
+    "e2e:perf": "playwright test --project=perf",
+    "e2e:manual": "playwright test --project=manual"
   },
   "dependencies": {
     "naive-ui": "^2.40.1",

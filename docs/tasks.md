@@ -545,9 +545,9 @@ M5 完成後由 Fable 5 做獨立技術審查,判決「**有條件可發行**」
 - 【Fable 5 M5 複審 H】主題主色 `#18a058` 白字按鈕對比僅 ~3.4:1,未達 WCAG AA 文字 4.5:1;調深主色或加粗按鈕字重(不動整體設計),v1.x 處理。
 - 【Fable 5 M5 複審 G】還原溯源:`backup_dir` 加 append-only `restore.log`(誰於何時還原哪份),因目前稽核寫進還原後 DB 有溯源斷點(presafe 檔名時戳暫可佐證);條件 D 的 stale 警告改為今日看板持久徽章而非一閃即逝的 toast。
 - 前端 bundle 偏大(~1.4MB,主因 `app.use(naive)` 全量註冊 Naive UI)。M2 課表頁完成後改為按元件 import 或用 `naive-ui/es` 自動匯入,縮小體積。
-- M0-3 CI 的 Playwright E2E job 尚未加入(目前無 E2E 測試),待 M5-4 建立 e2e 測試時補進 workflow。
-- 前端 CI 用 `npm install`(未提交 package-lock.json);日後可提交 lock 檔改用 `npm ci` 以完全重現。
-- `docker compose up` 端到端煙霧測試尚未納入 CI(需在 runner 起完整 stack),可於 M5 部署驗證時再加。
+- ~~M0-3 CI 的 Playwright E2E job 尚未加入~~ **已完成(2026-07-13,Fable 5)**:CI 新增 `e2e` job——runner 上以 buildx 建三映像(GHA cache 與 `images` job 共用 scope,PR 才驗得到 PR 自己的程式碼)、`docker compose up -d --wait` 起全棧、`python -m app.scripts.seed_e2e` 建測試帳號(冪等,含精靈標完成)、跑 Playwright `chromium` project(30 tests;`manual-shots`/`perf-page-load` 以 project 分組排除——前者需另備示範資料站,後者為 60 班壓測、門檻受 runner 效能影響易 flaky)。失敗上傳 playwright-report/trace/失敗截圖/容器 log;`images` job 改為 needs e2e,E2E 紅燈不發映像。本機等價驗證:乾淨棧(project schedci,:8090)→ seed 兩次驗冪等 → 30/30 綠(1.8m)。
+- ~~前端 CI 用 `npm install`(未提交 package-lock.json)~~ **描述已過時,順手處理(2026-07-13)**:lock 檔其實早已入庫;CI 的 frontend 與 e2e job 改用 `npm ci` + npm 快取(以 `npm ci --dry-run` 驗證 lock 與 package.json 同步)。
+- ~~`docker compose up` 端到端煙霧測試尚未納入 CI~~ **已由 e2e job 涵蓋(2026-07-13)**:e2e job 即為「compose 起全棧 + healthcheck + 真實使用者流程」的煙霧測試超集。
 - **LINE 通知 adapter(v2)**:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(`teachers.line_id` 為人工聯絡用,不能直接推播)。實作為 `NotificationChannel` 的一個 adapter。
 - 開新學期複製目前不帶學期起訖日,新學期需手動補填;可於複製對話框加起訖日欄位。
 - 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。
@@ -568,6 +568,7 @@ M5 完成後由 Fable 5 做獨立技術審查,判決「**有條件可發行**」
 - 求解前先跑一次 hard-only 可行性探測(約 1 秒):既能提早回報「這份資料無解」,又能把該解當成正式求解的 warm start。目前是在失敗之後才探測。
 - 部分排課的 timeout 幾乎必定用滿:CP-SAT 找到最佳的「未排 2 節」很快,但要證明「不可能只少排 1 節」很慢。可考慮找到解後以未排節數為上界再收斂,或給部分排課獨立的較短預設時限。
 - 衝突定位的旋鈕清單未含「班級可排節次」與「連堂結構」;`structural` 模式目前只列最吃緊的班級/教師,沒有具體到「哪一門課改成連堂就好」。
+- 【E2E 進 CI 後的定時炸彈,2026-07-13 發現】多支 e2e spec 硬編未來日期(如 `substitution-stats`/`full-journey` 的 `2026-11-11`、學期起訖 2026-09..2027-01):真實日期越過後 `clock.is_past_slot` 會拒絕代課指派,CI 將無聲轉紅。應改為「以今天起算的下一個週三 + 動態學期起訖」;**須於 2026-11 前處理**。
 
 ---
 

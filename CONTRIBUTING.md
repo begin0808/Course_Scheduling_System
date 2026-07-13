@@ -55,14 +55,20 @@ cd frontend && npm install && npm run test
 
 ### E2E(Playwright)
 
-對「執行中的 Docker 全棧」驅動真實瀏覽器。需先 `docker compose up -d`,並有教學組長帳號 `e2e_scheduler`(密碼 `e2etest1234`)。
+對「執行中的 Docker 全棧」驅動真實瀏覽器。需先 `docker compose up -d`,再建立測試帳號(冪等,`e2e_scheduler` 與 `e2e_teacher`,並將設定精靈標記完成):
 
 ```bash
+docker compose exec -T api python -m app.scripts.seed_e2e
+
 cd frontend
 npx playwright install chromium   # 首次
-npm run e2e            # 無頭執行
+npm run e2e            # 迴歸套件(無頭;CI 跑的就是這個)
 npm run e2e:headed     # 有頭 + 放慢,可在螢幕上觀看
+npm run e2e:perf       # 60 班壓測(執行久,非迴歸,CI 不跑)
+npm run e2e:manual     # 操作手冊截圖產生器(需另備示範資料測試站,CI 不跑)
 ```
+
+CI 的 `e2e` job 會在 runner 上建置三個映像、起全棧、seed 帳號後跑迴歸套件;E2E 未過不會發布映像。
 
 ## 提交與 PR
 
