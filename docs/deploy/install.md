@@ -85,7 +85,7 @@ openssl rand -hex 32        # Linux/Mac/Git Bash
 
 ```bash
 docker compose pull      # 下載官方映像(首次較久)
-docker compose up -d     # 背景啟動五個容器
+docker compose up -d     # 背景啟動六個容器
 ```
 
 ### 方式 B(從原始碼建置)
@@ -101,7 +101,7 @@ docker compose up -d     # 首次會自動建置映像,需數分鐘
 ## 驗證安裝成功
 
 ```bash
-docker compose ps        # 五個容器應皆為 running / healthy
+docker compose ps        # 六個容器應皆為 running / healthy
 curl http://localhost/api/health
 # 預期回應:{"status":"ok"}
 ```

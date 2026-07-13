@@ -9,8 +9,14 @@ from app.core.config import settings
 
 redis_conn = Redis.from_url(settings.redis_url)
 
-# 預設佇列;後續可依需求分出 solver / email / backup 專用佇列
+# 兩條佇列,兩個 worker 行程(M6-2)。分開的理由是「快慢任務不該互相堵住」:
+#   default → 自動排課。60 班可跑數分鐘,期間這個 worker 完全佔住。
+#   ops     → 匯出 / 備份 / 還原 / 寄信。都是秒級,但正是排課那幾分鐘裡組長最常按的。
+# 合在一條佇列時,排課一開跑,匯出就排在後面等到逾時失敗(M5 複審 A)。
 default_queue = Queue("default", connection=redis_conn)
+ops_queue = Queue("ops", connection=redis_conn)
+
+QUEUES = {q.name: q for q in (default_queue, ops_queue)}
 
 # 求解逾時後仍需時間寫回結果,無解時還要跑衝突定位;RQ 的看門狗要比 solver 的 timeout 寬鬆。
 # 被 RQ 砍掉的話,使用者等了十分鐘卻連「為什麼排不出來」都拿不到。
@@ -43,7 +49,7 @@ def enqueue_email(to: str, subject: str, body: str) -> None:
     """把一封通知信丟進佇列(通知服務於交易 commit 後呼叫)。"""
     from app.workers.email_job import send_notification_email
 
-    default_queue.enqueue(send_notification_email, to, subject, body, job_timeout=60)
+    ops_queue.enqueue(send_notification_email, to, subject, body, job_timeout=60)
 
 
 class RenderError(RuntimeError):
@@ -89,7 +95,7 @@ def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
     from app.workers.export_job import render_timetable_pdf, render_timetable_png
 
     func = render_timetable_pdf if fmt == "pdf" else render_timetable_png
-    job = default_queue.enqueue(func, html, job_timeout=timeout + 30, result_ttl=120)
+    job = ops_queue.enqueue(func, html, job_timeout=timeout + 30, result_ttl=120)
     result = _wait_result(job, timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
         if result is None:
@@ -105,8 +111,10 @@ def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
 def solver_busy() -> bool:
     """是否有自動排課任務正在執行或排隊中(供還原前置檢查)。
 
-    單一 worker 序列執行:排課可佔住 10 分鐘,期間丟進去的還原會排在後面。若不擋下,
-    api 端會逾時回「失敗」,但 worker 空下來後仍會執行還原——資料庫被無預警覆蓋。
+    分佇列後(M6-2)還原不再排在排課後面等,但這道關口仍然必要——**這是資料安全,不是排隊**:
+    還原會 pg_restore --clean 覆蓋整個資料庫,而排課中的 worker 正要把結果寫回同一個庫。
+    兩者同時進行,寫回的草稿會落進一個剛被抹掉的世界。故排課進行中一律拒絕還原(409)。
+    只看 default 佇列即可:排課永遠只走這條。
     """
     from rq.registry import StartedJobRegistry
 
@@ -128,7 +136,7 @@ class BackupJobError(RuntimeError):
 
 
 def _run_blocking(func, *args, timeout: int):
-    job = default_queue.enqueue(func, *args, job_timeout=timeout + 30, result_ttl=300)
+    job = ops_queue.enqueue(func, *args, job_timeout=timeout + 30, result_ttl=300)
     result = _wait_result(job, timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
         if result is None:

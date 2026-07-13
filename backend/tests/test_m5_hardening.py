@@ -150,7 +150,8 @@ def test_run_blocking_cancels_job_on_timeout(monkeypatch):
     from app.workers import queue as q
 
     job = _FakeJob()
-    monkeypatch.setattr(q.default_queue, "enqueue", lambda *a, **k: job)
+    # 備份/還原/匯出自 M6-2 起走 ops 佇列
+    monkeypatch.setattr(q.ops_queue, "enqueue", lambda *a, **k: job)
     with pytest.raises(q.BackupJobError):
         q._run_blocking(lambda: None, timeout=1)
     assert job.cancelled is True  # 逾時的任務被取消,不會晚點才偷跑
@@ -160,7 +161,7 @@ def test_render_export_cancels_job_on_timeout(monkeypatch):
     from app.workers import queue as q
 
     job = _FakeJob()
-    monkeypatch.setattr(q.default_queue, "enqueue", lambda *a, **k: job)
+    monkeypatch.setattr(q.ops_queue, "enqueue", lambda *a, **k: job)
     with pytest.raises(q.RenderError):
         q.render_export("<html></html>", "pdf", timeout=1)
     assert job.cancelled is True
@@ -197,7 +198,7 @@ def test_render_export_returns_result_arriving_mid_wait(monkeypatch):
 
     job = _SlowJob()
     monkeypatch.setattr(q, "RESULT_POLL_INTERVAL", 0.01)
-    monkeypatch.setattr(q.default_queue, "enqueue", lambda *a, **k: job)
+    monkeypatch.setattr(q.ops_queue, "enqueue", lambda *a, **k: job)
     assert q.render_export("<html></html>", "png", timeout=5) == b"PNG-BYTES"
     assert job.cancelled is False  # 拿到結果就不取消
     assert job._polls >= 2  # 確認走的是輪詢路徑

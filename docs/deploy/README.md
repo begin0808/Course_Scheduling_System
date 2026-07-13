@@ -1,6 +1,8 @@
 # 部署與維運手冊
 
-給**學校資訊管理者/教學組長**的完整操作文件。系統為單校自架、純 Web,以 Docker Compose 一鍵部署,五個容器(web / api / worker / postgres / redis)在一台主機上跑完。
+給**學校資訊管理者/教學組長**的完整操作文件。系統為單校自架、純 Web,以 Docker Compose 一鍵部署,六個容器(web / api / worker / worker-ops / postgres / redis)在一台主機上跑完。
+
+> `worker` 專跑自動排課(一次可跑好幾分鐘),`worker-ops` 跑匯出、備份、還原、寄信與定時任務。分開的用意是:**排課那幾分鐘裡,你按「匯出課表」仍然是秒回的**。
 
 ## 我該從哪裡開始?
 

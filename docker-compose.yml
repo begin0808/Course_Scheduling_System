@@ -3,11 +3,14 @@
 #   docker compose up -d
 #   瀏覽器開 http://<主機IP>
 #
-# 五個容器:web(Caddy+前端)、api、worker、postgres、redis
+# 六個容器:web(Caddy+前端)、api、worker(排課)、worker-ops(匯出/備份/定時)、postgres、redis
 #
 # 兩種部署方式,同一份檔案:
 #   從原始碼建置:docker compose up -d           (git clone 本專案後,首次會建置映像)
 #   拉取預建映像:docker compose pull && up -d    (只需本檔+.env,免建置;升級亦同)
+#
+# worker 與 worker-ops 是同一個映像的兩個行程:前者專跑自動排課(會佔住好幾分鐘),
+# 後者跑匯出/備份/還原/寄信與定時任務,兩條佇列互不堵塞(M6-2)。
 # 映像版本由 .env 的 IMAGE_TAG 決定(預設 latest;正式部署建議釘選版本如 v1.0.0)。
 name: scheduling
 
@@ -60,12 +63,33 @@ services:
       retries: 5
       start_period: 30s
 
+  # 排課 worker:守 default 佇列。一次自動排課可佔住它好幾分鐘,這是預期行為。
   worker:
     image: ghcr.io/begin0808/course_scheduling_system-worker:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       target: worker
     command: ["worker"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+    volumes:
+      - backups:/backups   # 與 worker-ops 共用(還原前的 presafe 備份等)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 維運 worker:守 ops 佇列(匯出/備份/還原/寄信),並兼任定時任務排程器。
+  # 存在的理由:排課那幾分鐘,正是組長最常按「匯出課表」的時候——不該排在排課後面等。
+  worker-ops:
+    image: ghcr.io/begin0808/course_scheduling_system-worker:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+      target: worker
+    command: ["worker", "ops"]
     restart: unless-stopped
     env_file: .env
     environment:

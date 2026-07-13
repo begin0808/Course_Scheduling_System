@@ -51,7 +51,7 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 啟動後開瀏覽器連 `http://<主機IP>`(本機為 <http://localhost>),以 `.env` 的管理員帳密登入,依設定精靈完成建置。
 
 - 健康檢查:`http://localhost/api/health` → `{"status":"ok"}`
-- 容器狀態:`docker compose ps`(五個容器皆應 healthy)
+- 容器狀態:`docker compose ps`(六個容器皆應 healthy)
 
 ### 硬體最低需求
 
@@ -82,7 +82,7 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 | 匯出 | openpyxl(Excel)、WeasyPrint(PDF,內嵌 Noto CJK)、poppler(PNG) |
 | 資料庫 | PostgreSQL 16 |
 | 反向代理 | Caddy(內網 HTTP;設網域即自動 HTTPS) |
-| 部署 | Docker Compose(5 容器:web / api / worker / postgres / redis) |
+| 部署 | Docker Compose(6 容器:web / api / worker(排課)/ worker-ops(匯出·備份·定時)/ postgres / redis) |
 
 ---
 

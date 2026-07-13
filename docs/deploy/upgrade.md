@@ -4,6 +4,12 @@
 
 > **開始前先備份。** 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見[備份指南](backup.md)。
 
+## ⚠️ 升級到 v1.1:多了一個容器
+
+v1.1 把背景工作拆成兩條佇列(排課歸排課、匯出/備份/寄信歸維運),因此**新增了 `worker-ops` 容器**——這樣你在等自動排課的那幾分鐘裡,按「匯出課表」仍然是秒回的。
+
+**升級時務必連 `docker-compose.yml` 一起更新到 v1.1 的版本**(方式 A 請重新下載該檔,方式 B 的 `git pull` 會自動帶到)。若只換了映像卻沿用舊的 compose 檔,系統會照常啟動、排課也正常,但**匯出、備份、還原、寄信會全部逾時失敗**——因為沒有任何行程在守 `ops` 佇列。升級後用 `docker compose ps` 確認 `worker-ops` 在跑。
+
 ---
 
 ## 方式 A:拉取映像部署(最常見)
@@ -13,11 +19,14 @@
 ```bash
 # 1)(建議)先在系統內按「立即備份」
 
-# 2) 選擇版本:編輯 .env
+# 2)(v1.1 起)更新 docker-compose.yml 到新版
+#    https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
+
+# 3) 選擇版本:編輯 .env
 #    釘選版本(可控):IMAGE_TAG=v1.1.0
 #    永遠最新:        IMAGE_TAG=latest
 
-# 3) 拉新映像並重啟
+# 4) 拉新映像並重啟
 docker compose pull
 docker compose up -d
 ```
@@ -68,7 +77,8 @@ docker compose up -d
 
 - [ ] 升級前已「立即備份」
 - [ ] 已讀該版本 CHANGELOG,確認有無 ⚠️ 破壞性變更
+- [ ] **(v1.1 起)`docker-compose.yml` 已更新到新版**——v1.1 新增了 `worker-ops` 容器
 - [ ] `docker compose pull` 成功拉到新映像
-- [ ] `docker compose up -d` 後五容器 healthy
+- [ ] `docker compose up -d` 後六容器 healthy
 - [ ] `/api/health` 回 ok,登入資料完整
 - [ ] (如有 schema 變更)確認關鍵頁面正常

@@ -533,7 +533,7 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - **`manual-shots.spec.ts`(手冊截圖產生器,非迴歸)**:改為向示範站查學期,取「學期內、今日之後的第一個週三」;學期已過期則明確報錯要求重建示範資料,不再靜默產出錯的圖。
 - **驗證**:pytest **452 綠**(+59,含 helper 的參數化單元測試:每種「今天」落點、跨年、閏年、以及「不論今天是哪一天,WED/WED2 都同月」40 組)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;乾淨全棧(schedci,:8090)e2e **30/30 綠**;截圖目視確認 UI 顯示的是動態算出的「2026-08-05(週三)」而非硬編日期。
 
-### [ ] M6-2 背景任務佇列拆分(default / ops)
+### [x] M6-2 背景任務佇列拆分(default / ops)
 - **描述**:單一 RQ worker 循序執行,排課(可達數分鐘)期間匯出/備份逾時失敗(M5 複審 A 的正解)。拆 `ops` 佇列:匯出(`render_export`)、備份/還原(`_run_blocking`)、email 改走 `ops`;自動排課獨走 `default`。同一 worker 映像加第二個容器(如 `worker-ops`,`command` 帶佇列名;`app/workers/worker.py` 支援指定佇列)。**資料安全語意不變**:排課中還原仍須 409(還原覆蓋整個 DB,與排課寫回互斥),`solver_busy()` 只看 `default` 佇列即可;每日備份排程器要決定歸屬(建議 ops)。更新 `docker-compose.yml`(5→6 容器)、`docker-compose.limits.yml`(worker-ops 建議 512M,總和仍 ≤4GB)、部署/升級文件(docs/deploy/)、CONTRIBUTING 架構描述。
 - **驗收標準**:
   1. 真實 60 班自動排課進行中,匯出 Excel/PNG 與「立即備份」數秒內成功(docker 實測)
@@ -541,6 +541,13 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
   3. 排課中 worker-ops 被 kill,匯出回明確錯誤而非無聲卡死;重啟後恢復
   4. limits compose 全棧跑 M5-4 旅程無 OOMKilled
 - **測試方式**:pytest(佇列路由單元測試)+ docker 全棧實測(排課中匯出/備份/還原)+ e2e 全套
+- **實作後**:`queue.py` 分出 `default`(只跑 `run_auto_schedule`)與 `ops`(匯出 `render_export`、備份/還原 `_run_blocking`、寄信 `enqueue_email`);`worker.py` 收佇列名參數(`python -m app.workers.worker [ops]`),entrypoint `worker` 角色把餘下參數透傳;compose 新增 `worker-ops`(同一 worker 映像,`command: ["worker","ops"]`),5→6 容器。
+- **排程器改掛 ops worker**:定時任務(每日備份、心跳)都是維運工作,排進 `ops` 並由 `worker-ops` 以 `with_scheduler=True` 撈回執行。排課 worker 不跑排程器——**它一忙就是好幾分鐘,不該負責「準時」的事**。
+- **升級路徑的隱形殺手**:M6-2 之前每日備份排在 `default` 的 ScheduledJobRegistry。排程器改看 `ops` 後,舊的那筆再也沒人撈——**每日備份會在升級當天靜默斷裂**(備份最不能忍的失敗模式)。`_drop_legacy_default_schedules()` 於 ops worker 啟動時以固定 job_id 精準移除舊排程再重排(不碰別人的 job),附回歸測試。
+- **`solver_busy()` 的 409 保留,但理由改寫**:分佇列後還原不再「排在排課後面」,可是仍必須擋——**這是資料安全不是排隊**:pg_restore 覆蓋整個資料庫,而排課 worker 正要把結果寫回同一個庫。
+- **驗證(docker 全棧,六容器 + limits 3.7GB)**:60 班自動排課**進行中**打維運端點——① 匯出 Excel **0.0s**、② 匯出 PNG(ops worker WeasyPrint 渲染)**4.0s**、③ 立即備份(ops worker pg_dump)**0.5s**、④ 還原被 **409** 擋下;排課全程 `running` 未被打斷。**舊架構下 ①②③ 會排在排課後面直到逾時失敗——這就是這張卡的全部意義。** 另驗 ops worker 停擺:匯出/備份回明確 **502**(「背景忙碌或逾時」,90s/120s 上限後)而非無聲卡死,重啟後 3.6s 恢復。limits 下跑全套 e2e 30/30 綠,六容器 OOMKilled 全 false、Restarts 全 0(worker-ops 峰值遠低於 512MB 上限)。
+- **品質門檻**:pytest 463(+11,`test_queue_split.py`)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;`docker compose config` 與 limits 疊加皆通過。
+- **文件**:`docs/architecture.md` 新增 **D9 佇列分工**(含容器圖改繪)、`deploy/README`、`install`、`upgrade`(**顯著警語:v1.1 多一個容器,只換映像不換 compose 會讓匯出/備份/寄信全部逾時失敗**)、`faq`(新增「匯出一直失敗怎麼查」)、`README`、`CONTRIBUTING`(新增背景任務該走哪條佇列的準則)。
 
 ### [ ] M6-3 部分排課三合一(排不下的課不再炸整鍋)
 - **描述**:(a) `model_builder` 對候選為空的課直接 raise `SolverInputError`,整個部分排課失敗——改為部分排課模式下建模前把該課移入未排清單,其餘正常;非部分排課維持 raise(訊息要進 log,順手修 Backlog「check_feasibility 吞訊息」)。(b) 未排清單目前只活在 Redis 24h(`progress.py` TTL),草稿可被 force 發布後就沒有任何紀錄——改為隨結果草稿持久化(建議 timetables 加 JSON 欄或子表,Alembic 遷移),版本頁與發布警告都改讀持久來源。(c) `_unscheduled()` 按 assignment 逐筆記,跑班群組掉一格記 N 筆——按排課單位去重,「未排 N 節」不再灌水。

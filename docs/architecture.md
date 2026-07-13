@@ -373,16 +373,23 @@ flowchart LR
         C[Caddy<br/>反向代理+靜態檔] --> API[FastAPI<br/>REST API]
         API --> PG[(PostgreSQL 16)]
         API --> RD[(Redis)]
-        W[Worker RQ<br/>OR-Tools 排課<br/>Email 寄送] --> RD
+        W[worker<br/>佇列 default<br/>OR-Tools 排課] --> RD
         W --> PG
-        BK[Backup 容器<br/>每日 pg_dump] --> PG
-        BK --> V[/備份 Volume/]
+        WO[worker-ops<br/>佇列 ops<br/>匯出·備份·還原·寄信<br/>+ 定時任務排程器] --> RD
+        WO --> PG
+        WO --> V[/備份 Volume/]
     end
     U1 --> C
-    API -.SMTP.-> M[學校/免費 SMTP]
+    WO -.SMTP.-> M[學校/免費 SMTP]
 ```
 
-前端建置為靜態檔由 Caddy 直接服務(不需 Node 容器),共 **5 個容器**:caddy、api、worker、postgres、redis(backup 以 cron 容器或 api 內排程實作,傾向後者以減少容器數)。
+前端建置為靜態檔由 Caddy 直接服務(不需 Node 容器),共 **6 個容器**:caddy(web)、api、worker、worker-ops、postgres、redis。
+
+**D9 背景任務分兩條佇列(M6-2)**:`default` 只跑自動排課,`ops` 跑匯出/備份/還原/寄信與定時任務,各由一個 worker 行程守著(同一個映像)。理由是快慢任務不該互相堵住——一次 60 班排課會佔住 worker 好幾分鐘,而那正是教學組長最常按「匯出課表」的時候;單一佇列下匯出會排在排課後面直到逾時失敗。排課永遠只走 `default`,故 `worker-ops` 不載入求解引擎,記憶體預算低得多(1536MB vs 512MB)。
+
+定時任務(每日備份、排程器心跳)一律排進 `ops` 並由 `worker-ops` 以 `with_scheduler=True` 撈回執行:排課 worker 一忙就是好幾分鐘,不該負責「準時」的事。
+
+**還原仍須在排課進行中拒絕(409)**——這條在分佇列後依然成立,但理由是**資料安全而非排隊**:pg_restore 會覆蓋整個資料庫,而排課 worker 正要把結果寫回同一個庫。
 
 ### 4.3 部署方案
 

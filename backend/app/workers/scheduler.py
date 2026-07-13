@@ -1,8 +1,9 @@
-"""定時任務排程骨架(M5-0)。
+"""定時任務排程骨架(M5-0;M6-2 起改掛 ops 佇列)。
 
 RQ worker 以 `with_scheduler=True` 啟動,內建排程器會在到期時把排定的任務丟回佇列。
 週期任務用「執行時把下一次排進去」的自我續期模式表達——不必額外的 rq-scheduler 套件或
-獨立容器(單校部署少一個要顧的行程)。M5-2 的每日備份、條件 A 的選配夜間 sweep 都掛這裡。
+獨立容器。定時任務(每日備份、心跳)都是維運任務,故一律排進 **ops** 佇列,由 ops worker
+兼任排程器;排課那條佇列被佔住數分鐘時,備份照跑。
 
 心跳任務只證明排程器存活(寫一行 log 並排下一次)。以固定 job_id 續期,重啟不會堆疊。
 """
@@ -14,7 +15,7 @@ from rq.registry import ScheduledJobRegistry
 
 from app.core import clock
 from app.core.config import settings
-from app.workers.queue import default_queue
+from app.workers.queue import default_queue, ops_queue
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ def _interval() -> timedelta:
 
 def _schedule_next() -> None:
     # 固定 job_id:同時只會有一筆待執行的心跳,重複排入會覆蓋而非堆疊
-    default_queue.enqueue_in(_interval(), heartbeat, job_id=HEARTBEAT_JOB_ID)
+    ops_queue.enqueue_in(_interval(), heartbeat, job_id=HEARTBEAT_JOB_ID)
 
 
 def heartbeat() -> None:
@@ -46,12 +47,29 @@ def heartbeat() -> None:
 
 def _ensure_daily_backup_scheduled() -> None:
     try:
-        registry = ScheduledJobRegistry(queue=default_queue)
+        registry = ScheduledJobRegistry(queue=ops_queue)
         if DAILY_BACKUP_JOB_ID not in set(registry.get_job_ids()):
             schedule_daily_backup()
             logger.warning("偵測到每日備份未排入,已補排,下次 %s", _next_backup_time())
     except Exception:  # noqa: BLE001 - 自癒失敗不該讓心跳掛掉
         logger.warning("檢查/補排每日備份失敗(Redis 不可用?)")
+
+
+def _drop_legacy_default_schedules() -> None:
+    """清掉舊版排在 **default** 佇列上的定時任務(M6-2 之前的版本)。
+
+    升級後排程器改看 ops 佇列。若不清,舊的 daily-backup / heartbeat 會永遠留在
+    default 的 ScheduledJobRegistry 裡——排課 worker 不跑排程器,沒人會把它們撈出來,
+    每日備份就此靜默斷裂(備份系統最不能忍的失敗模式)。以固定 job_id 精準移除。
+    """
+    try:
+        registry = ScheduledJobRegistry(queue=default_queue)
+        for job_id in (HEARTBEAT_JOB_ID, DAILY_BACKUP_JOB_ID):
+            if job_id in set(registry.get_job_ids()):
+                registry.remove(job_id, delete_job=True)
+                logger.info("已移除舊版排在 default 佇列的定時任務:%s", job_id)
+    except Exception:  # noqa: BLE001 - 清理失敗不該讓 worker 起不來
+        logger.warning("清理舊版 default 佇列定時任務失敗(Redis 不可用?)")
 
 
 def _next_backup_time() -> datetime:
@@ -65,13 +83,14 @@ def _next_backup_time() -> datetime:
 
 def schedule_daily_backup() -> None:
     from app.workers.backup_job import daily_backup_job
-    default_queue.enqueue_at(_next_backup_time(), daily_backup_job, job_id=DAILY_BACKUP_JOB_ID)
+    ops_queue.enqueue_at(_next_backup_time(), daily_backup_job, job_id=DAILY_BACKUP_JOB_ID)
 
 
 def ensure_scheduled() -> None:
-    """worker 啟動時呼叫:確保心跳與每日備份已排入(已存在則略過,重啟不重複)。"""
+    """ops worker 啟動時呼叫:確保心跳與每日備份已排入(已存在則略過,重啟不重複)。"""
+    _drop_legacy_default_schedules()
     try:
-        registry = ScheduledJobRegistry(queue=default_queue)
+        registry = ScheduledJobRegistry(queue=ops_queue)
         pending = set(registry.get_job_ids())
         if HEARTBEAT_JOB_ID not in pending:
             _schedule_next()

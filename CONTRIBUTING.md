@@ -51,6 +51,7 @@ cd frontend && npm install && npm run test
 - **UI 文案一律繁體中文、台灣教務用語**(節次、科任、配課、鐘點、跑班)。衝突/提示訊息用節次表中儲存的名稱(早自修/午休/第一節),不用內部 `period_no`。
 - **資料庫 schema 變更必附 Alembic 遷移**,且能從前一版順向升級。
 - solver 模組(`app/solver/`)不得 import `app.api` / `app.models`(以測試保證純度)。
+- **背景任務分兩條佇列**:`default` 只跑自動排課(可佔住 worker 數分鐘),`ops` 跑匯出/備份/還原/寄信與定時任務。新增背景任務時先問「這會不會跑很久」——會的話走 `default`,否則一律 `ops`,別讓秒級任務排在排課後面。兩者由 `worker` 與 `worker-ops` 兩個容器分別守著(同一映像,見 `app/workers/worker.py`)。
 - 架構規格以 [docs/architecture.md](docs/architecture.md) 為準;與任務卡衝突時以架構文件為準並回報矛盾。
 
 ### E2E(Playwright)
