@@ -1,5 +1,7 @@
 """RQ 佇列與連線設定。排課、寄信、備份等背景任務皆透過此佇列派送。"""
 
+import time
+
 from redis import Redis
 from rq import Queue
 
@@ -48,6 +50,28 @@ class RenderError(RuntimeError):
     """PDF/PNG 渲染失敗或逾時(呼叫端轉為 5xx)。"""
 
 
+RESULT_POLL_INTERVAL = 0.5
+
+
+def _wait_result(job, timeout: int):
+    """輪詢等待 job 的最新結果;逾時回 None。
+
+    不用 RQ 的 `latest_result(timeout=...)`:它以 XREAD 阻塞讀等結果,redis-py 8
+    (RESP3 成為預設)之後結果寫入不會喚醒阻塞中的讀端,最後以 socket 逾時收場
+    (2026-07-13 CI 首跑抓到:worker 6 秒完成 PNG 渲染,api 卻等到逾時回 500;
+    本機映像因 pip layer 快取仍是舊版 redis-py 而測不到)。改為每 0.5s 以
+    XREVRANGE 輪詢,對任何 client 版本/協定都成立,延遲對匯出/備份無感。
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        result = job.latest_result()  # 非阻塞:XREVRANGE count=1
+        if result is not None:
+            return result
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(RESULT_POLL_INTERVAL)
+
+
 def _cancel_quietly(job) -> None:
     """逾時後把仍在佇列中的 job 取消,避免 worker 空下來後才「補跑」一個沒人等的任務
     (對還原尤其危險:api 已回失敗,幾分鐘後資料庫卻被無預警覆蓋)。"""
@@ -66,7 +90,7 @@ def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
 
     func = render_timetable_pdf if fmt == "pdf" else render_timetable_png
     job = default_queue.enqueue(func, html, job_timeout=timeout + 30, result_ttl=120)
-    result = job.latest_result(timeout=timeout)
+    result = _wait_result(job, timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
         if result is None:
             _cancel_quietly(job)
@@ -105,7 +129,7 @@ class BackupJobError(RuntimeError):
 
 def _run_blocking(func, *args, timeout: int):
     job = default_queue.enqueue(func, *args, job_timeout=timeout + 30, result_ttl=300)
-    result = job.latest_result(timeout=timeout)
+    result = _wait_result(job, timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
         if result is None:
             _cancel_quietly(job)  # 逾時的任務不留在佇列裡等著晚點才跑

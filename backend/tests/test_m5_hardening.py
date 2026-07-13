@@ -139,7 +139,7 @@ class _FakeJob:
     def __init__(self):
         self.cancelled = False
 
-    def latest_result(self, timeout):
+    def latest_result(self):
         return None  # 模擬逾時(worker 被排課佔住)
 
     def cancel(self):
@@ -164,6 +164,43 @@ def test_render_export_cancels_job_on_timeout(monkeypatch):
     with pytest.raises(q.RenderError):
         q.render_export("<html></html>", "pdf", timeout=1)
     assert job.cancelled is True
+
+
+class _OkResult:
+    """最小可用的 RQ Result 替身(render_export 只碰 type 與 return_value)。"""
+
+    class Type:
+        SUCCESSFUL = 1
+
+    type = Type.SUCCESSFUL
+    return_value = b"PNG-BYTES"
+
+
+class _SlowJob:
+    """第二次輪詢才有結果:模擬 worker 仍在渲染(redis-py 8 之後 XREAD 阻塞讀
+    等不到結果寫入,_wait_result 必須靠輪詢在逾時前拿到;CI 首跑抓到的實蟲)。"""
+
+    def __init__(self):
+        self.cancelled = False
+        self._polls = 0
+
+    def latest_result(self):
+        self._polls += 1
+        return _OkResult() if self._polls >= 2 else None
+
+    def cancel(self):
+        self.cancelled = True
+
+
+def test_render_export_returns_result_arriving_mid_wait(monkeypatch):
+    from app.workers import queue as q
+
+    job = _SlowJob()
+    monkeypatch.setattr(q, "RESULT_POLL_INTERVAL", 0.01)
+    monkeypatch.setattr(q.default_queue, "enqueue", lambda *a, **k: job)
+    assert q.render_export("<html></html>", "png", timeout=5) == b"PNG-BYTES"
+    assert job.cancelled is False  # 拿到結果就不取消
+    assert job._polls >= 2  # 確認走的是輪詢路徑
 
 
 def test_restore_rejected_while_solver_busy(env, backup_dir, monkeypatch):  # noqa: F811
