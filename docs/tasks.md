@@ -63,6 +63,7 @@ Course_Scheduling_System/
 | M3 自動排課 | 引擎上線 | 一鍵自動排課出草稿,無解時給人話報告 |
 | M4 調代課 | 學期中日常運作 | 請假→代課→通知→確認 全流程 |
 | M5 報表與上線 | 對外可發行 | 匯出/備份/部署文件完成,可發布 v1.0 |
+| M6 v1.1 加固 | 排課季前的體驗與韌性 | ops 佇列拆分、部分排課不炸鍋等五項,發布 v1.1(範圍見 docs/roadmap.md) |
 
 ---
 
@@ -511,6 +512,52 @@ M5 完成後由 Fable 5 做獨立技術審查,判決「**有條件可發行**」
 - **C(無請求體上限→單校 OOM)**:Caddyfile 加 `request_body { max_size 200MB }`(容得下真實 .dump 還原與 Excel 匯入);`backup.md` 註明超大 DB 還原改用 volume 複製法。相關端點皆需 editor/admin,屬內部誤操作等級。
 - **F(第三方授權揭露)**:新增 `THIRD-PARTY-NOTICES.md`(psycopg=LGPL、poppler/pdftoppm=GPL 子行程、Noto CJK=OFL,皆動態相依/子行程使用,MIT 相容),README 連結。
 - D/E/G 列 v1.x(下方 Backlog)。
+
+---
+
+## M6 v1.1 加固(Fable 5 開卡,2026-07-13;範圍與取捨理由見 docs/roadmap.md)
+
+目標:2026 年 8 月排課季前發布 v1.1。依序做,M6-2 先定容器架構,後面的文件與 E2E 疊在其上。
+CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍須遵守既有 DoD(含真 PostgreSQL 實測與截圖目視)。
+
+### [ ] M6-1 E2E/測試硬編日期動態化(死線:2026-11 前)
+- **描述**:多處測試硬編未來日期,真實日期越過後 `clock.is_past_slot` 會拒絕代課指派,CI 將無聲轉紅。已知:`frontend/e2e/substitution-stats.spec.ts`(`DAY='2026-11-11'`)、`full-journey.spec.ts`、`backend/tests/test_full_flow.py`(`_SEM_START=2026-09-01`、`_SEM_END=2027-01-31`)等;開工先全案掃一次(grep `2026-`/`2027-`)。改為以「執行當日」推算:請假日=下一個週三(或其他固定星期),學期起訖=今天前後推(起=今天往前一個月、訖=往後六個月之類),集中成 helper(前端 `e2e/helpers.ts`、後端 conftest 或 fixtures)供各 spec 共用。
+- **驗收標準**:
+  1. 全案無「會過期」的硬編日期(節次表等與日曆無關的常數不在此列)
+  2. 日期 helper 有單元測試(含「今天就是週三」邊界)
+  3. 全套 pytest 與 e2e 綠
+- **測試方式**:pytest + Playwright 全套;人工檢視 grep 結果確認無漏網
+
+### [ ] M6-2 背景任務佇列拆分(default / ops)
+- **描述**:單一 RQ worker 循序執行,排課(可達數分鐘)期間匯出/備份逾時失敗(M5 複審 A 的正解)。拆 `ops` 佇列:匯出(`render_export`)、備份/還原(`_run_blocking`)、email 改走 `ops`;自動排課獨走 `default`。同一 worker 映像加第二個容器(如 `worker-ops`,`command` 帶佇列名;`app/workers/worker.py` 支援指定佇列)。**資料安全語意不變**:排課中還原仍須 409(還原覆蓋整個 DB,與排課寫回互斥),`solver_busy()` 只看 `default` 佇列即可;每日備份排程器要決定歸屬(建議 ops)。更新 `docker-compose.yml`(5→6 容器)、`docker-compose.limits.yml`(worker-ops 建議 512M,總和仍 ≤4GB)、部署/升級文件(docs/deploy/)、CONTRIBUTING 架構描述。
+- **驗收標準**:
+  1. 真實 60 班自動排課進行中,匯出 Excel/PNG 與「立即備份」數秒內成功(docker 實測)
+  2. 排課進行中還原仍被 409 擋下(既有測試不退步)
+  3. 排課中 worker-ops 被 kill,匯出回明確錯誤而非無聲卡死;重啟後恢復
+  4. limits compose 全棧跑 M5-4 旅程無 OOMKilled
+- **測試方式**:pytest(佇列路由單元測試)+ docker 全棧實測(排課中匯出/備份/還原)+ e2e 全套
+
+### [ ] M6-3 部分排課三合一(排不下的課不再炸整鍋)
+- **描述**:(a) `model_builder` 對候選為空的課直接 raise `SolverInputError`,整個部分排課失敗——改為部分排課模式下建模前把該課移入未排清單,其餘正常;非部分排課維持 raise(訊息要進 log,順手修 Backlog「check_feasibility 吞訊息」)。(b) 未排清單目前只活在 Redis 24h(`progress.py` TTL),草稿可被 force 發布後就沒有任何紀錄——改為隨結果草稿持久化(建議 timetables 加 JSON 欄或子表,Alembic 遷移),版本頁與發布警告都改讀持久來源。(c) `_unscheduled()` 按 assignment 逐筆記,跑班群組掉一格記 N 筆——按排課單位去重,「未排 N 節」不再灌水。
+- **驗收標準**:
+  1. 一門完全被擋死的課(如未放寬 H4 的協同教學)→ 部分排課成功,該課列未排清單並註明原因
+  2. Redis 清空後,草稿的未排清單仍可查;force 發布後版本頁可見「發布時未排 N 節」
+  3. 跑班群組掉 1 格只記 1 筆(單元測試)
+  4. validator 全套與既有 solver 測試不退步
+- **測試方式**:pytest(solver + API)+ 真 PostgreSQL 實測 + e2e auto-schedule spec 擴充
+
+### [ ] M6-4 開新學期複製補全(起訖日 + constraint_config)
+- **描述**:`semester_copy.py` 不帶學期起訖日與 `constraint_config`(軟約束權重回預設),新學期忘補起訖日會讓「今日」判定全錯。複製對話框加起訖日欄位(必填,預設帶「上學期 +半年」推算值);`constraint_config` 隨複製帶過去。
+- **驗收標準**:
+  1. 複製後新學期有正確起訖日與相同軟約束權重(真 PG 實測)
+  2. 前端對話框有起訖日欄位與預設值
+  3. e2e copy-semester spec 擴充驗證
+- **測試方式**:pytest + e2e
+
+### [ ] M6-5 小型加固批次(六小項)
+- **描述**:一次出貨六個 S 級項目——①班級名稱加 `uq(semester_id, name)`(遷移前先清重複,API 撞名回 409);②`/api/docs`/`openapi.json` 預設關閉,`.env` 顯式開啟(`API_DOCS_ENABLED`,dev compose 帶開);③主題主色調深至白字對比 ≥4.5:1(不動整體設計),`a11y.spec.ts` 按鈕門檻提到 4.5 並移除「未達 AA」註記;④衝突定位把 `should_stop` 傳進 `conflict_explainer` 逐步試解迴圈,按取消得 cancelled;⑤`check_feasibility` 的 `SolverInputError` 訊息記 log(若 M6-3 已修則勾銷);⑥`substitution-log`/`leaves` 等清單查詢加伺服器端上限(如 limit≤1000,完整分頁留 v1.2)。
+- **驗收標準**:逐項——重複班名 409 且遷移可從有重複資料的庫升級;正式 compose 下 `/api/docs` 404、設定開啟後可用;a11y 測試以 4.5 門檻綠;定位中按取消 ≤數秒內回 cancelled;清單超限回截斷結果與提示
+- **測試方式**:pytest(每項至少一測)+ e2e(a11y、取消路徑)+ 真 PG 遷移實測
 
 ---
 
