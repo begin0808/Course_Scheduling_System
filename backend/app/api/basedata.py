@@ -400,6 +400,23 @@ def list_class_units(
     return db.scalars(stmt.order_by(ClassUnit.grade, ClassUnit.name)).all()
 
 
+def _require_unique_class_name(
+    db: Session, semester_id: int, name: str, *, exclude_id: int | None = None
+) -> None:
+    """同學期不得有兩個同名班級(M6-5)。
+
+    衝突訊息、課表、匯出全都以班名指稱班級——同學期出現兩個「301」時,組長在畫面上
+    根本分不出是哪一班。DB 有 uq 約束兜底,這裡先擋下來給人話。
+    """
+    stmt = select(ClassUnit).where(
+        ClassUnit.semester_id == semester_id, ClassUnit.name == name
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(ClassUnit.id != exclude_id)
+    if db.scalar(stmt):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"本學期已有班級「{name}」")
+
+
 def _validate_homeroom(db: Session, semester_id: int, teacher_id: int | None) -> None:
     if teacher_id is None:
         return
@@ -424,6 +441,7 @@ def create_class_unit(
     _: object = Depends(editor),
 ) -> ClassUnit:
     _require_semester(db, semester_id)
+    _require_unique_class_name(db, semester_id, body.name)
     _validate_homeroom(db, semester_id, body.homeroom_teacher_id)
     _validate_period_table(db, semester_id, body.period_table_id)
     cu = ClassUnit(
@@ -449,6 +467,7 @@ def update_class_unit(
     cu = db.get(ClassUnit, class_id)
     if cu is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到班級")
+    _require_unique_class_name(db, cu.semester_id, body.name, exclude_id=cu.id)
     _validate_homeroom(db, cu.semester_id, body.homeroom_teacher_id)
     _validate_period_table(db, cu.semester_id, body.period_table_id)
     cu.grade = body.grade

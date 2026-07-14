@@ -7,6 +7,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import { createSemester, getSemester, listTemplates } from '@/api/semesters'
+import { PRIMARY } from '@/theme'
 import type { Semester, Template } from '@/api/semesters'
 import { getSemesterSummary } from '@/api/wizard'
 import type { SemesterSummary } from '@/api/wizard'
@@ -128,7 +129,7 @@ function openPeriodEditor() {
                 :style="{
                   cursor: 'pointer',
                   borderColor: templateKey === t.key ? 'var(--n-color-target)' : undefined,
-                  outline: templateKey === t.key ? '2px solid #18a058' : 'none',
+                  outline: templateKey === t.key ? `2px solid ${PRIMARY}` : 'none',
                 }"
                 @click="templateKey = t.key"
               >

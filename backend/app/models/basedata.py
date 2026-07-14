@@ -142,6 +142,11 @@ class Room(Base):
 
 class ClassUnit(Base):
     __tablename__ = "class_units"
+    # 同學期班名唯一(M6-5):衝突訊息、課表、匯出全都以班名指稱班級,
+    # 同學期兩個「301」會讓組長在畫面上分不出是哪一班。
+    __table_args__ = (
+        UniqueConstraint("semester_id", "name", name="uq_class_units_semester_name"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     semester_id: Mapped[int] = mapped_column(

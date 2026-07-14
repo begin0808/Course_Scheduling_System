@@ -195,6 +195,13 @@ def _import_classes(db: Session, semester_id: int, file_bytes: bytes) -> ImportR
             select(PeriodTable).where(PeriodTable.semester_id == semester_id)
         )
     }
+    # 同學期班名唯一(M6-5)。檔案內重複、或與既有班級重複,都要當場說是哪一列,
+    # 不能讓它撞上 DB 約束變成一句看不懂的錯誤。
+    existing_names = set(
+        db.scalars(
+            select(ClassUnit.name).where(ClassUnit.semester_id == semester_id)
+        )
+    )
     pending: list[ClassUnit] = []
     for idx, row in _data_rows(file_bytes):
         try:
@@ -207,6 +214,10 @@ def _import_classes(db: Session, semester_id: int, file_bytes: bytes) -> ImportR
         if not grade or not name or not track_label:
             result.errors.append(f"第 {idx} 列:年級、班名、學制皆必填")
             continue
+        if name in existing_names:
+            result.errors.append(f"第 {idx} 列:班名「{name}」在本學期重複")
+            continue
+        existing_names.add(name)
         if track_label not in TRACK_BY_LABEL:
             result.errors.append(f"第 {idx} 列:學制「{track_label}」無效")
             continue

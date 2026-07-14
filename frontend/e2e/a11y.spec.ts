@@ -95,11 +95,11 @@ test('無障礙:內文與主要按鈕對比度符合 WCAG AA 基本門檻', asyn
   expect(bodyRatio, `內文對比 ${bodyRatio.toFixed(2)}(fg=${body.fg} bg=${body.bg})`)
     .toBeGreaterThanOrEqual(4.5)
 
-  // 主要按鈕:白字 on 主題綠(#18a058)≈ 3.4:1。誠實揭露——按鈕標籤是「文字」,
-  // 嚴格說適用 WCAG 1.4.3 的 4.5:1(正常字重),目前只達 1.4.11 非文字元件的 3:1 底線,
-  // 未達 AA 文字標準。此處僅斷言 ≥3:1 為最低防線;主題色調整列 v1.x Backlog(不改設計)。
+  // 主要按鈕:按鈕標籤是「文字」,適用 WCAG 1.4.3 的 4.5:1,不是 1.4.11 非文字元件的 3:1。
+  // Naive 預設的 #18a058 配白字只有 ~3.4:1;M6-5 把主色壓深到 #0d7a43(5.41:1)後真的達標,
+  // 門檻因此從權宜的 3:1 提到 AA 的 4.5:1(見 src/theme.ts)。
   const btn = await colorsOf(page, '.n-button--primary-type')
   const btnRatio = contrastRatio(parseRgb(btn.fg), parseRgb(btn.bg))
   expect(btnRatio, `主要按鈕對比 ${btnRatio.toFixed(2)}(fg=${btn.fg} bg=${btn.bg})`)
-    .toBeGreaterThanOrEqual(3.0)
+    .toBeGreaterThanOrEqual(4.5)
 })

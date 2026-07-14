@@ -574,10 +574,18 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - **實作後(2026-07-14)**:`SemesterCopyRequest` 加 `start_date`/`end_date`(pydantic 驗證結束不早於開始 → 422)與 `constraint_config: bool = True`;`copy_semester()` 以 keyword-only 收起訖日,並複製 `constraint_configs` 各列。**起訖日刻意不沿用來源**(那是上學期的日期),由呼叫端明確給。前端複製對話框新增起訖日 date-picker,預設值為**來源學期往後推半年**(`halfYearLater()`),並在下方提示「請確認實際校曆後修改」;起訖日未填時「建立新學期」停用(漏填不會報錯,但請假展開、今日看板、代課「已上過」判定會整個算錯,而畫面上看不出來)。複製項目多一個「排課偏好設定」勾選——先前新學期會**悄悄**回到預設權重,上學期調好的偏好就白調了。
 - **驗證**:pytest **472**(+4:起訖日寫入、顛倒日期 422、偏好跟著複製、明確不勾選時回預設)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build/vitest 綠;e2e **31/31**(`copy-semester.spec.ts` 擴充為驗起訖日預設值 +6 個月、實際寫入、偏好設定跟著走),**截圖目視確認**對話框帶出「2027-03-01 ~ 2027-07-20」。**真 PostgreSQL 實測**:來源設 cap=4/S2=55/S5=30 → 複製後新學期起訖 2027-02-15~2027-06-30、偏好完全一致;顛倒日期回 422。
 
-### [ ] M6-5 小型加固批次(六小項)
+### [x] M6-5 小型加固批次(六小項)
 - **描述**:一次出貨六個 S 級項目——①班級名稱加 `uq(semester_id, name)`(遷移前先清重複,API 撞名回 409);②`/api/docs`/`openapi.json` 預設關閉,`.env` 顯式開啟(`API_DOCS_ENABLED`,dev compose 帶開);③主題主色調深至白字對比 ≥4.5:1(不動整體設計),`a11y.spec.ts` 按鈕門檻提到 4.5 並移除「未達 AA」註記;④衝突定位把 `should_stop` 傳進 `conflict_explainer` 逐步試解迴圈,按取消得 cancelled;~~⑤`check_feasibility` 的 `SolverInputError` 訊息記 log~~(**M6-3 已修,本卡不必再做**);⑥`substitution-log`/`leaves` 等清單查詢加伺服器端上限(如 limit≤1000,完整分頁留 v1.2)。
 - **驗收標準**:逐項——重複班名 409 且遷移可從有重複資料的庫升級;正式 compose 下 `/api/docs` 404、設定開啟後可用;a11y 測試以 4.5 門檻綠;定位中按取消 ≤數秒內回 cancelled;清單超限回截斷結果與提示
 - **測試方式**:pytest(每項至少一測)+ e2e(a11y、取消路徑)+ 真 PG 遷移實測
+- **實作後(2026-07-14)**:
+  - **① 班名唯一**:`uq(semester_id, name)`(遷移 0017)+ API 建立/改名 409 + **Excel 匯入逐列擋下**(檔案內重複、與既有班級重複都指出是第幾列,不讓它撞 DB 約束變成看不懂的錯誤)。**遷移必須先處理既有重複資料**——有重複班名的學校正是最需要這個約束的人,不能讓他們一升級就失敗。重複者依 id 保留第一筆、其餘改名為「301 (2)」…,且**會避開資料庫裡已存在的同名**;不刪任何資料。真 PG 實測最惡劣情況(三個 301 + 一個既有的「301 (2)」)→ 得到 301 / 301 (3) / 301 (4) / 301 (2) / 302,零重複、約束建立、可逆。
+  - **② `/api/docs` 預設關閉**:`api_docs_enabled=False`(`docs_url=None` → 路由不存在,404);`.env` 可顯式打開,`docker-compose.dev.yml` 帶開。端點本身都有權限守著,公開它不是漏洞,但沒必要把整套內部 API 攤在網路上(尤其 VPS + 公開網域)。正式棧實測 `/api/docs` → 404。
+  - **③ 主色達 AA**:新增 `frontend/src/theme.ts`——Naive 預設 `#18a058` 白字只有 ~3.4:1(那是 1.4.11 非文字元件的門檻,而按鈕上的字**就是文字**)。壓深到 `#0d7a43`(**5.41:1**),hover `#0e8449`(4.76:1)也達標,色相不動。`a11y.spec.ts` 門檻從權宜的 3:1 提到 **AA 的 4.5:1**,並移除 M5 留下的「未達 AA」誠實揭露——現在真的達了。
+  - **④ 定位可取消**:`explain()` 收 `should_stop`,每次試解前檢查並擲 `Cancelled`;solve_job 接住後把任務標為 **cancelled**(而非 failed)。定位最長跑一分鐘,先前完全不看取消旗標——使用者按了取消只能乾等,最後還收到一份他已經說不要的報告。
+  - **⑥ 清單上限**:`substitution_log.query(limit=MAX_ROWS)` 與 `GET /leaves`(`MAX_LEAVE_ROWS`)各 1000,**下到 SQL 的 `.limit()`**(測試以 limit=1 驗證真的生效,不是個沒人用的參數)。完整分頁 UI 留 v1.2。
+- **驗證**:pytest **482**(+10,`tests/test_m6_hardening.py`)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build/vitest 綠;e2e **31/31**;真 PG 遷移實測(含重複資料與可逆);正式棧 `/api/docs` 404;截圖目視新主色。
+- **e2e 抓到一個既有的測試腳本缺陷**:`substitutions.spec.ts` 的 `klass()` 看似 get-or-create,其實每次都 POST——`place('王師','國文','701')` 會把「701」再建一次。先前靠著「允許重複班名」矇混過去(實際上悄悄建了兩個 701),加了唯一約束後當場 409。已改為真正的 get-or-create。連帶 `wizard.spec` 也曾紅一次:它斷言儀表板顯示的學期,而 substitutions 失敗後沒跑清理、殘留的學期把儀表板頂掉了——**是連鎖傷害,不是第二個 bug**。
 
 ---
 
@@ -605,11 +613,11 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 ## Backlog(開發中冒出的點子記這裡,不排程)
 
 - 【Fable 5 總體檢 D】CORS `cors_origins` 內建 localhost 且不可由 .env 設定;同源部署下無害,v1.x 改為可設定並於正式部署收斂。
-- 【Fable 5 總體檢 E】清單查詢未分頁(`audit-logs`、`substitution-log`、`leaves` 等),整年資料會越拉越大;v1.x 加分頁。單校 v1.0 規模可接受。
-- 【Fable 5 總體檢 G】`/api/docs` 與 openapi 在正式環境公開(端點皆有權限守著,非漏洞,僅資訊揭露);v1.x 於正式模式關閉或加權限,尤其 VPS+公開網域部署。
+- 【Fable 5 總體檢 E】清單查詢未分頁 → **M6-5 已加伺服器端上限 1000(下到 SQL)**,`audit-logs` 本來就有 limit;**完整分頁 UI 仍列 v1.2**(單校規模下上限已足夠)。
+- ~~【Fable 5 總體檢 G】`/api/docs` 與 openapi 在正式環境公開~~ **已於 M6-5 修畢(2026-07-14)**:預設關閉(404),`.env` 的 `API_DOCS_ENABLED` 可顯式打開,dev compose 帶開。
 - 【Fable 5 總體檢 C 後續】`restore-upload` 目前 `await file.read()` 整包進記憶體;v1.x 改為串流落地,免大備份佔滿 api 記憶體(現以 Caddy 200MB 上限 + 超大 DB 走 volume 複製法緩解)。
 - 【Fable 5 M5 複審 A 正解】背景任務分 `default`(排課)/`ops`(匯出/備份/還原)兩佇列 + 第二個 worker 行程,讓快慢任務隔離——目前排課佔住單一 worker 時,組長匯出課表會逾時失敗(已由 cancel-on-timeout + 還原前 409 封死資料安全洞,但匯出體驗仍受影響)。需評估行程管理、4GB 記憶體預算與部署文件(5→6 容器或單容器雙進程)。
-- 【Fable 5 M5 複審 H】主題主色 `#18a058` 白字按鈕對比僅 ~3.4:1,未達 WCAG AA 文字 4.5:1;調深主色或加粗按鈕字重(不動整體設計),v1.x 處理。
+- ~~【Fable 5 M5 複審 H】主題主色 `#18a058` 白字按鈕對比僅 ~3.4:1~~ **已於 M6-5 修畢**:主色壓深至 `#0d7a43`(5.41:1),a11y 測試門檻提到 AA 的 4.5:1。
 - 【Fable 5 M5 複審 G】還原溯源:`backup_dir` 加 append-only `restore.log`(誰於何時還原哪份),因目前稽核寫進還原後 DB 有溯源斷點(presafe 檔名時戳暫可佐證);條件 D 的 stale 警告改為今日看板持久徽章而非一閃即逝的 toast。
 - 前端 bundle 偏大(~1.4MB,主因 `app.use(naive)` 全量註冊 Naive UI)。M2 課表頁完成後改為按元件 import 或用 `naive-ui/es` 自動匯入,縮小體積。
 - ~~M0-3 CI 的 Playwright E2E job 尚未加入~~ **已完成(2026-07-13,Fable 5)**:CI 新增 `e2e` job——runner 上以 buildx 建三映像(GHA cache 與 `images` job 共用 scope,PR 才驗得到 PR 自己的程式碼)、`docker compose up -d --wait` 起全棧、`python -m app.scripts.seed_e2e` 建測試帳號(冪等,含精靈標完成)、跑 Playwright `chromium` project(30 tests;`manual-shots`/`perf-page-load` 以 project 分組排除——前者需另備示範資料站,後者為 60 班壓測、門檻受 runner 效能影響易 flaky)。失敗上傳 playwright-report/trace/失敗截圖/容器 log;`images` job 改為 needs e2e,E2E 紅燈不發映像。本機等價驗證:乾淨棧(project schedci,:8090)→ seed 兩次驗冪等 → 30/30 綠(1.8m)。**CI 首跑即抓到一隻真蟲**:redis-py 8(pyproject `redis>=5.2` 無上限,重建映像靜默升級)下,RQ `latest_result(timeout=)` 的阻塞 XREAD 在「共用 client + 多執行緒併發」時被污染,`Timeout reading from socket`——worker 6 秒完成 PNG 渲染,api 卻等到逾時回 500(容器內最小重現:阻塞 XREAD + 並行 ping 同一 client,5 秒炸)。本機因渲染 2 秒內結束撞不到 race 窗口而全綠——正是 e2e 進 CI 要抓的環境性回歸。修法:`queue._wait_result()` 以 XREVRANGE 每 0.5s 輪詢取代阻塞讀(render_export 與 _run_blocking 共用),不依賴 blocked-client 喚醒,任何 client 版本皆穩。
@@ -617,7 +625,7 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - ~~`docker compose up` 端到端煙霧測試尚未納入 CI~~ **已由 e2e job 涵蓋(2026-07-13)**:e2e job 即為「compose 起全棧 + healthcheck + 真實使用者流程」的煙霧測試超集。
 - **LINE 通知 adapter(v2)**:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(`teachers.line_id` 為人工聯絡用,不能直接推播)。實作為 `NotificationChannel` 的一個 adapter。
 - ~~開新學期複製目前不帶學期起訖日~~ **已於 M6-4 修畢(2026-07-14)**:複製對話框加起訖日欄位(必填,預設帶來源 +半年)。
-- 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。
+- ~~班級名稱同學期無唯一性約束(可建兩個「301」)~~ **已於 M6-5 修畢**:`uq(semester_id, name)`(遷移 0017,會先為既有重複資料改名)+ API/匯入擋下。
 - **跑班群組內配課的 `periods_per_week` 未強制一致**(M3-0 發現):群組是「同時段開課」,`placements_for` 一次放入全部成員配課,節數不一致時較短的一筆會先被 H8 週節數守恆擋下,語意曖昧。`class_loads` 已取群組內最長者計算班級佔用;M3-2 的 pre-flight 已加 `group_shape_mismatch` 錯誤、建模則直接拒絕。仍建議在配課建立/修改的 API 就擋下(409),讓使用者當場知道。
 - **映像因 ortools 膨脹到 660MB**(M3-2):ortools 連帶拉進 numpy/pandas/protobuf。實際只有 worker 容器需要排課引擎,api 容器不需要。可拆成兩個映像(共用 base + worker 額外裝 ortools),或改用 `ortools` 的精簡發行版。部署頻寬敏感時再處理。
 - ~~**開新學期複製不帶 `constraint_config`**(M3-3)~~ **已於 M6-4 修畢**:複製對話框加「排課偏好設定」勾選(預設帶)。
@@ -627,7 +635,7 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - `teacher_time_rule` 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。
 - ~~【Fable 5 審查】部分排課宣稱「永遠有解」,但 `_make_lesson_vars` 在候選為空時先 raise~~ **已於 M6-3 修畢(2026-07-14)**:部分排課模式改為 `_force_drop` 列入未排清單並註明原因;一般模式維持 raise。
 - ~~【Fable 5 審查】跑班群組在部分排課掉一格時,「未排 N 節」會灌水數倍~~ **已於 M6-3 修畢**:未排節數改以排課單位計數。
-- 【Fable 5 審查】衝突定位期間(最長 60 秒)不檢查 `should_stop`,使用者按「取消」無效,最後得到 failed 而非 cancelled。
+- ~~【Fable 5 審查】衝突定位期間(最長 60 秒)不檢查 `should_stop`~~ **已於 M6-5 修畢**:每次試解前檢查,取消得 cancelled。
 - 【Fable 5 審查】`check_feasibility` 吞掉 `SolverInputError` 的訊息:未來任何建模 bug 都會偽裝成「資料無解」。至少把原始訊息記入 log / conflict detail。
 - 【Fable 5 審查】`test_purity.py` 只收 `level == 0` 的 import,相對匯入(`from ..models import ...`)可完全繞過純度掃描。
 - ~~【Fable 5 審查】未排清單只活在 Redis(24h TTL)~~ **已於 M6-3 處理,但敘述須更正(2026-07-14)**:「哪些課沒排」其實一直查得到——`completeness()` 從 DB 重算,對草稿與已發布課表皆可。真正會遺失的是**排不下的原因**(只有 solver 知道),已隨草稿存進 `timetables.unscheduled`(遷移 0016)並在完整性報告中呈現。

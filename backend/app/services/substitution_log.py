@@ -32,6 +32,10 @@ from app.services import leaves
 _Date = date
 _Time = time
 
+# 歷史查詢的保護性上限(M6-5):一整年不篩選地查會是數千筆。取最新 N 筆,
+# 要看更早的請縮小日期區間;完整分頁 UI 留 v1.2。
+MAX_ROWS = 1000
+
 
 @dataclass(frozen=True, slots=True)
 class LogEntry:
@@ -150,11 +154,15 @@ def query(
     date_to: date | None = None,
     teacher_id: int | None = None,
     leave_type: str | None = None,
+    limit: int = MAX_ROWS,
 ) -> list[LogEntry]:
     """歷史查詢:依日期區間、教師、假別篩選,最新在前。
 
     `teacher_id` 同時比對「請假的當事人」與「接手代課的教師」——查一位教師時,
     他缺的課與他代的課都算與他相關。
+
+    `limit` 是保護性上限(M6-5):不篩選地查一整年,會把數千筆一次拉進記憶體再序列化。
+    取最新的 N 筆(呼叫端可縮小日期區間看更早的);完整分頁 UI 留 v1.2。
     """
     stmt = (
         select(AffectedPeriod)
@@ -173,7 +181,7 @@ def query(
             AffectedPeriod.handler_teacher_id == teacher_id,
         ))
     rows = db.scalars(
-        stmt.order_by(AffectedPeriod.date.desc(), AffectedPeriod.period_no)
+        stmt.order_by(AffectedPeriod.date.desc(), AffectedPeriod.period_no).limit(limit)
     ).unique().all()
     subs = _subs_map(db, [r.id for r in rows])
     return [_build(r, subs.get(r.id)) for r in rows]

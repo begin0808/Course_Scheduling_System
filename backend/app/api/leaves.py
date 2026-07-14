@@ -25,6 +25,9 @@ from app.services.teachers import current_teacher
 
 router = APIRouter(tags=["leaves"])
 
+# 假單清單的保護性上限(M6-5);完整分頁 UI 留 v1.2
+MAX_LEAVE_ROWS = 1000
+
 registrar = require_roles(Role.scheduler, Role.director)  # 可代登/代銷
 
 
@@ -148,8 +151,11 @@ def list_leaves(
     elif teacher_id is not None:
         stmt = stmt.where(LeaveRequest.teacher_id == teacher_id)
 
+    # 保護性上限(M6-5):整學期的假單會越積越多,不設限就會一次全部拉進記憶體。
+    # 取最新的 MAX_LEAVE_ROWS 筆;完整分頁 UI 留 v1.2。
     rows = db.scalars(
         stmt.order_by(LeaveRequest.start_date.desc(), LeaveRequest.id.desc())
+        .limit(MAX_LEAVE_ROWS)
     ).unique()
     return [_serialize(leave) for leave in rows]
 

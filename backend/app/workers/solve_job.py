@@ -14,7 +14,7 @@
 
 import threading
 import time
-from collections.abc import Generator, Sequence
+from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
 
@@ -127,7 +127,7 @@ def execute(
         )
     except SolverInputError as exc:
         # 建模階段就攔下來(某門課完全沒有可排的位置)。這也是一種無解,要說得出原因。
-        _fail_with_conflict(store, job_id, problem, config, str(exc))
+        _fail_with_conflict(store, job_id, problem, config, str(exc), should_stop)
         return
 
     if store.requested(job_id) == ControlAction.cancel:
@@ -139,7 +139,8 @@ def execute(
         # 逾時而一個解都沒有,往往其實是無解——只是帶著軟約束目標函數時,CP-SAT 很難
         # 證明這件事(實測:同一份資料純硬約束 1 秒證完,加上目標函數 60 秒證不完)。
         # 一律跑一次衝突定位:它以純硬約束求解,能分辨「不可能」與「只是慢」。
-        _fail_with_conflict(store, job_id, problem, config, _failure_message(result.status))
+        _fail_with_conflict(store, job_id, problem, config,
+                            _failure_message(result.status), should_stop)
         return
 
     new = write_result(db, source, result.entries, user_id, username, result.objective,
@@ -180,12 +181,20 @@ def _heartbeat(store: ProgressStore, job_id: str) -> Generator[None]:
 
 
 def _fail_with_conflict(
-    store: ProgressStore, job_id: str, problem: Problem, config: SolverConfig, message: str
+    store: ProgressStore, job_id: str, problem: Problem, config: SolverConfig, message: str,
+    should_stop: Callable[[], bool] | None = None,
 ) -> None:
     store.update(job_id, phase=JobPhase.explaining.value, heartbeat=time.time())
-    with _heartbeat(store, job_id):
-        report = conflict_explainer.explain(problem, config=config,
-                                            max_seconds=EXPLAIN_SECONDS)
+    try:
+        with _heartbeat(store, job_id):
+            report = conflict_explainer.explain(
+                problem, config=config, max_seconds=EXPLAIN_SECONDS, should_stop=should_stop,
+            )
+    except conflict_explainer.Cancelled:
+        # 使用者在定位期間按了取消。他已經說不要了,就不該再收到一份 failed 報告(M6-5)
+        store.update(job_id, status=JobStatus.cancelled.value, heartbeat=time.time(),
+                     phase=JobPhase.solving.value, error=None)
+        return
 
     if report.status == "feasible":
         # 硬約束其實排得出來,是軟約束的最佳化太慢。這兩件事的處置完全不同。

@@ -23,6 +23,9 @@ services:
     # dev:遷移後以 --reload 啟動,原始碼變更即時生效
     entrypoint: ["bash", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     env_file: .env
+    environment:
+      # 開發時打開互動式 API 文件(http://localhost:8000/api/docs);正式部署預設關閉
+      API_DOCS_ENABLED: "true"
     ports:
       - "8000:8000"
     volumes:

@@ -235,7 +235,7 @@ function onCellDrop(w: number, p: number, ev: DragEvent) {
   background: repeating-linear-gradient(45deg, rgba(128,128,128,0.06),
     rgba(128,128,128,0.06) 6px, rgba(128,128,128,0.12) 6px, rgba(128,128,128,0.12) 12px);
 }
-.tg-cell.is-droppable { outline: 2px solid #18a058; outline-offset: -2px; }
+.tg-cell.is-droppable { outline: 2px solid #0d7a43; outline-offset: -2px; }  /* 主色,見 src/theme.ts */
 .tg-cell.is-conflict { outline: 2px solid #d03050; outline-offset: -2px; background: rgba(208,48,80,0.06); }
 .tg-blocked-label { font-size: 12px; opacity: 0.55; text-align: center; padding-top: 14px; }
 .tg-reason { font-size: 12px; color: #d03050; text-align: center; padding-top: 12px; }

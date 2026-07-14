@@ -42,8 +42,9 @@ app = FastAPI(
     title=settings.app_name,
     description="開源免費的排課與調代課系統 API",
     version="0.1.0",
-    docs_url="/api/docs",
-    openapi_url="/api/openapi.json",
+    # 正式部署預設關閉(見 settings.api_docs_enabled);None = 該路由不存在,回 404
+    docs_url="/api/docs" if settings.api_docs_enabled else None,
+    openapi_url="/api/openapi.json" if settings.api_docs_enabled else None,
     lifespan=lifespan,
 )
 

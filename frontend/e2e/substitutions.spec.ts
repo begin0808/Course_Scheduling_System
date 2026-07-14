@@ -36,8 +36,15 @@ async function seed(page: Page, year: number) {
   const teacher = async (name: string, subs: string[]) => (await post(
     page, `/api/teachers?semester_id=${sid}`,
     { name, base_periods: 20, subject_ids: await Promise.all(subs.map(subject)) })).id
-  const klass = async (name: string) => (await post(
-    page, `/api/class-units?semester_id=${sid}`, { grade: 7, name, track: 'junior_high' })).id
+  // get-or-create:同學期班名唯一(M6-5),同一個班不能建第二次
+  const classes: Record<string, number> = {}
+  const klass = async (name: string) => {
+    if (!classes[name]) {
+      classes[name] = (await post(page, `/api/class-units?semester_id=${sid}`,
+        { grade: 7, name, track: 'junior_high' })).id
+    }
+    return classes[name]
+  }
 
   const T: Record<string, number> = {
     王師: await teacher('王師', ['國文']),

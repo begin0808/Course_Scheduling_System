@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # CORS(開發模式前端 dev server 來源)
     cors_origins: list[str] = ["http://localhost", "http://localhost:5173"]
 
+    # 互動式 API 文件(/api/docs 與 openapi.json)。預設關閉:端點本身都有權限守著,
+    # 公開它不是漏洞,但會把整套內部 API 攤在網路上給人看——尤其 VPS + 公開網域部署。
+    # 開發用 compose 會顯式打開(M6-5)。
+    api_docs_enabled: bool = False
+
     @model_validator(mode="after")
     def _harden(self) -> "Settings":
         # A:SECRET_KEY 仍為預設/範例值 → 換隨機金鑰,避免以公開金鑰簽署 session
