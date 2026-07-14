@@ -3,20 +3,23 @@ name = "scheduling-backend"
 version = "0.1.0"
 description = "排課與調代課系統 — 後端 API 與排課引擎"
 requires-python = ">=3.12"
+# 核心相依一律釘主版號上限。理由是踩過:redis 未設上限,某次重建裝到 redis-py 8,
+# 阻塞式 XREAD 的行為變了,匯出/備份在新環境一律逾時失敗(v1.1 修)。
+# 映像是每次發行重新建置的,不釘上限就等於「哪天上游發大版,使用者的部署自己壞掉」。
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.32",
-    "sqlalchemy>=2.0.36",
-    "alembic>=1.14",
-    "psycopg[binary]>=3.2",
-    "pydantic>=2.10",
-    "pydantic-settings>=2.6",
-    "redis>=5.2",
-    "rq>=2.0",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.32,<1",
+    "sqlalchemy>=2.0.36,<3",
+    "alembic>=1.14,<2",
+    "psycopg[binary]>=3.2,<4",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.6,<3",
+    "redis>=5.2,<9",
+    "rq>=2.0,<3",
     "python-multipart>=0.0.18",
-    "bcrypt>=4.2",
-    "itsdangerous>=2.2",
-    "openpyxl>=3.1",
+    "bcrypt>=4.2,<6",
+    "itsdangerous>=2.2,<3",
+    "openpyxl>=3.1,<4",
     # 排課引擎(M3-2)。wheel 約 29MB,amd64/arm64 皆有 manylinux wheel。
     "ortools>=9.14,<10",
 ]

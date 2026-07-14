@@ -26,6 +26,10 @@ const teachers = ref<{ id: number; name: string }[]>([])
 const leaves = ref<LeaveRequest[]>([])
 const saving = ref(false)
 
+// 後端的保護性上限(leaves.MAX_LEAVE_ROWS)。剛好取到上限筆數,幾乎必然是被截斷了。
+const MAX_LEAVE_ROWS = 1000
+const truncated = computed(() => leaves.value.length >= MAX_LEAVE_ROWS)
+
 const form = ref({
   teacherId: null as number | null,
   leaveType: 'sick',
@@ -212,6 +216,10 @@ function rangeText(l: LeaveRequest): string {
           </div>
         </n-space>
       </n-card>
+
+      <n-alert v-if="truncated" type="warning" :bordered="false" data-testid="lv-truncated">
+        只顯示最新的 {{ MAX_LEAVE_ROWS }} 張假單,更早的未列出;要查更早的請到「調代課紀錄」以日期區間查詢。
+      </n-alert>
 
       <n-empty v-if="!leaves.length" description="尚無請假紀錄" />
       <n-card

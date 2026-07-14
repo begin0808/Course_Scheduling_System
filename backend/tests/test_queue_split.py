@@ -41,12 +41,26 @@ class _FakeJob:
         pass
 
 
+def _fake_worker(count):
+    """假的 rq.Worker,只提供 count()——ops 佇列上有幾個 worker 在守。"""
+
+    class _W:
+        @classmethod
+        def count(cls, connection=None, queue=None):
+            if callable(count):
+                return count()
+            return count
+
+    return _W
+
+
 @pytest.fixture
 def queues(monkeypatch):
     default, ops = _FakeQueue("default"), _FakeQueue("ops")
     for mod in (q, sched):
         monkeypatch.setattr(mod, "default_queue", default, raising=False)
         monkeypatch.setattr(mod, "ops_queue", ops, raising=False)
+    monkeypatch.setattr(q, "Worker", _fake_worker(1))  # 預設:worker-ops 正常在跑
     return default, ops
 
 
@@ -169,3 +183,50 @@ def test_legacy_default_schedules_are_dropped_on_upgrade(monkeypatch):
 def test_registry_helper_is_wired_to_the_real_rq_registry():
     """避免上面的假 Registry 把真實接線測沒了。"""
     assert sched.ScheduledJobRegistry is ScheduledJobRegistry
+
+
+# ── 升級路徑:ops 佇列沒有 worker 時要立刻說清楚 ───────────────
+def test_ops_worker_availability_reads_the_queue(monkeypatch):
+    monkeypatch.setattr(q, "Worker", _fake_worker(1))
+    assert q.ops_worker_available() is True
+    monkeypatch.setattr(q, "Worker", _fake_worker(0))
+    assert q.ops_worker_available() is False
+
+
+def test_ops_worker_availability_is_permissive_when_it_cannot_tell(monkeypatch):
+    """Redis 抖動時誤判成「沒有 worker」,會擋掉本來會成功的匯出與備份——寧可放行。"""
+    def _boom():
+        raise ConnectionError("redis 掛了")
+
+    monkeypatch.setattr(q, "Worker", _fake_worker(_boom))
+    assert q.ops_worker_available() is True
+
+
+@pytest.mark.parametrize(("call", "error"), [
+    (lambda: q.render_export("<html></html>", "png", timeout=1), q.RenderError),
+    (lambda: q.run_backup("manual", timeout=1), q.BackupJobError),
+    (lambda: q.run_restore("x.dump", timeout=1), q.BackupJobError),
+])
+def test_ops_work_fails_fast_when_no_ops_worker(queues, monkeypatch, call, error):
+    """沿用舊 compose 升級時,ops 上沒有任何 worker。原本要等 90~180 秒才逾時,
+    而且錯誤訊息說不出原因;現在立刻回一句講得出處置的話。"""
+    _default, ops = queues
+    monkeypatch.setattr(q, "Worker", _fake_worker(0))
+
+    with pytest.raises(error, match="worker-ops"):
+        call()
+    # 既然沒人會撈,就不該丟進去——還原尤其危險:晚點才跑會無預警覆蓋資料庫
+    assert ops.calls == []
+
+
+def test_email_never_raises_when_no_ops_worker(queues, monkeypatch, caplog):
+    """寄信的呼叫點在交易 commit 之後:站內通知已送達、操作已成功,不能為了一封信報錯。
+    信照排(worker-ops 一起來就補寄),但要在 log 留下看得懂的原因。"""
+    _default, ops = queues
+    monkeypatch.setattr(q, "Worker", _fake_worker(0))
+
+    with caplog.at_level("ERROR"):
+        q.enqueue_email("a@b.c", "主旨", "內文")
+
+    assert ops.calls == ["send_notification_email"]
+    assert "worker-ops" in caplog.text

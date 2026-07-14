@@ -39,7 +39,10 @@ services:
   worker:
     build:
       context: ./backend
-    command: ["worker"]
+    # dev 用單一行程守兩條佇列:ops 在前(匯出/備份/寄信是秒級,先撈先做),default 在後。
+    # 正式環境拆成 worker + worker-ops 兩個容器,排課才不會堵住匯出(見 docker-compose.yml)。
+    # 這裡若只寫 ["worker"],dev 就沒有任何行程在守 ops——匯出、備份、寄信、定時任務全失效。
+    command: ["worker", "ops", "default"]
     env_file: .env
     volumes:
       - ./backend:/app

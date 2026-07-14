@@ -587,6 +587,18 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - **驗證**:pytest **482**(+10,`tests/test_m6_hardening.py`)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build/vitest 綠;e2e **31/31**;真 PG 遷移實測(含重複資料與可逆);正式棧 `/api/docs` 404;截圖目視新主色。
 - **e2e 抓到一個既有的測試腳本缺陷**:`substitutions.spec.ts` 的 `klass()` 看似 get-or-create,其實每次都 POST——`place('王師','國文','701')` 會把「701」再建一次。先前靠著「允許重複班名」矇混過去(實際上悄悄建了兩個 701),加了唯一約束後當場 409。已改為真正的 get-or-create。連帶 `wizard.spec` 也曾紅一次:它斷言儀表板顯示的學期,而 substitutions 失敗後沒跑清理、殘留的學期把儀表板頂掉了——**是連鎖傷害,不是第二個 bug**。
 
+### [x] M6-6 複審修正(Fable 5 M6 複審判為「有條件可發行」的兩個阻擋項 + 兩個順手項)
+- **描述**:A(阻擋)ops 佇列無 worker 時 fail-fast;B(阻擋)dev compose 沒有任何行程守 ops;C 核心相依釘主版號上限;D 清單截斷提示。
+- **驗收標準**:停掉 worker-ops 後匯出/備份/還原**立即**回一句說得出處置的錯誤(不是逾時);dev compose 起得動匯出/備份;相依裝得起來且全測綠;清單取到上限時畫面講明被截斷。
+- **測試方式**:pytest + vitest + 六容器棧實測(含**實跑一次完整還原**)
+- **實作後(2026-07-14)**:
+  - **A**:`ops_worker_available()`(`rq.Worker.count(connection, queue=ops_queue)`)。`render_export` 與 `_run_blocking`(備份/還原)在**派工前**檢查,沒有 worker 就立刻擲 `RenderError`/`BackupJobError`,訊息直接點名 worker-ops 與 docker-compose.yml。派工前擋下對還原尤其要緊:任務若躺在佇列裡,晚點 worker 起來會**無預警覆蓋資料庫**。`enqueue_email` 只 `logger.error` **不擲例外**——它的呼叫點在交易 commit 之後,站內通知已送達,不能為了一封信讓已成功的操作看起來像失敗(信照排,worker-ops 一起來就補寄)。api 啟動時另做一次背景檢查(給 6×2 秒寬限期,避開 compose 平行啟動的假警報)寫進 log。判斷不了時(Redis 抖動)**一律放行**——誤判成「沒有 worker」會擋掉本來會成功的匯出,比讓它照原路逾時更糟。
+  - **原本的升級陷阱比 M6-2 卡上寫的更嚴重**:舊 compose 的 `command: ["worker"]` 在新映像下不只不守 ops,**也不跑排程器**——每日自動備份是**靜默**停擺的(匯出逾時至少還很吵)。這正是 fail-fast 必須做進 v1.1 的理由:文件警語擋不住沒讀文件的人。
+  - **B**:`docker-compose.dev.yml` 的 worker 改 `command: ["worker", "ops", "default"]`(單行程守兩條佇列;正式環境才拆兩個容器)。先前 dev **完全沒有**行程在守 ops,匯出、備份、寄信、定時任務全失效——repo 已公開,這會是外部貢獻者的第一印象。
+  - **C**:核心相依全部釘主版號上限(fastapi/sqlalchemy/redis/rq/pydantic/psycopg/alembic/uvicorn/bcrypt/openpyxl/itsdangerous)。踩過:`redis` 未設上限 → 某次重建裝到 redis-py 8 → 匯出/備份在新環境一律逾時。映像每次發行重新建置,不釘上限等於「上游哪天發大版,使用者的部署自己壞掉」。
+  - **D**:`SubstitutionLog` 與 `Leaves` 取到上限筆數(1000)時各顯示一行截斷提示(要看更早的請縮小日期區間/改用調代課紀錄查詢)。M6-5 卡上寫了「與提示」卻只做了截斷——不講的話,組長會以為「這學期就只有這些紀錄」。
+- **驗證**:pytest **488**(+6,`test_queue_split.py`:count=0 → 匯出/備份/還原立即擲含「worker-ops」的錯且**沒有派工**、email 不擲例外仍派工並記 error、Redis 異常時放行)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build 綠、vitest **15**(+4:兩個畫面各驗「達上限提示/未達上限不提示」);e2e **31/31**。**六容器棧實測**:①停 worker-ops → 匯出 **502/0.07s**、備份 502/0.014s、還原 502/0.016s,訊息完整(先前是 90~180 秒的謎樣逾時);②`docker compose start worker-ops` → 匯出 200(43KB PNG);③**實跑一次完整還原**(M6-2 之後從未在新架構驗過):還原 4.05s、presafe 備份自動產生、學期/班級/已發布課表格位全數回復、舊 session 401「系統已還原或重設,請重新登入」、重新登入後資料正確;順帶確認備份清單裡有 `backup_20260714_020000_auto.dump`——每日排程確實跑在 worker-ops 上。
+
 ---
 
 ## 測試策略總則

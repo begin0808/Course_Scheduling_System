@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText } from 'naive-ui'
+import { NAlert, NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { listTeachers } from '@/api/basedata'
 import { listLeaveTypes } from '@/api/leaves'
@@ -30,6 +30,11 @@ const range = ref<[number, number] | null>(null)
 const leaveType = ref<string | null>(null)
 const entries = ref<LogEntry[]>([])
 const loading = ref(false)
+
+// 後端的保護性上限(substitution_log.MAX_ROWS)。取到剛好這麼多筆,幾乎必然是被截斷了——
+// 不講的話,組長會以為「這學期就只有這些紀錄」,而看不見的那些正是他要找的舊資料。
+const MAX_ROWS = 1000
+const truncated = computed(() => entries.value.length >= MAX_ROWS)
 
 const semesterOptions = computed(() => semesters.value.map((s) => ({ label: s.label, value: s.id })))
 const leaveTypeOptions = computed(() =>
@@ -109,6 +114,10 @@ function statusType(e: LogEntry): string {
     </n-space>
 
     <n-text depth="3" data-testid="log-count">共 {{ entries.length }} 筆</n-text>
+
+    <n-alert v-if="truncated" type="warning" :bordered="false" data-testid="log-truncated">
+      只顯示最新的 {{ MAX_ROWS }} 筆,更早的紀錄未列出。請縮小日期區間,或加上教師、假別篩選。
+    </n-alert>
 
     <n-empty
       v-if="!entries.length && !loading" description="沒有符合條件的紀錄"

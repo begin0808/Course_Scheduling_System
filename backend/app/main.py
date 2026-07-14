@@ -1,5 +1,7 @@
 """FastAPI 應用程式進入點。"""
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -30,12 +32,42 @@ from app.api import (
 from app.core.config import settings
 from app.services.users import ensure_admin
 
+logger = logging.getLogger(__name__)
+
+
+# 啟動時 worker-ops 可能還在起(compose 是平行啟動的),故給它一段寬限期再判定。
+OPS_CHECK_RETRIES = 6
+OPS_CHECK_INTERVAL = 2.0
+
+
+async def _warn_if_no_ops_worker() -> None:
+    """背景檢查 ops 佇列有沒有 worker 在守,沒有就在啟動 log 講清楚。
+
+    升級只換映像、沒更新 docker-compose.yml 的話,worker-ops 根本不存在;此時匯出/備份
+    會失敗(那還算吵),而每日自動備份是**靜默**停擺的——沒人會發現,直到需要那份備份的
+    那一天。不阻塞啟動,也不在冷啟動的頭幾秒就誤報。
+    """
+    try:
+        from app.workers.queue import OPS_WORKER_MISSING, ops_worker_available
+
+        for _ in range(OPS_CHECK_RETRIES):
+            await asyncio.sleep(OPS_CHECK_INTERVAL)
+            if await asyncio.to_thread(ops_worker_available):
+                return
+        logger.warning(OPS_WORKER_MISSING)
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001 - Redis 尚未就緒等情況不該影響 api 運作
+        pass
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # 啟動時:若系統尚無任何使用者,依 .env 建立初始管理員
     ensure_admin()
+    check = asyncio.create_task(_warn_if_no_ops_worker())
     yield
+    check.cancel()
 
 
 app = FastAPI(

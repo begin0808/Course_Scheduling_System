@@ -1,11 +1,14 @@
 """RQ 佇列與連線設定。排課、寄信、備份等背景任務皆透過此佇列派送。"""
 
+import logging
 import time
 
 from redis import Redis
-from rq import Queue
+from rq import Queue, Worker
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 redis_conn = Redis.from_url(settings.redis_url)
 
@@ -45,10 +48,41 @@ def enqueue_solve(
     )
 
 
+# 升級時只換映像、沿用舊 docker-compose.yml 的話,ops 佇列上不會有任何 worker
+# (舊 compose 只起一個 `worker`,在新映像下只守 default)。後果不只是匯出/備份逾時,
+# 排程器也不存在——**每日備份會靜默停擺**。故所有派往 ops 的路徑先確認有人在守,
+# 把「90 秒後的謎樣逾時」換成一句說得出原因、講得出處置的錯誤(Fable 5 M6 複審 A)。
+OPS_WORKER_MISSING = (
+    "維運背景服務(worker-ops)沒有在執行。v1.1 起匯出、備份、還原、寄信與每日自動備份"
+    "由獨立的 worker-ops 容器負責;若你剛升級,請一併更新 docker-compose.yml 再執行"
+    "`docker compose up -d`(見升級指南),並以 `docker compose ps` 確認 worker-ops 已啟動"
+)
+
+
+def ops_worker_available() -> bool:
+    """ops 佇列上是否有 worker 在守。
+
+    判斷不了時(Redis 抖動、RQ 版本差異)一律回 True:誤判成「沒有 worker」會擋掉
+    本來會成功的匯出與備份,比讓它照原路逾時更糟。這道檢查是為了把常見的升級失誤
+    講清楚,不是把自己變成新的故障點。
+    """
+    try:
+        return Worker.count(connection=redis_conn, queue=ops_queue) > 0
+    except Exception:  # noqa: BLE001 - 無法判斷時保守放行
+        return True
+
+
 def enqueue_email(to: str, subject: str, body: str) -> None:
-    """把一封通知信丟進佇列(通知服務於交易 commit 後呼叫)。"""
+    """把一封通知信丟進佇列(通知服務於交易 commit 後呼叫)。
+
+    這裡**不擲例外**:呼叫點在 SQLAlchemy 的 after_commit,交易已經成功,站內通知也已送達,
+    不能為了一封信讓已完成的操作看起來像失敗(M4-3 的語意)。信照樣排進佇列——worker-ops
+    一起來就會補寄;但要在 log 留下一句看得懂的話,否則信就無聲消失了。
+    """
     from app.workers.email_job import send_notification_email
 
+    if not ops_worker_available():
+        logger.error("通知 Email 無人處理(收件:%s):%s", to, OPS_WORKER_MISSING)
     ops_queue.enqueue(send_notification_email, to, subject, body, job_timeout=60)
 
 
@@ -94,6 +128,8 @@ def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
     """
     from app.workers.export_job import render_timetable_pdf, render_timetable_png
 
+    if not ops_worker_available():
+        raise RenderError(OPS_WORKER_MISSING)
     func = render_timetable_pdf if fmt == "pdf" else render_timetable_png
     job = ops_queue.enqueue(func, html, job_timeout=timeout + 30, result_ttl=120)
     result = _wait_result(job, timeout)
@@ -136,6 +172,8 @@ class BackupJobError(RuntimeError):
 
 
 def _run_blocking(func, *args, timeout: int):
+    if not ops_worker_available():
+        raise BackupJobError(OPS_WORKER_MISSING)
     job = ops_queue.enqueue(func, *args, job_timeout=timeout + 30, result_ttl=300)
     result = _wait_result(job, timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
