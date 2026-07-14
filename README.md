@@ -59,6 +59,20 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 
 ---
 
+## 畫面
+
+| 排課工作台(拖拉排課、三視角、即時衝突) | 自動排課(進度、軟約束達成度) |
+|---|---|
+| ![排課工作台](docs/manual-img/04-workbench.png) | ![自動排課](docs/manual-img/05-auto-schedule.png) |
+
+| 今日調代課看板(可列印 A4 通知單) | 課表查詢與匯出(Excel / PDF / PNG) |
+|---|---|
+| ![今日調代課](docs/manual-img/08-daily-board.png) | ![課表查詢](docs/manual-img/09-timetable-query.png) |
+
+完整逐章圖解見[教學組長操作手冊](https://begin0808.github.io/Course_Scheduling_System/)。
+
+---
+
 ## 文件
 
 | 文件 | 內容 |
@@ -88,9 +102,11 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 
 ## 專案狀態
 
-**v1.1.0 已發行(2026-07-14)。** 六大里程碑 M0–M5 全部完成,v1.1 為加固版(排課不再堵住匯出、部分排課不再整鍋失敗、班名唯一性、無障礙對比達 WCAG AA)。官方映像(amd64 + arm64)已發布於 GHCR。
+**v1.1.1 已發行(2026-07-14)。** 六大里程碑 M0–M5 全部完成,功能齊備並經完整驗收(後端 490 項單元/整合測試、32 項 Playwright 端對端測試,每次提交皆對真實 Docker 全棧跑過)。官方映像(amd64 + arm64)已發布於 GHCR。
 
-⚠️ **從 v1.0 升級請連 `docker-compose.yml` 一起更新**(v1.1 新增 `worker-ops` 容器)——見[升級指南](docs/deploy/upgrade.md)。詳見 [CHANGELOG](CHANGELOG.md) 與 [docs/tasks.md](docs/tasks.md)。
+**請直接從最新版開始安裝**(見上方快速開始);`v1.1.1` 是目前建議使用的版本。各版變更見 [CHANGELOG](CHANGELOG.md),開發歷程見 [docs/tasks.md](docs/tasks.md)。
+
+系統仍在實際校園環境試用中,若你是第一批使用者,歡迎透過 [Issues](https://github.com/begin0808/Course_Scheduling_System/issues) 回報任何問題。
 
 ---
 

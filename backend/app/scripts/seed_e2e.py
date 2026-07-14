@@ -2,6 +2,7 @@
 
 - 教學組長帳號 e2e_scheduler / e2etest1234(見 frontend/e2e/helpers.ts)
 - 教師帳號 e2e_teacher / e2eteacher1234(供測試綁定「陳老師」)
+- 系統管理員帳號 e2e_admin / e2eadmin1234(系統管理頁的備份/SMTP 卡片只有 admin 看得到)
 - 將設定精靈標記為已完成(否則路由守衛會把組長導回 /wizard,
   wizard.spec 會自行 reset 再走完整流程,不受影響)
 
@@ -19,6 +20,7 @@ from app.services.users import create_user
 _ACCOUNTS: list[tuple[str, str, Role, str]] = [
     ("e2e_scheduler", "e2etest1234", Role.scheduler, "E2E 教學組長"),
     ("e2e_teacher", "e2eteacher1234", Role.teacher, "E2E 教師"),
+    ("e2e_admin", "e2eadmin1234", Role.admin, "E2E 系統管理員"),
 ]
 
 

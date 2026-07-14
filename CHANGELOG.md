@@ -4,6 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
+> **新使用者請直接安裝 v1.1.1**(見 [README](README.md) 快速開始)。v1.0.0 與 v1.1.0 是開發過程中的里程碑版本,尚未對外推廣;以下條目保留作為變更紀錄。
+
+## [1.1.1] — 2026-07-14
+
+### 修正
+- **「系統管理」整頁打不開**(v1.0.0 起就存在的缺陷):畫面只剩左側選單,右邊一片空白——備份、還原、SMTP 通知設定、重新啟動設定精靈**四項功能全都點不進去**。原因是前端少掛一個對話框元件的容器(`n-dialog-provider`),頁面初始化時直接擲錯而整頁渲染不出來。
+  - 這一頁先前**沒有任何端對端測試覆蓋**,所以缺陷一路溜過 v1.0.0 與 v1.1.0。本版補上該頁的迴歸測試(卡片渲染 + 立即備份 + 刪除備份),日後不會再無聲壞掉。
+
+### 文件
+- 操作手冊 10 張截圖全部重拍(先前是舊主色,且與現況不符);截圖產生器改為自備示範資料,任何人都能用一套空的 Docker 棧一鍵重拍。
+- README 補上實際畫面;部署文件改以「全新安裝」為主軸。
+
 ## [1.1.0] — 2026-07-14
 
 **加固版。** 針對 v1.0.0 發行後的體檢結果,補上單校長期使用最會咬到人的幾處:排課不再堵住匯出、部分排課不再整鍋失敗、排不下的原因不再消失、班名不再重複。無資料庫破壞性變更(遷移自動執行),但 ⚠️ **升級時必須連 `docker-compose.yml` 一起更新**(新增 `worker-ops` 容器)。
@@ -91,6 +103,7 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/begin0808/Course_Scheduling_System/releases/tag/v1.0.0

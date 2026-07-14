@@ -1,26 +1,16 @@
 # 升級指南
 
+> **首次安裝的人不需要這一頁**,直接看[安裝指南](install.md)。這裡講的是「已經在用,想換到新版」。
+
 系統採「向前相容遷移」:升級時**資料保留**,資料表結構的變更由 `api` 容器啟動時自動執行(`alembic upgrade head`),你不需要手動改資料庫。
 
 > **開始前先備份。** 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見[備份指南](backup.md)。
 
-## ⚠️ 升級到 v1.1:同學期班名不再允許重複
+## 一條規則:`docker-compose.yml` 要跟著版本走
 
-v1.1 起,同一個學期內不能有兩個同名的班級(衝突訊息、課表、匯出都以班名指稱班級,重複時你根本分不出是哪一班)。
+系統的容器組成會隨版本演進(例如 v1.1 就多了一個 `worker-ops` 容器)。**升級時請連 `docker-compose.yml` 一起更新到新版**——方式 A 重新下載該檔,方式 B 的 `git pull` 會自動帶到。
 
-**若你既有的資料裡就有重複班名**,升級時系統會自動把後面那幾筆改名為「301 (2)」「301 (3)」這樣——**不會刪掉任何班級、課表或配課**。升級後請到「基礎資料 → 班級」看一下有沒有這種名字,改成正確的班名即可。
-
-## ⚠️ 升級到 v1.1:多了一個容器
-
-v1.1 把背景工作拆成兩條佇列(排課歸排課、匯出/備份/寄信歸維運),因此**新增了 `worker-ops` 容器**——這樣你在等自動排課的那幾分鐘裡,按「匯出課表」仍然是秒回的。
-
-**升級時務必連 `docker-compose.yml` 一起更新到 v1.1 的版本**(方式 A 請重新下載該檔,方式 B 的 `git pull` 會自動帶到)。若只換了映像卻沿用舊的 compose 檔,系統會照常啟動、排課也正常,但**匯出、備份、還原、寄信會失敗,而且每日自動備份會停擺**——因為沒有任何行程在守 `ops` 佇列。升級後用 `docker compose ps` 確認 `worker-ops` 在跑。
-
-真的漏更新了也不必猜:按「匯出課表」或「立即備份」會**立刻**出現這句話——
-
-> 維運背景服務(worker-ops)沒有在執行。v1.1 起匯出、備份、還原、寄信與每日自動備份由獨立的 worker-ops 容器負責;若你剛升級,請一併更新 docker-compose.yml 再執行 `docker compose up -d`
-
-補上新版 compose 檔、`docker compose up -d` 之後即恢復,不需要重啟其他容器,資料也不受影響。
+沿用舊 compose 檔而漏了新容器時,系統不會默默壞掉:相關功能會**立刻**回一句說得出處置的錯誤(例如「維運背景服務(worker-ops)沒有在執行……請更新 docker-compose.yml」),補上新檔案再 `docker compose up -d` 即恢復,資料不受影響。
 
 ---
 
@@ -31,11 +21,11 @@ v1.1 把背景工作拆成兩條佇列(排課歸排課、匯出/備份/寄信歸
 ```bash
 # 1)(建議)先在系統內按「立即備份」
 
-# 2)(v1.1 起)更新 docker-compose.yml 到新版
+# 2) 更新 docker-compose.yml 到新版(容器組成可能有變動)
 #    https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
 
 # 3) 選擇版本:編輯 .env
-#    釘選版本(可控):IMAGE_TAG=v1.1.0
+#    釘選版本(可控):IMAGE_TAG=v1.1.1
 #    永遠最新:        IMAGE_TAG=latest
 
 # 4) 拉新映像並重啟
@@ -65,7 +55,7 @@ docker compose up -d --build   # 重新建置並重啟
 
 ## 關於版本釘選
 
-- **正式環境建議 `IMAGE_TAG=v1.0.0` 這樣釘住特定版本**,你才能決定何時升級、升到哪一版,而不是每次 `pull` 都可能變動。
+- **正式環境建議 `IMAGE_TAG=v1.1.1` 這樣釘住特定版本**,你才能決定何時升級、升到哪一版,而不是每次 `pull` 都可能變動。
 - 想升級時,把 `IMAGE_TAG` 改成新版本號,再 `docker compose pull && up -d`。
 - 各版本的變更內容見專案根目錄的 [CHANGELOG.md](../../CHANGELOG.md);破壞性變更(若有)會在該版本明確標註 ⚠️ 與對應處置。
 
@@ -76,7 +66,7 @@ docker compose up -d --build   # 重新建置並重啟
 因為資料與映像分離,回滾映像很單純:
 
 ```bash
-# .env 改回舊版本號,例如 IMAGE_TAG=v1.0.0
+# .env 改回舊版本號,例如 IMAGE_TAG=v1.1.0
 docker compose pull
 docker compose up -d
 ```
@@ -89,7 +79,7 @@ docker compose up -d
 
 - [ ] 升級前已「立即備份」
 - [ ] 已讀該版本 CHANGELOG,確認有無 ⚠️ 破壞性變更
-- [ ] **(v1.1 起)`docker-compose.yml` 已更新到新版**——v1.1 新增了 `worker-ops` 容器
+- [ ] **`docker-compose.yml` 已更新到新版**(容器組成可能有變動)
 - [ ] `docker compose pull` 成功拉到新映像
 - [ ] `docker compose up -d` 後六容器 healthy
 - [ ] `/api/health` 回 ok,登入資料完整
