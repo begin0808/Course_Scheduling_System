@@ -83,19 +83,29 @@ def delete_backup(name: str, db: Session = Depends(get_db), user: User = Depends
     return {"deleted": info.name}
 
 
-def _restore(user: User, target_name: str) -> RestoreResult:
+def _restore(db: Session, user: User, target_name: str) -> RestoreResult:
     """先備份現狀,再還原;完成後強制全員重新登入。"""
-    # 排課進行中不可還原:單一 worker 會讓還原排在排課後面,api 逾時回失敗、
-    # worker 卻仍會執行還原,造成資料庫被無預警覆蓋(Fable 5 M5 複審 A)。
+    # 排課進行中不可還原:pg_restore --clean 覆蓋整個資料庫,而排課中的 worker 正要把
+    # 結果寫回同一個庫;寫回的草稿會落進一個剛被抹掉的世界(Fable 5 M5 複審 A)。
     if job_queue.solver_busy():
         raise HTTPException(status.HTTP_409_CONFLICT, "排課進行中,請待排課完成後再還原")
+
+    # 還原前先關掉本請求的 session。pg_restore --clean 會中止資料庫上的所有連線,包含
+    # 驗證身分時開的這條;而 FastAPI 的 yield 依賴是在**回應送出後**才收尾,屆時
+    # db.close() 會對一條已死的連線送出 ROLLBACK,在 log 噴出一段 AdminShutdown
+    # traceback——回應與資料都是對的,但剛按下「還原」的組長看到那段紅字,只會以為
+    # 還原失敗了。還原期間本來就用不到這條 session(稽核另開新連線寫)。
+    # 關閉前先把等下要用的欄位取成純量,免得 user 成為 detached instance。
+    actor_id, actor_name = user.id, user.username
+    db.close()
+
     try:
         presafe = job_queue.run_backup("presafe")
         warnings = job_queue.run_restore(target_name)
     except job_queue.BackupJobError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"還原失敗:{e}") from e
-    # 還原已覆蓋整個資料庫並中止舊連線(含本請求的連線),且原本的資料已被取代;
-    # 稽核要以**新連線**寫進**還原後**的資料庫,否則不是連線已死就是紀錄被覆蓋掉。
+    # 還原已覆蓋整個資料庫並中止舊連線,且原本的資料已被取代;稽核要以**新連線**寫進
+    # **還原後**的資料庫,否則不是連線已死就是紀錄被覆蓋掉。
     from app.core.db import SessionLocal, engine
     engine.dispose()
     audit_detail = f"還原自 {target_name};現狀已備份為 {presafe['name']}"
@@ -104,7 +114,7 @@ def _restore(user: User, target_name: str) -> RestoreResult:
     try:
         with SessionLocal() as fresh:
             fresh.add(AuditLog(
-                user_id=user.id, username=user.username, action="restore_backup",
+                user_id=actor_id, username=actor_name, action="restore_backup",
                 target_type="backup", target_id=None, detail=audit_detail[:500],
             ))
             fresh.commit()
@@ -116,15 +126,18 @@ def _restore(user: User, target_name: str) -> RestoreResult:
 
 
 @router.post("/backups/{name}/restore", response_model=RestoreResult)
-def restore_backup(name: str, user: User = Depends(admin_only)):
+def restore_backup(
+    name: str, db: Session = Depends(get_db), user: User = Depends(admin_only)
+):
     """從既有備份還原(還原前自動備份現狀)。"""
     _get_backup(name)
-    return _restore(user, name)
+    return _restore(db, user, name)
 
 
 @router.post("/backups/restore-upload", response_model=RestoreResult)
 async def restore_from_upload(
     file: UploadFile = File(...),
+    db: Session = Depends(get_db),
     user: User = Depends(admin_only),
 ):
     """上傳備份檔並還原。非法檔案直接拒絕、不動資料庫(驗收②)。"""
@@ -133,4 +146,4 @@ async def restore_from_upload(
         name = backup_service.save_uploaded(file.filename or "upload", content)
     except backup_service.BackupError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
-    return _restore(user, name)
+    return _restore(db, user, name)

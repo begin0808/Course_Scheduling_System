@@ -599,6 +599,14 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
   - **D**:`SubstitutionLog` 與 `Leaves` 取到上限筆數(1000)時各顯示一行截斷提示(要看更早的請縮小日期區間/改用調代課紀錄查詢)。M6-5 卡上寫了「與提示」卻只做了截斷——不講的話,組長會以為「這學期就只有這些紀錄」。
 - **驗證**:pytest **488**(+6,`test_queue_split.py`:count=0 → 匯出/備份/還原立即擲含「worker-ops」的錯且**沒有派工**、email 不擲例外仍派工並記 error、Redis 異常時放行)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build 綠、vitest **15**(+4:兩個畫面各驗「達上限提示/未達上限不提示」);e2e **31/31**。**六容器棧實測**:①停 worker-ops → 匯出 **502/0.07s**、備份 502/0.014s、還原 502/0.016s,訊息完整(先前是 90~180 秒的謎樣逾時);②`docker compose start worker-ops` → 匯出 200(43KB PNG);③**實跑一次完整還原**(M6-2 之後從未在新架構驗過):還原 4.05s、presafe 備份自動產生、學期/班級/已發布課表格位全數回復、舊 session 401「系統已還原或重設,請重新登入」、重新登入後資料正確;順帶確認備份清單裡有 `backup_20260714_020000_auto.dump`——每日排程確實跑在 worker-ops 上。
 
+### [x] M6-7 還原後 log 噴 AdminShutdown traceback(M6-6 實測發現,發行前修掉)
+- **描述**:還原**成功**後,api log 會噴一段 `ERROR: Exception in ASGI application` + `AdminShutdown` traceback。功能完全正常(回應 200、資料正確、後續請求正常),但**剛按下「還原」的教學組長是全系統最緊張的那一刻**——他去看 log 想確認成功與否,迎面一段紅字,只會以為還原壞了。這不是資料問題,是信任問題,不該帶著發行。
+- **根因**:`pg_restore --clean` 會中止資料庫上的所有連線,包含本請求**驗證身分時**開的那條 session(路由本身沒宣告 `db`,但 `admin_only` → `get_active_user` → `Depends(get_db)` 有)。FastAPI 0.106 起,yield 依賴的收尾是在**回應送出後**才執行,屆時 `db.close()` 對一條已死的連線送出 ROLLBACK → `AdminShutdown` 逸出成 ASGI 例外。因為回應早已送出,使用者拿到的是正確的 200——只有 log 難看。
+- **修法**(兩層):
+  1. **根因**:`_restore()` 在派工前先 `db.close()`。還原期間本來就用不到這條 session(稽核一向另開新連線寫進**還原後**的資料庫)。路由多宣告一個 `db: Session = Depends(get_db)`——FastAPI 對同一個 callable 有請求內快取,拿到的**就是** `admin_only` 內部那條 session,不是第二條。關閉前先把 `user.id`/`user.username` 取成純量,避免 `user` 成為 detached instance。
+  2. **防線**:`get_db()` 的 `finally` 吞掉 `close()` 的例外並記一行 warning。收尾發生在回應送出後,此時擲例外只會變成一段沒有請求可歸屬的 traceback;真正的失敗會在**查詢當下**就報錯,不會被這裡蓋掉。這道防線也涵蓋「還原期間其他使用者的 in-flight 請求」。
+- **驗證**:pytest **490**(+2:①攔下請求 session,斷言 `run_restore` 被呼叫的那一刻它**已經關了**;②`get_db` 收尾遇上 close 失敗不擲出、只記 warning)、ruff/mypy 乾淨;e2e **31/31**。**六容器棧實測**:建學期 152/班級 799 → 備份 → 刪學期 → 還原 → **api log 全程零 traceback、零 ERROR**(先前必噴),回應 200/3.5s、學期與班級回復、舊 session 401、稽核以新連線寫入(`admin | 還原自 …;現狀已備份為 …`)。
+
 ---
 
 ## 測試策略總則

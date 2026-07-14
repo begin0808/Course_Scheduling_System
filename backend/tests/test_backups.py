@@ -107,3 +107,83 @@ def test_scheduler_cannot_restore(env, backup_dir):
     client, db = env
     _login(client, db, "sch", [Role.scheduler])
     assert client.post("/api/backups/some.dump/restore").status_code == 403
+
+
+# ── 還原不得留著一條會被 pg_restore 砍掉的 session(M6-6 實測發現)────────
+def test_restore_closes_the_request_session_before_touching_the_database(
+    env, backup_dir, monkeypatch
+):
+    """pg_restore --clean 會中止資料庫上的所有連線,包含本請求驗證身分時開的那條。
+
+    yield 依賴是在**回應送出後**才收尾,屆時 db.close() 會對一條已死的連線送 ROLLBACK,
+    在 log 噴出 AdminShutdown traceback——回應與資料都是對的,但剛按下「還原」的人看到
+    那段紅字只會以為還原失敗了。故還原派工前必須先把這條 session 關掉。
+    """
+    from app.api import backups as backups_api
+    from app.core.db import get_db
+
+    client, db = env
+    _touch(backup_dir, "backup_20260101_010101_manual.dump")
+    _login(client, db, "adm", [Role.admin])
+
+    # 攔下請求用的 session,記下它是否被關閉
+    original = client.app.dependency_overrides[get_db]
+    closed: dict[str, bool] = {}
+
+    def spy_get_db():
+        gen = original()
+        session = next(gen)
+        real_close = session.close
+
+        def close():
+            closed["yes"] = True
+            real_close()
+
+        session.close = close  # type: ignore[method-assign]
+        try:
+            yield session
+        finally:
+            next(gen, None)
+
+    client.app.dependency_overrides[get_db] = spy_get_db
+
+    seen: dict[str, bool] = {}
+
+    def fake_restore(name):
+        # 這一刻 pg_restore 正要砍掉所有連線:請求的 session 必須已經關了
+        seen["closed_before_restore"] = closed.get("yes", False)
+        return []
+
+    monkeypatch.setattr(backups_api.job_queue, "solver_busy", lambda: False)
+    monkeypatch.setattr(
+        backups_api.job_queue, "run_backup",
+        lambda reason: {"name": f"backup_20260102_010101_{reason}.dump"},
+    )
+    monkeypatch.setattr(backups_api.job_queue, "run_restore", fake_restore)
+
+    try:
+        r = client.post("/api/backups/backup_20260101_010101_manual.dump/restore")
+    finally:
+        client.app.dependency_overrides[get_db] = original
+
+    assert r.status_code == 200
+    assert r.json()["restored_from"] == "backup_20260101_010101_manual.dump"
+    assert seen["closed_before_restore"] is True
+
+
+def test_get_db_teardown_never_raises(monkeypatch, caplog):
+    """收尾關 session 失敗不該變成一段沒有請求可歸屬的 ASGI traceback——
+    使用者早就拿到(正確的)回應了。真正的失敗會在查詢當下就報錯,不會被這裡蓋掉。"""
+    from app.core import db as db_mod
+
+    class _DeadSession:
+        def close(self):
+            raise RuntimeError("terminating connection due to administrator command")
+
+    monkeypatch.setattr(db_mod, "SessionLocal", lambda: _DeadSession())
+
+    gen = db_mod.get_db()
+    next(gen)
+    with caplog.at_level("WARNING"), pytest.raises(StopIteration):
+        next(gen)  # 觸發 finally:不得擲出
+    assert "還原" in caplog.text
