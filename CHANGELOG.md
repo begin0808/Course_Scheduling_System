@@ -4,7 +4,12 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-## [Unreleased]
+## [1.1.0] — 2026-07-14
+
+**加固版。** 針對 v1.0.0 發行後的體檢結果,補上單校長期使用最會咬到人的幾處:排課不再堵住匯出、部分排課不再整鍋失敗、排不下的原因不再消失、班名不再重複。無資料庫破壞性變更(遷移自動執行),但 ⚠️ **升級時必須連 `docker-compose.yml` 一起更新**(新增 `worker-ops` 容器)。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.1.0`
 
 ### 新增
 - **背景任務分兩條佇列,排課不再堵住匯出**(⚠️ 新增 `worker-ops` 容器):自動排課走 `default` 佇列、匯出/備份/還原/寄信與定時任務走 `ops` 佇列,各由一個 worker 行程守著。**在等自動排課的那幾分鐘裡,按「匯出課表」「立即備份」仍然是秒回的**(先前會排在排課後面直到逾時失敗)。
@@ -31,7 +36,7 @@
 - 測試日期一律由執行當日推算,不再硬編未來日期(硬編的日期會在成為過去後讓調代課測試整套失效)。
 - 後端核心相依全部釘上主版號上限(先前只有下限:某次重建裝到 redis-py 8,匯出/備份就在新環境全數逾時失敗——映像每次發行都重新建置,不釘上限等於把使用者的部署交給上游的發版節奏)。
 - 開發用 `docker-compose.dev.yml` 的 worker 同時守兩條佇列(先前沒有任何行程在守 `ops`,dev 環境的匯出、備份、寄信與定時任務其實全都不會動)。
-- E2E 迴歸套件(30 個測試)納入 CI:每次 PR 都會起完整 Docker 全棧跑一遍;E2E 未過不發布映像。
+- E2E 迴歸套件(31 個測試)納入 CI:每次 PR 都會起完整 Docker 全棧跑一遍;E2E 未過不發布映像。
 
 ## [1.0.0] — 2026-07-12
 
@@ -86,5 +91,6 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/begin0808/Course_Scheduling_System/releases/tag/v1.0.0

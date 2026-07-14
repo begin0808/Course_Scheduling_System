@@ -88,7 +88,9 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 
 ## 專案狀態
 
-**v1.0.0 已發行(2026-07-12)。** 六大里程碑 M0–M5 全部完成,官方映像(amd64 + arm64)已發布於 GHCR。詳見 [CHANGELOG](CHANGELOG.md) 與 [docs/tasks.md](docs/tasks.md)。
+**v1.1.0 已發行(2026-07-14)。** 六大里程碑 M0–M5 全部完成,v1.1 為加固版(排課不再堵住匯出、部分排課不再整鍋失敗、班名唯一性、無障礙對比達 WCAG AA)。官方映像(amd64 + arm64)已發布於 GHCR。
+
+⚠️ **從 v1.0 升級請連 `docker-compose.yml` 一起更新**(v1.1 新增 `worker-ops` 容器)——見[升級指南](docs/deploy/upgrade.md)。詳見 [CHANGELOG](CHANGELOG.md) 與 [docs/tasks.md](docs/tasks.md)。
 
 ---
 
