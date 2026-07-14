@@ -52,9 +52,9 @@ test('部分排課:完全排不下的課列入未排清單並說明原因,發布
     teachers: [{ teacher_id: lin.id }], block_rules: [],
   })
 
-  const tt = await post(page, `/api/timetables?semester_id=${sid}`, { name: '草稿A' })
+  await post(page, `/api/timetables?semester_id=${sid}`, { name: '草稿A' })
 
-  // ── 自動排課頁:勾選部分排課 ──
+  // ── 自動排課頁:勾選部分排課(來源草稿由頁面自己選)──
   await page.goto(`/scheduling/auto?semester_id=${sid}`)
   await page.locator('.n-base-selection').first().click()
   await page.locator('.n-base-select-option', { hasText: `${YEAR} 學年度第 1 學期` }).click()
