@@ -2,7 +2,7 @@
 
 from datetime import date, time
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.period import PeriodType
 from app.models.semester import SemesterStatus
@@ -82,12 +82,23 @@ class SemesterUpdate(BaseModel):
 class SemesterCopyRequest(BaseModel):
     academic_year: int = Field(ge=100, le=200)
     term: int = Field(ge=1, le=2)
+    # 新學期的起訖日:不能沿用來源學期(那是上學期的日期)。少了它,請假展開、今日看板、
+    # 代課的「已上過」判定全部失準,而且畫面上看不出哪裡不對(M6-4)。
+    start_date: date | None = None
+    end_date: date | None = None
     period_tables: bool = True
     subjects: bool = True
     teachers: bool = True
     rooms: bool = True
     classes: bool = True
     grade_promotion: bool = True
+    constraint_config: bool = True  # 軟約束權重(不帶則新學期悄悄回到預設值)
+
+    @model_validator(mode="after")
+    def _dates_in_order(self) -> "SemesterCopyRequest":
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("學期結束日不可早於開始日")
+        return self
 
 
 class SemesterListItem(BaseModel):

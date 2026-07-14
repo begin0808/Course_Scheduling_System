@@ -76,12 +76,16 @@ export const deleteSemester = (id: number) => request<void>('DELETE', `/semester
 export interface CopyOptions {
   academic_year: number
   term: number
+  // 新學期的起訖日:少了它,請假展開與今日看板的判定會失準,且畫面上看不出哪裡不對
+  start_date: string | null
+  end_date: string | null
   period_tables: boolean
   subjects: boolean
   teachers: boolean
   rooms: boolean
   classes: boolean
   grade_promotion: boolean
+  constraint_config: boolean  // 軟約束權重(不帶則新學期回到預設值)
 }
 export const copySemester = (id: number, body: CopyOptions) =>
   apiPost<Semester>(`/semesters/${id}/copy`, body)

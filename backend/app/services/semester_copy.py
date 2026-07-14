@@ -5,6 +5,7 @@
 """
 
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from app.models.basedata import (
     Teacher,
     TeacherTimeRule,
 )
+from app.models.constraint import ConstraintConfig
 from app.models.period import Period, PeriodTable
 from app.models.semester import Semester
 
@@ -38,6 +40,9 @@ class CopyOptions:
     rooms: bool = True
     classes: bool = True
     grade_promotion: bool = True
+    # 軟約束權重(constraint_configs)。不帶的話新學期會悄悄回到預設值,
+    # 上學期調好的偏好設定就白調了(M6-4)。
+    constraint_config: bool = True
 
 
 def copy_semester(
@@ -46,11 +51,27 @@ def copy_semester(
     academic_year: int,
     term: int,
     opts: CopyOptions,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> Semester:
-    """複製 source 到新學期。呼叫端負責檢查目標學年學期未重複、並 commit。"""
-    new = Semester(academic_year=academic_year, term=term)
+    """複製 source 到新學期。呼叫端負責檢查目標學年學期未重複、並 commit。
+
+    起訖日必須明確給:它不能沿用來源學期(那是上學期的日期),但少了它,請假展開、
+    今日看板、代課的「已上過」判定全部失準——而且畫面上看不出哪裡不對(M6-4)。
+    """
+    new = Semester(
+        academic_year=academic_year, term=term,
+        start_date=start_date, end_date=end_date,
+    )
     db.add(new)
     db.flush()
+
+    if opts.constraint_config:
+        for cc in db.scalars(
+            select(ConstraintConfig).where(ConstraintConfig.semester_id == source.id)
+        ):
+            db.add(ConstraintConfig(semester_id=new.id, key=cc.key, value=cc.value))
 
     table_map: dict[int, int] = {}
     if opts.period_tables:

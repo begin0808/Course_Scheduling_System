@@ -564,13 +564,15 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
   - **順手修**:`check_feasibility` 吞掉 `SolverInputError` 訊息 → 改為記 log(不記的話,未來任何建模 bug 都會偽裝成「這份資料無解」)。Backlog 該項結案。
 - **驗證**:pytest **468**(+5,`tests/solver/test_partial_hardening.py`)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;遷移 0016 對真 PostgreSQL upgrade→downgrade→upgrade 全過;e2e **31/31**(新增 `partial-unscheduled.spec.ts`),**截圖目視確認**自排頁未排表列出「美術 · 找不到任何可排的 1 連堂時段」、版本頁發布警告的「原因」欄同樣顯示該句,且 force 發布後 `completeness` 仍查得到。
 
-### [ ] M6-4 開新學期複製補全(起訖日 + constraint_config)
+### [x] M6-4 開新學期複製補全(起訖日 + constraint_config)
 - **描述**:`semester_copy.py` 不帶學期起訖日與 `constraint_config`(軟約束權重回預設),新學期忘補起訖日會讓「今日」判定全錯。複製對話框加起訖日欄位(必填,預設帶「上學期 +半年」推算值);`constraint_config` 隨複製帶過去。
 - **驗收標準**:
   1. 複製後新學期有正確起訖日與相同軟約束權重(真 PG 實測)
   2. 前端對話框有起訖日欄位與預設值
   3. e2e copy-semester spec 擴充驗證
 - **測試方式**:pytest + e2e
+- **實作後(2026-07-14)**:`SemesterCopyRequest` 加 `start_date`/`end_date`(pydantic 驗證結束不早於開始 → 422)與 `constraint_config: bool = True`;`copy_semester()` 以 keyword-only 收起訖日,並複製 `constraint_configs` 各列。**起訖日刻意不沿用來源**(那是上學期的日期),由呼叫端明確給。前端複製對話框新增起訖日 date-picker,預設值為**來源學期往後推半年**(`halfYearLater()`),並在下方提示「請確認實際校曆後修改」;起訖日未填時「建立新學期」停用(漏填不會報錯,但請假展開、今日看板、代課「已上過」判定會整個算錯,而畫面上看不出來)。複製項目多一個「排課偏好設定」勾選——先前新學期會**悄悄**回到預設權重,上學期調好的偏好就白調了。
+- **驗證**:pytest **472**(+4:起訖日寫入、顛倒日期 422、偏好跟著複製、明確不勾選時回預設)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build/vitest 綠;e2e **31/31**(`copy-semester.spec.ts` 擴充為驗起訖日預設值 +6 個月、實際寫入、偏好設定跟著走),**截圖目視確認**對話框帶出「2027-03-01 ~ 2027-07-20」。**真 PostgreSQL 實測**:來源設 cap=4/S2=55/S5=30 → 複製後新學期起訖 2027-02-15~2027-06-30、偏好完全一致;顛倒日期回 422。
 
 ### [ ] M6-5 小型加固批次(六小項)
 - **描述**:一次出貨六個 S 級項目——①班級名稱加 `uq(semester_id, name)`(遷移前先清重複,API 撞名回 409);②`/api/docs`/`openapi.json` 預設關閉,`.env` 顯式開啟(`API_DOCS_ENABLED`,dev compose 帶開);③主題主色調深至白字對比 ≥4.5:1(不動整體設計),`a11y.spec.ts` 按鈕門檻提到 4.5 並移除「未達 AA」註記;④衝突定位把 `should_stop` 傳進 `conflict_explainer` 逐步試解迴圈,按取消得 cancelled;~~⑤`check_feasibility` 的 `SolverInputError` 訊息記 log~~(**M6-3 已修,本卡不必再做**);⑥`substitution-log`/`leaves` 等清單查詢加伺服器端上限(如 limit≤1000,完整分頁留 v1.2)。
@@ -614,11 +616,11 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - ~~前端 CI 用 `npm install`(未提交 package-lock.json)~~ **描述已過時,順手處理(2026-07-13)**:lock 檔其實早已入庫;CI 的 frontend 與 e2e job 改用 `npm ci` + npm 快取(以 `npm ci --dry-run` 驗證 lock 與 package.json 同步)。
 - ~~`docker compose up` 端到端煙霧測試尚未納入 CI~~ **已由 e2e job 涵蓋(2026-07-13)**:e2e job 即為「compose 起全棧 + healthcheck + 真實使用者流程」的煙霧測試超集。
 - **LINE 通知 adapter(v2)**:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(`teachers.line_id` 為人工聯絡用,不能直接推播)。實作為 `NotificationChannel` 的一個 adapter。
-- 開新學期複製目前不帶學期起訖日,新學期需手動補填;可於複製對話框加起訖日欄位。
+- ~~開新學期複製目前不帶學期起訖日~~ **已於 M6-4 修畢(2026-07-14)**:複製對話框加起訖日欄位(必填,預設帶來源 +半年)。
 - 班級名稱同學期無唯一性約束(可建兩個「301」);可加 uq(semester_id, name)。
 - **跑班群組內配課的 `periods_per_week` 未強制一致**(M3-0 發現):群組是「同時段開課」,`placements_for` 一次放入全部成員配課,節數不一致時較短的一筆會先被 H8 週節數守恆擋下,語意曖昧。`class_loads` 已取群組內最長者計算班級佔用;M3-2 的 pre-flight 已加 `group_shape_mismatch` 錯誤、建模則直接拒絕。仍建議在配課建立/修改的 API 就擋下(409),讓使用者當場知道。
 - **映像因 ortools 膨脹到 660MB**(M3-2):ortools 連帶拉進 numpy/pandas/protobuf。實際只有 worker 容器需要排課引擎,api 容器不需要。可拆成兩個映像(共用 base + worker 額外裝 ortools),或改用 `ortools` 的精簡發行版。部署頻寬敏感時再處理。
-- **開新學期複製不帶 `constraint_config`**(M3-3):新學期的軟約束權重會回到預設值。複製精靈可加勾選項。
+- ~~**開新學期複製不帶 `constraint_config`**(M3-3)~~ **已於 M6-4 修畢**:複製對話框加「排課偏好設定」勾選(預設帶)。
 - **軟約束權重設定 UI**(M3-3,v2):目前只有 `GET/PUT /api/solver/config`,沒有畫面。等 M3-4 的自動排課頁上線後,把權重滑桿放在該頁的「進階設定」摺疊區。
 - **科目 Excel 匯入沒有「主科」欄**(M3-3):`subjects.is_major` 只能在科目表單勾選。匯入範本可加一個選填欄。
 - **一門課整學期固定一間教室**(M3-2 建模選擇):`y[配課, 教室]` 是每筆配課一個變數,而非逐格挑教室。符合實務(課表上一門課就在一間教室),變數量也小得多。若日後需要「同一門課不同節在不同教室」,改為 `y[配課, 節次, 教室]` 即可,約束式不變。

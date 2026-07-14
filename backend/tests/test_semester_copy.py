@@ -121,3 +121,52 @@ def test_copy_to_existing_target_409(populated):
     client, sid = populated
     assert _copy(client, sid, grade_promotion=False).status_code == 201
     assert _copy(client, sid, grade_promotion=False).status_code == 409  # 116/1 已存在
+
+
+# ── M6-4:起訖日與排課偏好設定要跟著複製 ─────────────────────
+def test_copy_carries_the_new_semester_dates(populated):
+    """新學期的起訖日由呼叫端明確給(不能沿用來源:那是上學期的日期)。
+
+    漏了它,請假展開、今日看板、代課的「已上過」判定全部失準,而且畫面上看不出哪裡不對。
+    """
+    client, sid = populated
+    r = _copy(client, sid, grade_promotion=False,
+              start_date="2027-02-01", end_date="2027-06-30")
+    assert r.status_code == 201
+    new = r.json()
+    assert new["start_date"] == "2027-02-01"
+    assert new["end_date"] == "2027-06-30"
+
+
+def test_copy_rejects_reversed_dates(populated):
+    client, sid = populated
+    r = _copy(client, sid, grade_promotion=False,
+              start_date="2027-06-30", end_date="2027-02-01")
+    assert r.status_code == 422
+
+
+def test_copy_carries_the_constraint_config(populated):
+    """軟約束權重跟著走:不帶的話新學期悄悄回到預設值,上學期調好的偏好就白調了。"""
+    client, sid = populated
+    client.put(f"/api/solver/config?semester_id={sid}",
+               json={"daily_subject_cap": 3, "weights": {"S2": 40}})
+    source_cfg = client.get(f"/api/solver/config?semester_id={sid}").json()
+
+    nid = _copy(client, sid, grade_promotion=False).json()["id"]
+    new_cfg = client.get(f"/api/solver/config?semester_id={nid}").json()
+
+    assert new_cfg["daily_subject_cap"] == 3
+    assert new_cfg["weights"]["S2"] == 40
+    assert new_cfg["weights"] == source_cfg["weights"]
+
+
+def test_copy_can_skip_the_constraint_config(populated):
+    """明確不勾選時,新學期回到預設值(而不是靜默地總是如此)。"""
+    client, sid = populated
+    client.put(f"/api/solver/config?semester_id={sid}",
+               json={"daily_subject_cap": 3, "weights": {"S2": 40}})
+
+    nid = _copy(client, sid, grade_promotion=False, constraint_config=False).json()["id"]
+    cfg = client.get(f"/api/solver/config?semester_id={nid}").json()
+    assert cfg["daily_subject_cap"] == 2  # 預設值
+    assert cfg["weights"]["S2"] != 40

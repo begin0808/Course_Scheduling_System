@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  NButton, NCard, NCheckbox, NDivider, NEmpty, NInputNumber, NModal, NPopconfirm,
-  NSelect, NSpace, NSwitch, NTag, NText, useMessage,
+  NButton, NCard, NCheckbox, NDatePicker, NDivider, NEmpty, NInputNumber, NModal,
+  NPopconfirm, NSelect, NSpace, NSwitch, NTag, NText, useMessage,
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -10,7 +10,7 @@ import {
   STATUS_LABELS, copySemester, createPeriodTable, createSemester, deletePeriodTable,
   deleteSemester, listSemesters, listTemplates,
 } from '@/api/semesters'
-import type { SemesterListItem, Semester, Template } from '@/api/semesters'
+import type { CopyOptions, SemesterListItem, Semester, Template } from '@/api/semesters'
 import { getSemester } from '@/api/semesters'
 
 const message = useMessage()
@@ -110,18 +110,33 @@ function editTable(id: number) {
 // 複製到新學期
 const showCopy = ref(false)
 const copySource = ref<Semester | null>(null)
-const copyForm = ref({
+
+/** 來源日期往後推半年,作為新學期的預設值(使用者仍須依實際校曆確認)。 */
+function halfYearLater(day: string | null): string | null {
+  if (!day) return null
+  const d = new Date(day)
+  d.setMonth(d.getMonth() + 6)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+const emptyCopyForm = (): CopyOptions => ({
   academic_year: 115, term: 1,
+  start_date: null, end_date: null,
   period_tables: true, subjects: true, teachers: true, rooms: true, classes: true,
-  grade_promotion: true,
+  grade_promotion: true, constraint_config: true,
 })
+const copyForm = ref<CopyOptions>(emptyCopyForm())
 
 function openCopy(sem: Semester) {
   copySource.value = sem
   copyForm.value = {
-    academic_year: sem.academic_year + 1, term: sem.term,
-    period_tables: true, subjects: true, teachers: true, rooms: true, classes: true,
-    grade_promotion: true,
+    ...emptyCopyForm(),
+    academic_year: sem.academic_year + 1,
+    term: sem.term,
+    // 起訖日不可沿用來源(那是上學期的日期);往後推半年帶個起點,讓組長改而不是從零填
+    start_date: halfYearLater(sem.start_date),
+    end_date: halfYearLater(sem.end_date),
   }
   showCopy.value = true
 }
@@ -254,6 +269,22 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
           <n-input-number v-model:value="copyForm.academic_year" :min="100" :max="200" style="width: 120px" />
           <n-select v-model:value="copyForm.term" :options="termOptions" style="width: 130px" />
         </n-space>
+        <!-- 起訖日必填:請假展開、今日看板、代課的「已上過」判定都吃它,漏填不會報錯但整個算錯 -->
+        <n-space align="center">
+          <n-text>學期起訖</n-text>
+          <n-date-picker
+            v-model:formatted-value="copyForm.start_date" value-format="yyyy-MM-dd"
+            type="date" data-testid="copy-start" style="width: 150px"
+          />
+          <n-text>~</n-text>
+          <n-date-picker
+            v-model:formatted-value="copyForm.end_date" value-format="yyyy-MM-dd"
+            type="date" data-testid="copy-end" style="width: 150px"
+          />
+        </n-space>
+        <n-text depth="3" style="font-size: 12px">
+          已依來源學期往後推半年帶入預設值,請確認實際校曆後修改。
+        </n-text>
         <n-text strong>複製項目</n-text>
         <n-space>
           <n-checkbox v-model:checked="copyForm.period_tables">節次表</n-checkbox>
@@ -261,12 +292,20 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
           <n-checkbox v-model:checked="copyForm.teachers">教師</n-checkbox>
           <n-checkbox v-model:checked="copyForm.rooms">場地</n-checkbox>
           <n-checkbox v-model:checked="copyForm.classes">班級</n-checkbox>
+          <n-checkbox v-model:checked="copyForm.constraint_config" data-testid="copy-config">
+            排課偏好設定
+          </n-checkbox>
         </n-space>
         <n-space align="center">
           <n-switch v-model:value="copyForm.grade_promotion" />
           <n-text>班級年級自動進位(畢業年級不複製)</n-text>
         </n-space>
-        <n-button type="primary" data-testid="copy-confirm" @click="onCopy">建立新學期</n-button>
+        <n-button
+          type="primary" data-testid="copy-confirm"
+          :disabled="!copyForm.start_date || !copyForm.end_date" @click="onCopy"
+        >
+          建立新學期
+        </n-button>
       </n-space>
     </n-modal>
   </n-space>

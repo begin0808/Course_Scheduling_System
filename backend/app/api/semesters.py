@@ -145,8 +145,12 @@ def copy_to_new_semester(
         rooms=body.rooms,
         classes=body.classes,
         grade_promotion=body.grade_promotion,
+        constraint_config=body.constraint_config,
     )
-    new = copy_semester(db, source, body.academic_year, body.term, opts)
+    new = copy_semester(
+        db, source, body.academic_year, body.term, opts,
+        start_date=body.start_date, end_date=body.end_date,
+    )
     db.commit()
     db.refresh(new)
     return new
