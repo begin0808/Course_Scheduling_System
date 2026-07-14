@@ -88,10 +88,12 @@ class RelaxableOption(BaseModel):
 
 
 class UnscheduledCourseOut(BaseModel):
-    assignment_id: int
+    # 一筆 = 一個排課單位(跑班群組含多筆成員配課;未排節數只算一次,見 M6-3)
+    assignment_ids: list[int] = []
     subject_name: str
     class_names: list[str] = []
     periods: int
+    reason: str = ""  # 完全排不下的原因;solver 自行取捨掉的則為空
 
 
 # ── 自動排課任務(M3-4)────────────────

@@ -63,10 +63,12 @@ export interface ConflictReport {
 }
 
 export interface UnscheduledCourse {
-  assignment_id: number
+  // 一筆 = 一個排課單位(跑班群組含多筆成員配課),未排節數只算一次
+  assignment_ids: number[]
   subject_name: string
   class_names: string[]
   periods: number
+  reason: string  // 完全排不下的原因;solver 自行取捨掉的則為空字串
 }
 
 export interface RelaxableOption {

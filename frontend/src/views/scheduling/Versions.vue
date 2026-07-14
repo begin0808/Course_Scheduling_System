@@ -195,13 +195,17 @@ async function onCheck(t: TimetableBrief) {
           仍可強制發布,未排課務將不出現在課表上。
         </n-alert>
         <table class="data-table" data-testid="v-unplaced">
-          <thead><tr><th>班級</th><th>科目</th><th>教師</th><th>未排節數</th></tr></thead>
+          <thead>
+            <tr><th>班級</th><th>科目</th><th>教師</th><th>未排節數</th><th>原因</th></tr>
+          </thead>
           <tbody>
             <tr v-for="u in report?.unplaced ?? []" :key="u.course_assignment_id">
               <td>{{ u.classes.join('、') }}</td>
               <td>{{ u.subject }}</td>
               <td>{{ u.teachers.join('、') }}</td>
               <td><n-text type="error">{{ u.remaining }}</n-text> / {{ u.required }}</td>
+              <!-- 自動排課留下的原因(手動未排完則無);草稿發布後仍查得到 -->
+              <td>{{ u.reason || '—' }}</td>
             </tr>
           </tbody>
         </table>

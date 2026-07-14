@@ -143,7 +143,8 @@ def execute(
         return
 
     new = write_result(db, source, result.entries, user_id, username, result.objective,
-                       partial=allow_partial, unplaced=result.unplaced_periods)
+                       partial=allow_partial, unplaced=result.unplaced_periods,
+                       unscheduled=result.unscheduled)
     rep = soft_report.evaluate(problem, result.entries, config)
     db.commit()
 
@@ -221,7 +222,11 @@ def _serialize_conflict(rep: conflict_explainer.ConflictReport) -> dict:
 
 
 def _serialize_unscheduled(u: UnscheduledCourse) -> dict:
-    return {**asdict(u), "class_names": list(u.class_names)}
+    return {
+        **asdict(u),
+        "assignment_ids": list(u.assignment_ids),
+        "class_names": list(u.class_names),
+    }
 
 
 def _serialize_report(rep: soft_report.SoftReport) -> dict:
@@ -257,12 +262,18 @@ def write_result(
     *,
     partial: bool = False,
     unplaced: int = 0,
+    unscheduled: tuple[UnscheduledCourse, ...] = (),
 ) -> Timetable:
-    """把求解結果寫成新草稿。來源草稿不動。呼叫端負責 commit。"""
+    """把求解結果寫成新草稿。來源草稿不動。呼叫端負責 commit。
+
+    未排清單隨草稿存進 DB(M6-3):它先前只活在 Redis 24h,草稿一旦被 force 發布,
+    solver 講的「為什麼排不下」就永遠遺失。
+    """
     suffix = PARTIAL_SUFFIX if partial else RESULT_SUFFIX
     name = _unique_name(db, source.semester_id, f"{source.name} {suffix}")
     new = Timetable(
-        semester_id=source.semester_id, name=name, status=TimetableStatus.draft.value
+        semester_id=source.semester_id, name=name, status=TimetableStatus.draft.value,
+        unscheduled=[_serialize_unscheduled(u) for u in unscheduled] or None,
     )
     db.add(new)
     db.flush()

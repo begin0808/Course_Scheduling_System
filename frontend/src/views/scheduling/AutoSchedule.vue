@@ -355,13 +355,15 @@ function openResult() {
           >
             <table class="data-table">
               <thead>
-                <tr><th>科目</th><th>班級</th><th>未排節數</th></tr>
+                <tr><th>科目</th><th>班級</th><th>未排節數</th><th>原因</th></tr>
               </thead>
               <tbody>
-                <tr v-for="u in unscheduled" :key="u.assignment_id">
+                <tr v-for="u in unscheduled" :key="u.assignment_ids.join('-')">
                   <td>{{ u.subject_name }}</td>
                   <td>{{ u.class_names.join('、') }}</td>
                   <td>{{ u.periods }} 節</td>
+                  <!-- 完全排不下的課會說明原因;其餘是 solver 權衡後的取捨 -->
+                  <td>{{ u.reason || '排課時權衡取捨' }}</td>
                 </tr>
               </tbody>
             </table>

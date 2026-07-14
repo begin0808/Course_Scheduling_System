@@ -549,7 +549,7 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - **品質門檻**:pytest 463(+11,`test_queue_split.py`)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;`docker compose config` 與 limits 疊加皆通過。
 - **文件**:`docs/architecture.md` 新增 **D9 佇列分工**(含容器圖改繪)、`deploy/README`、`install`、`upgrade`(**顯著警語:v1.1 多一個容器,只換映像不換 compose 會讓匯出/備份/寄信全部逾時失敗**)、`faq`(新增「匯出一直失敗怎麼查」)、`README`、`CONTRIBUTING`(新增背景任務該走哪條佇列的準則)。
 
-### [ ] M6-3 部分排課三合一(排不下的課不再炸整鍋)
+### [x] M6-3 部分排課三合一(排不下的課不再炸整鍋)
 - **描述**:(a) `model_builder` 對候選為空的課直接 raise `SolverInputError`,整個部分排課失敗——改為部分排課模式下建模前把該課移入未排清單,其餘正常;非部分排課維持 raise(訊息要進 log,順手修 Backlog「check_feasibility 吞訊息」)。(b) 未排清單目前只活在 Redis 24h(`progress.py` TTL),草稿可被 force 發布後就沒有任何紀錄——改為隨結果草稿持久化(建議 timetables 加 JSON 欄或子表,Alembic 遷移),版本頁與發布警告都改讀持久來源。(c) `_unscheduled()` 按 assignment 逐筆記,跑班群組掉一格記 N 筆——按排課單位去重,「未排 N 節」不再灌水。
 - **驗收標準**:
   1. 一門完全被擋死的課(如未放寬 H4 的協同教學)→ 部分排課成功,該課列未排清單並註明原因
@@ -557,6 +557,12 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
   3. 跑班群組掉 1 格只記 1 筆(單元測試)
   4. validator 全套與既有 solver 測試不退步
 - **測試方式**:pytest(solver + API)+ 真 PostgreSQL 實測 + e2e auto-schedule spec 擴充
+- **實作後(2026-07-14)**:
+  - **(a) 完全排不下的課不再炸整鍋**:`_make_lesson_vars` 對候選為空的 lesson,**只在部分排課模式下**改為 `_force_drop()`(建一個恆為 1 的 drop 變數,不建 x/pos 變數),列入未排清單並帶上原因;一般模式維持 raise。部分排課的承諾就是「排不下的列清單、其他照排」,先前卻在最需要它的時候整鍋失敗。
+  - **(b) 未排清單持久化**:`timetables.unscheduled` JSONB(遷移 0016,真 PG 驗過 upgrade/downgrade 可逆),由 `write_result` 隨結果草稿寫入。**但 Backlog 的描述與現況不符,已據實修正**:「哪些課沒排」其實一直查得到——`completeness()` 從 DB 重算(配課應排節數 vs 已排格位),對草稿與已發布課表皆可,不依賴 Redis。真正只活在 Redis 24h 的是**排不下的原因**(只有建模當下的 solver 知道)。故設計為:未排清單仍以 DB 推導為唯一真相(連手動改過的課表都算得對),持久化的 solver 紀錄只補上「為什麼」——`completeness()` 的每筆 `unplaced` 多一個 `reason` 欄。
+  - **(c) 跑班群組不灌水**:`extract()` 的未排節數改以**排課單位**計數(先前按 assignment 逐筆記)。順帶發現群組的 `subject_name` 只印第一門選修會誤導(一個群組是「多門選修同時段開」),改為列出所有科目(「選修A、選修B」)。
+  - **順手修**:`check_feasibility` 吞掉 `SolverInputError` 訊息 → 改為記 log(不記的話,未來任何建模 bug 都會偽裝成「這份資料無解」)。Backlog 該項結案。
+- **驗證**:pytest **468**(+5,`tests/solver/test_partial_hardening.py`)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;遷移 0016 對真 PostgreSQL upgrade→downgrade→upgrade 全過;e2e **31/31**(新增 `partial-unscheduled.spec.ts`),**截圖目視確認**自排頁未排表列出「美術 · 找不到任何可排的 1 連堂時段」、版本頁發布警告的「原因」欄同樣顯示該句,且 force 發布後 `completeness` 仍查得到。
 
 ### [ ] M6-4 開新學期複製補全(起訖日 + constraint_config)
 - **描述**:`semester_copy.py` 不帶學期起訖日與 `constraint_config`(軟約束權重回預設),新學期忘補起訖日會讓「今日」判定全錯。複製對話框加起訖日欄位(必填,預設帶「上學期 +半年」推算值);`constraint_config` 隨複製帶過去。
@@ -567,7 +573,7 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - **測試方式**:pytest + e2e
 
 ### [ ] M6-5 小型加固批次(六小項)
-- **描述**:一次出貨六個 S 級項目——①班級名稱加 `uq(semester_id, name)`(遷移前先清重複,API 撞名回 409);②`/api/docs`/`openapi.json` 預設關閉,`.env` 顯式開啟(`API_DOCS_ENABLED`,dev compose 帶開);③主題主色調深至白字對比 ≥4.5:1(不動整體設計),`a11y.spec.ts` 按鈕門檻提到 4.5 並移除「未達 AA」註記;④衝突定位把 `should_stop` 傳進 `conflict_explainer` 逐步試解迴圈,按取消得 cancelled;⑤`check_feasibility` 的 `SolverInputError` 訊息記 log(若 M6-3 已修則勾銷);⑥`substitution-log`/`leaves` 等清單查詢加伺服器端上限(如 limit≤1000,完整分頁留 v1.2)。
+- **描述**:一次出貨六個 S 級項目——①班級名稱加 `uq(semester_id, name)`(遷移前先清重複,API 撞名回 409);②`/api/docs`/`openapi.json` 預設關閉,`.env` 顯式開啟(`API_DOCS_ENABLED`,dev compose 帶開);③主題主色調深至白字對比 ≥4.5:1(不動整體設計),`a11y.spec.ts` 按鈕門檻提到 4.5 並移除「未達 AA」註記;④衝突定位把 `should_stop` 傳進 `conflict_explainer` 逐步試解迴圈,按取消得 cancelled;~~⑤`check_feasibility` 的 `SolverInputError` 訊息記 log~~(**M6-3 已修,本卡不必再做**);⑥`substitution-log`/`leaves` 等清單查詢加伺服器端上限(如 limit≤1000,完整分頁留 v1.2)。
 - **驗收標準**:逐項——重複班名 409 且遷移可從有重複資料的庫升級;正式 compose 下 `/api/docs` 404、設定開啟後可用;a11y 測試以 4.5 門檻綠;定位中按取消 ≤數秒內回 cancelled;清單超限回截斷結果與提示
 - **測試方式**:pytest(每項至少一測)+ e2e(a11y、取消路徑)+ 真 PG 遷移實測
 
@@ -617,12 +623,12 @@ CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍
 - **科目 Excel 匯入沒有「主科」欄**(M3-3):`subjects.is_major` 只能在科目表單勾選。匯入範本可加一個選填欄。
 - **一門課整學期固定一間教室**(M3-2 建模選擇):`y[配課, 教室]` 是每筆配課一個變數,而非逐格挑教室。符合實務(課表上一門課就在一間教室),變數量也小得多。若日後需要「同一門課不同節在不同教室」,改為 `y[配課, 節次, 教室]` 即可,約束式不變。
 - `teacher_time_rule` 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。
-- 【Fable 5 審查】部分排課宣稱「永遠有解」,但 `_make_lesson_vars` 在候選為空時先 raise 才輪到 drop:完全被擋死的課(如未放寬 H4 的協同教學)會讓整個部分排課失敗,而非列入未排清單。
-- 【Fable 5 審查】跑班群組在部分排課掉一格時,`extract` 對每筆成員配課各記一次未排,「未排 N 節」會灌水數倍。
+- ~~【Fable 5 審查】部分排課宣稱「永遠有解」,但 `_make_lesson_vars` 在候選為空時先 raise~~ **已於 M6-3 修畢(2026-07-14)**:部分排課模式改為 `_force_drop` 列入未排清單並註明原因;一般模式維持 raise。
+- ~~【Fable 5 審查】跑班群組在部分排課掉一格時,「未排 N 節」會灌水數倍~~ **已於 M6-3 修畢**:未排節數改以排課單位計數。
 - 【Fable 5 審查】衝突定位期間(最長 60 秒)不檢查 `should_stop`,使用者按「取消」無效,最後得到 failed 而非 cancelled。
 - 【Fable 5 審查】`check_feasibility` 吞掉 `SolverInputError` 的訊息:未來任何建模 bug 都會偽裝成「資料無解」。至少把原始訊息記入 log / conflict detail。
 - 【Fable 5 審查】`test_purity.py` 只收 `level == 0` 的 import,相對匯入(`from ..models import ...`)可完全繞過純度掃描。
-- 【Fable 5 審查】未排清單只活在 Redis(24h TTL);部分排課草稿可被 force 發布,之後沒有任何持久紀錄說哪些課沒排。M5 報表會需要它。
+- ~~【Fable 5 審查】未排清單只活在 Redis(24h TTL)~~ **已於 M6-3 處理,但敘述須更正(2026-07-14)**:「哪些課沒排」其實一直查得到——`completeness()` 從 DB 重算,對草稿與已發布課表皆可。真正會遺失的是**排不下的原因**(只有 solver 知道),已隨草稿存進 `timetables.unscheduled`(遷移 0016)並在完整性報告中呈現。
 - 【Fable 5 審查】「validator/report 與 model_builder 零共用程式碼」嚴格說不成立:三者共用 `problem.py` 的 `slots_overlap`(D7 判定)與 `course_key`(排課單位語意)。獨立性涵蓋**約束編碼**,不涵蓋這兩個定義層謂詞。應為它們補直接的邊界單元測試。
 - 求解前先跑一次 hard-only 可行性探測(約 1 秒):既能提早回報「這份資料無解」,又能把該解當成正式求解的 warm start。目前是在失敗之後才探測。
 - 部分排課的 timeout 幾乎必定用滿:CP-SAT 找到最佳的「未排 2 節」很快,但要證明「不可能只少排 1 節」很慢。可考慮找到解後以未排節數為上界再收斂,或給部分排課獨立的較短預設時限。

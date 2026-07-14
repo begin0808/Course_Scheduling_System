@@ -15,8 +15,25 @@ from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import User
 
 
+def _reasons_by_assignment(timetable: Timetable) -> dict[int, str]:
+    """把該課表存下的 solver 未排原因攤成 {配課 id: 原因}(M6-3)。
+
+    「哪些配課還缺節數」一律由下方 completeness 從 DB 重算——那是唯一真相,連手動改過
+    的課表都算得對。這裡只補上 DB 推導不出來的那一半:**為什麼排不下**。
+    """
+    out: dict[int, str] = {}
+    for item in timetable.unscheduled or []:
+        reason = item.get("reason") or ""
+        if not reason:
+            continue
+        for aid in item.get("assignment_ids", []):
+            out[aid] = reason
+    return out
+
+
 def completeness(db: Session, timetable: Timetable) -> dict:
     """比對每筆配課的每週節數與已排入節數,回傳未排完清單(H8 週節數守恆的發布面檢查)。"""
+    reasons = _reasons_by_assignment(timetable)
     placed_rows = db.execute(
         select(ScheduleEntry.course_assignment_id, func.sum(ScheduleEntry.span))
         .where(ScheduleEntry.timetable_id == timetable.id)
@@ -46,6 +63,7 @@ def completeness(db: Session, timetable: Timetable) -> dict:
                 "required": a.periods_per_week,
                 "placed": placed,
                 "remaining": a.periods_per_week - placed,
+                "reason": reasons.get(a.id, ""),
             })
     return {
         "required": required,

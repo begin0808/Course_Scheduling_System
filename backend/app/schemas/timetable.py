@@ -92,6 +92,8 @@ class UnplacedItem(BaseModel):
     required: int
     placed: int
     remaining: int
+    # 自動排課當時 solver 說的「為什麼排不下」(手動未排完則為空,M6-3)
+    reason: str = ""
 
 
 class CompletenessOut(BaseModel):

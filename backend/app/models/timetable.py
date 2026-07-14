@@ -10,7 +10,8 @@ ScheduleEntry:一筆配課排入的格位(weekday × period_no,span 表連堂佔
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -33,6 +34,14 @@ class Timetable(Base):
     )
     name: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(20), default=TimetableStatus.draft.value)
+
+    # 部分排課產出時,solver 留下的未排清單(M6-3)。
+    # 「哪些配課還缺節數」可由 completeness 從 DB 重算,不必存;但**排不下的原因**只有
+    # 建模當下的 solver 知道(例:協同教學兩位教師的不可排時段蓋滿整週)。先前它只活在
+    # Redis 24h,草稿一旦 force 發布,那句話就永遠遺失了。
+    unscheduled: Mapped[list[dict] | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
