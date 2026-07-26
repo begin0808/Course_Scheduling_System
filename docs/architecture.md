@@ -173,7 +173,7 @@ erDiagram
 
 | 實體 | 說明 | 關鍵欄位 |
 |---|---|---|
-| `school` | 單校設定(單筆) | 校名、學制類型(可複選,如完全中學)、Logo、通知設定 |
+| `app_settings` | 單校全域設定 | 不隸屬任何學期,以 key/value 存放(加一個設定不該要一次遷移)。目前放 SMTP 寄信設定;校名走 `.env` 的 `SCHOOL_NAME`。**規劃階段此表原名 `school`,實作時改為 key/value**,故無「校名/Logo」等固定欄位 |
 | `semester` | 學年學期 | 學年度(如 115)、學期(1/2)、起訖日、狀態(準備中/進行中/已封存) |
 | `period_table` | 節次表 | 名稱;一學期可有多套(如高中部/國中部各一套) |
 | `period` | 節次定義 | 星期(1–5,可擴至 6)、第幾節、起訖時間、類型(一般課/早自習/午休/導師時間/固定用途) |
@@ -194,6 +194,8 @@ erDiagram
 | `notification` | 通知 | 站內+Email(v2 經 channel adapter 加 LINE/webhook);類型、收件人、已讀狀態 |
 | `user` / `user_role` | 帳號與角色 | 本地帳密(bcrypt);角色:admin / director(教務主任)/ scheduler(教學組長)/ teacher |
 | `audit_log` | 操作軌跡 | 誰在何時改了什麼(排課異動、調代課指派必記) |
+| `constraint_config` | 軟約束權重 | 每學期一組 key/value(`uq(semester_id, key)`);S1–S8 的權重與 H10 上限等可調參數。開新學期複製時可勾選一併帶走 |
+| `wizard_state` | 設定精靈進度 | 單筆(id=1):目前步驟、是否已完成。未完成時路由守衛會把組長/管理員導回精靈 |
 
 ### 2.3 關鍵設計決策
 
