@@ -102,9 +102,9 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 
 ## 專案狀態
 
-**v1.1.1 已發行(2026-07-14)。** 六大里程碑 M0–M5 全部完成,功能齊備並經完整驗收(後端 490 項單元/整合測試、32 項 Playwright 端對端測試,每次提交皆對真實 Docker 全棧跑過)。官方映像(amd64 + arm64)已發布於 GHCR。
+**v1.1.2 已發行(2026-07-14)。** 六大里程碑 M0–M5 全部完成,功能齊備並經完整驗收(後端 490 項單元/整合測試、33 項 Playwright 端對端測試涵蓋全部 20 個頁面,每次提交皆對真實 Docker 全棧跑過)。官方映像(amd64 + arm64)已發布於 GHCR。
 
-**請直接從最新版開始安裝**(見上方快速開始);`v1.1.1` 是目前建議使用的版本。各版變更見 [CHANGELOG](CHANGELOG.md),開發歷程見 [docs/tasks.md](docs/tasks.md)。
+**請直接從最新版開始安裝**(見上方快速開始);`v1.1.2` 是目前建議使用的版本。各版變更見 [CHANGELOG](CHANGELOG.md),開發歷程見 [docs/tasks.md](docs/tasks.md)。
 
 系統仍在實際校園環境試用中,若你是第一批使用者,歡迎透過 [Issues](https://github.com/begin0808/Course_Scheduling_System/issues) 回報任何問題。
 

@@ -4,13 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝最新版**(見 [README](README.md) 快速開始)。v1.0.0 與 v1.1.0 是開發過程中的里程碑版本,尚未對外推廣;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.1.2**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.1.1 是開發過程中的里程碑版本,未對外推廣;以下條目保留作為變更紀錄。
 
-## [Unreleased]
+## [1.1.2] — 2026-07-14
+
+**第一個對外推薦的版本。** 功能自 v1.0.0 起即完整,v1.1.x 三個版本專門處理「真實學校用一個學期會踩到」的問題與兩處介面缺陷。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.1.2`
 
 ### 修正
 - **首次登入設定密碼時,會同時跳出「密碼已更新」和一則紅色的「原密碼錯誤」**:送出鈕被重複觸發,同一次送出其實送了兩份請求;第二份當然失敗,因為密碼已經被第一份改掉了。密碼確實有改成功,但新使用者在**進入系統的第一個畫面**就看到紅字,會以為自己弄錯了。
-  - 這一頁先前沒有任何端對端測試覆蓋(所有測試都是走 API 改密碼,從沒有人點過這個畫面)。本版補上,並在清點過 20 個頁面的測試覆蓋後確認:**其餘頁面都有測試守著**。
+  - 這一頁先前沒有任何端對端測試覆蓋(所有測試都是走 API 改密碼,從沒有人點過這個畫面)。本版補上,並在清點過全部 20 個頁面的測試覆蓋後確認:**現在每一頁都有測試守著**。
 
 ## [1.1.1] — 2026-07-14
 
@@ -109,7 +114,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/begin0808/Course_Scheduling_System/releases/tag/v1.0.0
