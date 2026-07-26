@@ -211,11 +211,23 @@
       <h2 id="步驟-1取得設定檔">步驟 1:取得設定檔</h2>
       <h3 id="方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</h3>
       <p>只需要兩個檔案:<code>docker-compose.yml</code> 與 <code>.env</code>。建立一個空資料夾(例如 <code>scheduling</code>),放入本專案的 <code>docker-compose.yml</code>,並在同層建立 <code>.env</code>(見步驟 2)。</p>
+      <p><strong>Linux / macOS / Git Bash</strong>:</p>
       <pre><code class="language-bash">mkdir scheduling &amp;&amp; cd scheduling
       # 下載 docker-compose.yml 與 .env.example(從專案 Releases 頁或原始碼取得)
       curl -fLO https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
       curl -fL  https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/.env.example -o .env
       </code></pre>
+      <p><strong>Windows PowerShell</strong>:</p>
+      <pre><code class="language-powershell">mkdir scheduling; cd scheduling
+      $base = &quot;https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main&quot;
+      Invoke-WebRequest &quot;$base/docker-compose.yml&quot; -OutFile docker-compose.yml
+      Invoke-WebRequest &quot;$base/.env.example&quot;       -OutFile .env
+      </code></pre>
+      <blockquote>
+      <p>Windows 請照上面這段,<strong>不要照抄 bash 那段的 <code>curl</code></strong>。PowerShell 的 <code>curl</code> 是
+      <code>Invoke-WebRequest</code> 的別名,吃不懂 <code>-fLO</code> 這種參數,會直接報錯。真要用內建的
+      curl 程式必須寫全名 <code>curl.exe</code>。</p>
+      </blockquote>
       <h3 id="方式-b從原始碼建置">方式 B:從原始碼建置</h3>
       <pre><code class="language-bash">git clone https://github.com/begin0808/Course_Scheduling_System.git
       cd Course_Scheduling_System
@@ -229,8 +241,18 @@
       SECRET_KEY=改成一長串隨機字元          # 見下方產生方式,務必更換
       </code></pre>
       <p><strong>產生隨機 <code>SECRET_KEY</code></strong>(session 簽章金鑰,關係到登入安全,一定要換掉預設值):</p>
-      <pre><code class="language-bash">openssl rand -hex 32        # Linux/Mac/Git Bash
+      <pre><code class="language-bash">openssl rand -hex 32        # Linux / macOS / Git Bash
       </code></pre>
+      <p>Windows 沒有內建 <code>openssl</code>(它是隨 Git for Windows 一起裝的),在 PowerShell 改用:</p>
+      <pre><code class="language-powershell">$b = New-Object byte[] 32
+      [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+      ($b | ForEach-Object { $_.ToString('x2') }) -join ''
+      </code></pre>
+      <p>把印出來的那 64 個字元貼到 <code>SECRET_KEY=</code> 後面即可。</p>
+      <blockquote>
+      <p>沒改 <code>SECRET_KEY</code> 不會讓系統起不來——程式偵測到仍是範例值時會自動換一把隨機金鑰。
+      但那把金鑰只存在記憶體裡,<strong>容器一重啟所有人就被登出</strong>,所以還是設一個固定值為宜。</p>
+      </blockquote>
       <p>其餘設定(資料庫帳密、Redis、時區)維持預設即可。詳細每一項說明見 <code>.env.example</code> 內的註解。</p>
       <blockquote>
       <p><strong><code>.env</code> 含機密,切勿上傳到 GitHub、雲端硬碟或任何公開處。</strong> 本專案的 <code>.gitignore</code> 已排除它。</p>

@@ -39,6 +39,9 @@ docker compose pull
 docker compose up -d
 ```
 
+> **Windows 使用者**:上面是 bash 語法,PowerShell 的 `curl` 是 `Invoke-WebRequest` 的別名、
+> 吃不懂 `-fLO`。請改用[安裝指南](docs/deploy/install.md)裡的 PowerShell 版本下載指令。
+
 ### 從原始碼建置
 
 ```bash

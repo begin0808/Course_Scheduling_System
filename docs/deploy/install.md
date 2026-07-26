@@ -40,12 +40,27 @@ sudo usermod -aG docker $USER   # 讓目前使用者免 sudo 用 docker(需重�
 
 只需要兩個檔案:`docker-compose.yml` 與 `.env`。建立一個空資料夾(例如 `scheduling`),放入本專案的 `docker-compose.yml`,並在同層建立 `.env`(見步驟 2)。
 
+**Linux / macOS / Git Bash**:
+
 ```bash
 mkdir scheduling && cd scheduling
 # 下載 docker-compose.yml 與 .env.example(從專案 Releases 頁或原始碼取得)
 curl -fLO https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
 curl -fL  https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/.env.example -o .env
 ```
+
+**Windows PowerShell**:
+
+```powershell
+mkdir scheduling; cd scheduling
+$base = "https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main"
+Invoke-WebRequest "$base/docker-compose.yml" -OutFile docker-compose.yml
+Invoke-WebRequest "$base/.env.example"       -OutFile .env
+```
+
+> Windows 請照上面這段,**不要照抄 bash 那段的 `curl`**。PowerShell 的 `curl` 是
+> `Invoke-WebRequest` 的別名,吃不懂 `-fLO` 這種參數,會直接報錯。真要用內建的
+> curl 程式必須寫全名 `curl.exe`。
 
 ### 方式 B:從原始碼建置
 
@@ -70,8 +85,21 @@ SECRET_KEY=改成一長串隨機字元          # 見下方產生方式,務必�
 **產生隨機 `SECRET_KEY`**(session 簽章金鑰,關係到登入安全,一定要換掉預設值):
 
 ```bash
-openssl rand -hex 32        # Linux/Mac/Git Bash
+openssl rand -hex 32        # Linux / macOS / Git Bash
 ```
+
+Windows 沒有內建 `openssl`(它是隨 Git for Windows 一起裝的),在 PowerShell 改用:
+
+```powershell
+$b = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+($b | ForEach-Object { $_.ToString('x2') }) -join ''
+```
+
+把印出來的那 64 個字元貼到 `SECRET_KEY=` 後面即可。
+
+> 沒改 `SECRET_KEY` 不會讓系統起不來——程式偵測到仍是範例值時會自動換一把隨機金鑰。
+> 但那把金鑰只存在記憶體裡,**容器一重啟所有人就被登出**,所以還是設一個固定值為宜。
 
 其餘設定(資料庫帳密、Redis、時區)維持預設即可。詳細每一項說明見 `.env.example` 內的註解。
 
