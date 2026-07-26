@@ -12,12 +12,15 @@ jobs:
   # 三張實際存在的資料表,還留著一張從未實作的 `school`。靠人記得已經證明無效。
   # 真的與架構無關時,在 commit 訊息寫 [no-arch] 放行。
   docs-sync:
-    name: 架構文件同步檢查
+    name: 文件同步檢查
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: 比對遷移與架構文件
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -52,6 +55,14 @@ jobs:
           echo "資料庫就會錯。請補上說明後再推;若這支遷移純技術性、與架構無關,"
           echo "在 commit 訊息加上 [no-arch] 即可放行。"
           exit 1
+
+      # docs/ 下每份 .md 都有一份給離線閱讀的 .html,由 scripts/build_docs.py 產生。
+      # 只改 .md 而忘了重新產生,讀者手上的 HTML 就是舊的——那比沒有還糟。
+      # markdown 版本釘住,否則套件升版時輸出微幅變動會讓這道檢查無故轉紅。
+      - name: 文件 HTML 與 Markdown 同步檢查
+        run: |
+          pip install --quiet "markdown==3.10.2"
+          python scripts/build_docs.py --check
 
   backend:
     name: 後端 lint / type / test

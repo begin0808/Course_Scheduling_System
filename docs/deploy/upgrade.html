@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="升級指南 — 排課與調代課系統部署與維運文件">
+<title>升級指南 · 排課與調代課系統</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📗</text></svg>">
+<!-- 本檔由 scripts/build_docs.py 從 docs/deploy/upgrade.md 自動產生,請勿直接編輯。 -->
+<style>
+  :root{
+    --bg:#faf6f0; --surface:#fffdfa; --surface-2:#f4ece2; --surface-3:#ebe0d3;
+    --text:#241b14; --text-soft:#5c4c3f; --text-faint:#8d7a6a;
+    --border:#e5d8c8; --border-strong:#d3c1ad;
+    --accent:#b4531f; --accent-2:#8a3d13; --accent-soft:#fbeade; --accent-line:#e8bd99;
+    --good:#5a7d2a; --warn:#9c6008; --warn-soft:#fdefd6; --danger:#b1362b; --danger-soft:#fbe3df;
+    --info:#3d6485; --info-soft:#e9eef3;
+    --font-sans:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-serif:"Noto Serif TC","Songti TC","Source Han Serif TC",Georgia,serif;
+    --font-mono:"SF Mono","Cascadia Code","Consolas","Courier New",monospace;
+    --maxw:800px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+      --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+      --border:#3b2f25; --border-strong:#4d3e31;
+      --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+      --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+      --info:#86a9cf; --info-soft:#1c242e;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+    --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+    --border:#3b2f25; --border-strong:#4d3e31;
+    --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+    --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+    --info:#86a9cf; --info-soft:#1c242e;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);
+    line-height:1.78;font-size:16px;-webkit-font-smoothing:antialiased;letter-spacing:.01em}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+  .shell{display:grid;grid-template-columns:292px minmax(0,1fr);max-width:1240px;margin:0 auto}
+
+  /* ── sidebar ── */
+  .side{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:26px 18px 40px;
+    border-right:1px solid var(--border)}
+  .brand{display:block;margin-bottom:4px}
+  .brand .mark{font-family:var(--font-serif);font-weight:700;font-size:1.1rem;color:var(--accent);
+    display:block}
+  .brand .sub{font-size:.7rem;color:var(--text-faint);letter-spacing:.14em}
+  .side .grp{margin-top:20px;font-size:.7rem;letter-spacing:.16em;color:var(--text-faint);
+    text-transform:uppercase;font-family:var(--font-mono);padding:0 8px 6px}
+  .side nav{display:flex;flex-direction:column;gap:1px}
+  .side nav a{display:block;padding:6px 10px;border-radius:7px;color:var(--text-soft);
+    font-size:.88rem;transition:background .15s,color .15s}
+  .side nav a:hover{background:var(--surface-2);text-decoration:none;color:var(--text)}
+  .side nav a.here{background:var(--accent-soft);color:var(--accent-2);font-weight:600}
+  .side nav a .dev{font-size:.66rem;color:var(--text-faint);font-family:var(--font-mono);
+    margin-left:6px;letter-spacing:.04em}
+
+  /* 本頁目錄 */
+  .side .toc{margin-top:6px;display:flex;flex-direction:column;gap:0;
+    border-left:1px solid var(--border);padding-left:2px}
+  .side .toc a{font-size:.82rem;padding:4px 10px;color:var(--text-soft);border-radius:0 6px 6px 0}
+  .side .toc a.lv3{padding-left:24px;font-size:.78rem;color:var(--text-faint)}
+  .side .toc a:hover{background:var(--surface-2);color:var(--text);text-decoration:none}
+  .side .toc a.on{color:var(--accent-2);font-weight:600;box-shadow:inset 2px 0 0 var(--accent)}
+
+  .theme-btn{margin-top:22px;width:100%;padding:8px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text-soft);border-radius:8px;cursor:pointer;
+    font-size:.8rem;font-family:var(--font-sans)}
+  .theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ── main ── */
+  main{padding:0 clamp(20px,5vw,60px) 110px;min-width:0}
+  .wrap{max-width:var(--maxw);margin:0 auto}
+
+  .head{padding:52px 0 22px;border-bottom:1px solid var(--border);margin-bottom:8px}
+  .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:14px}
+  h1{font-family:var(--font-serif);font-weight:700;font-size:clamp(1.8rem,4.4vw,2.5rem);line-height:1.22;
+    margin:0;text-wrap:balance;letter-spacing:.01em}
+  .src{margin-top:16px;font-size:.78rem;color:var(--text-faint)}
+  .src code{font-size:.9em}
+
+  h2{font-family:var(--font-serif);font-size:1.55rem;font-weight:700;margin:52px 0 12px;line-height:1.3;
+    padding-bottom:8px;border-bottom:1px solid var(--border);text-wrap:balance;scroll-margin-top:16px}
+  h3{font-size:1.12rem;font-weight:700;margin:34px 0 10px;letter-spacing:.01em;
+    padding-left:12px;border-left:3px solid var(--accent);scroll-margin-top:16px}
+  h4{font-size:1rem;font-weight:700;margin:24px 0 8px;color:var(--text);scroll-margin-top:16px}
+  p{margin:14px 0}
+  strong{font-weight:700;color:var(--text)}
+  ul,ol{margin:14px 0;padding-left:1.4em}
+  li{margin:6px 0}
+  li > ul,li > ol{margin:6px 0}
+  hr{border:none;border-top:1px solid var(--border);margin:34px 0}
+
+  code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);
+    padding:2px 6px;border-radius:5px;color:var(--accent-2);word-break:break-word}
+  pre{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;overflow-x:auto;margin:18px 0;line-height:1.6}
+  pre code{background:none;padding:0;color:var(--text);font-size:.85rem;white-space:pre}
+
+  blockquote{margin:20px 0;padding:12px 18px;border:1px solid var(--border);border-left:4px solid var(--accent);
+    border-radius:10px;background:var(--accent-soft);color:var(--text-soft);font-size:.95rem}
+  blockquote p{margin:6px 0}
+  blockquote strong{color:var(--accent-2)}
+
+  .tw{overflow-x:auto;margin:20px 0;border:1px solid var(--border);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:440px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  thead th{background:var(--surface-2);font-weight:700;font-size:.8rem;letter-spacing:.03em;
+    color:var(--text-soft);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td code{white-space:nowrap}
+
+  /* tasks.md 的任務卡核取方塊 */
+  .tick{display:inline-block;width:1.15em;margin-right:.35em;font-family:var(--font-mono);font-weight:700}
+  .tick.done{color:var(--good)}
+  .tick.wip{color:var(--warn)}
+  .tick.todo{color:var(--text-faint)}
+
+  .foot{margin-top:70px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-faint);
+    font-size:.83rem}
+  .foot a{color:var(--text-soft)}
+
+  .navtoggle{display:none}
+  @media (max-width:960px){
+    .shell{grid-template-columns:1fr}
+    .side{position:fixed;z-index:40;top:0;left:0;width:284px;transform:translateX(-100%);
+      transition:transform .22s ease;background:var(--surface);height:100vh}
+    .side.open{transform:none;box-shadow:0 0 40px rgba(0,0,0,.34)}
+    .navtoggle{display:flex;position:fixed;z-index:50;top:14px;left:14px;gap:8px;align-items:center;
+      background:var(--surface);border:1px solid var(--border-strong);border-radius:9px;padding:8px 13px;
+      cursor:pointer;font-family:var(--font-sans);color:var(--text);font-size:.85rem;font-weight:600}
+    .scrim{display:none;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.45)}
+    .scrim.on{display:block}
+    .head{padding-top:56px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+  @media print{.side,.navtoggle,.scrim{display:none}.shell{grid-template-columns:1fr}
+    main{padding:0}pre,blockquote,.tw{break-inside:avoid}}
+  html{scroll-behavior:smooth}
+</style>
+</head>
+<body>
+<button class="navtoggle" id="navToggle" aria-label="開啟目錄">☰ 目錄</button>
+<div class="scrim" id="scrim"></div>
+<div class="shell">
+  <aside class="side" id="side">
+<a class="brand" href="../index.html"><span class="mark">排課與調代課系統</span><span class="sub">文件</span></a>
+<div class="grp">給使用者</div><nav>
+<a href="../index.html">教學組長操作手冊</a>
+</nav>
+<div class="grp">部署與維運手冊</div><nav>
+<a class="doc" href="README.html">總覽:從哪開始</a>
+<a class="doc" href="install.html">安裝指南</a>
+<a class="doc here" href="upgrade.html">升級指南</a>
+<a class="doc" href="backup.html">備份與還原</a>
+<a class="doc" href="https.html">網域與 HTTPS</a>
+<a class="doc" href="faq.html">常見問題 FAQ</a>
+</nav>
+<div class="grp">專案技術文件</div><nav>
+<a class="doc" href="../architecture.html">架構設計<span class="dev">開發用</span></a>
+<a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
+<a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
+</nav>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#回滾升級後想退回舊版">回滾(升級後想退回舊版)</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+    <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
+  </aside>
+  <main>
+    <div class="wrap">
+      <header class="head">
+        <div class="eyebrow">DEPLOYMENT GUIDE</div>
+        <h1>升級指南</h1>
+        <div class="src">原始檔 <code>docs/deploy/upgrade.md</code> · <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/docs/deploy/upgrade.md">在 GitHub 上檢視</a></div>
+      </header>
+      <blockquote>
+      <p><strong>首次安裝的人不需要這一頁</strong>,直接看<a href="install.html">安裝指南</a>。這裡講的是「已經在用,想換到新版」。</p>
+      </blockquote>
+      <p>系統採「向前相容遷移」:升級時<strong>資料保留</strong>,資料表結構的變更由 <code>api</code> 容器啟動時自動執行(<code>alembic upgrade head</code>),你不需要手動改資料庫。</p>
+      <blockquote>
+      <p><strong>開始前先備份。</strong> 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見<a href="backup.html">備份指南</a>。</p>
+      </blockquote>
+      <h2 id="一條規則docker-composeyml-要跟著版本走">一條規則:<code>docker-compose.yml</code> 要跟著版本走</h2>
+      <p>系統的容器組成會隨版本演進(例如 v1.1 就多了一個 <code>worker-ops</code> 容器)。<strong>升級時請連 <code>docker-compose.yml</code> 一起更新到新版</strong>——方式 A 重新下載該檔,方式 B 的 <code>git pull</code> 會自動帶到。</p>
+      <p>沿用舊 compose 檔而漏了新容器時,系統不會默默壞掉:相關功能會<strong>立刻</strong>回一句說得出處置的錯誤(例如「維運背景服務(worker-ops)沒有在執行……請更新 docker-compose.yml」),補上新檔案再 <code>docker compose up -d</code> 即恢復,資料不受影響。</p>
+      <hr />
+      <h2 id="方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</h2>
+      <p>在放 <code>docker-compose.yml</code> 的資料夾內:</p>
+      <pre><code class="language-bash"># 1)(建議)先在系統內按「立即備份」
+      
+      # 2) 更新 docker-compose.yml 到新版(容器組成可能有變動)
+      #    https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
+      
+      # 3) 選擇版本:編輯 .env
+      #    釘選版本(可控):IMAGE_TAG=v1.1.2
+      #    永遠最新:        IMAGE_TAG=latest
+      
+      # 4) 拉新映像並重啟
+      docker compose pull
+      docker compose up -d
+      </code></pre>
+      <p><code>docker compose up -d</code> 只會重建映像有變動的容器;<code>api</code> 一啟動就自動跑遷移。完成後:</p>
+      <pre><code class="language-bash">docker compose ps                 # 確認皆 healthy
+      curl http://localhost/api/health  # {&quot;status&quot;:&quot;ok&quot;}
+      </code></pre>
+      <p>登入確認資料都在、版本正確(頁尾/關於頁顯示版本號)。</p>
+      <hr />
+      <h2 id="方式-b從原始碼建置部署">方式 B:從原始碼建置部署</h2>
+      <pre><code class="language-bash">git pull                 # 取得新版原始碼
+      docker compose up -d --build   # 重新建置並重啟
+      </code></pre>
+      <hr />
+      <h2 id="關於版本釘選">關於版本釘選</h2>
+      <ul>
+      <li><strong>正式環境建議 <code>IMAGE_TAG=v1.1.2</code> 這樣釘住特定版本</strong>,你才能決定何時升級、升到哪一版,而不是每次 <code>pull</code> 都可能變動。</li>
+      <li>想升級時,把 <code>IMAGE_TAG</code> 改成新版本號,再 <code>docker compose pull &amp;&amp; up -d</code>。</li>
+      <li>各版本的變更內容見專案根目錄的 <a href="../../CHANGELOG.html">CHANGELOG.md</a>;破壞性變更(若有)會在該版本明確標註 ⚠️ 與對應處置。</li>
+      </ul>
+      <hr />
+      <h2 id="回滾升級後想退回舊版">回滾(升級後想退回舊版)</h2>
+      <p>因為資料與映像分離,回滾映像很單純:</p>
+      <pre><code class="language-bash"># .env 改回舊版本號,例如 IMAGE_TAG=v1.1.0
+      docker compose pull
+      docker compose up -d
+      </code></pre>
+      <blockquote>
+      <p>⚠️ <strong>注意資料庫遷移方向</strong>:若新版本引入了資料表結構變更,退回舊映像後其程式可能不認得新結構。<strong>最保險的回滾是:退回舊映像 + 還原「升級前那份備份」</strong>(見<a href="backup.html">備份指南</a>的還原流程)。若該次升級的 CHANGELOG 未標註 schema 變更,則單純換映像即可。</p>
+      </blockquote>
+      <hr />
+      <h2 id="升級檢查清單">升級檢查清單</h2>
+      <ul>
+      <li><span class="tick todo">☐</span> 升級前已「立即備份」</li>
+      <li><span class="tick todo">☐</span> 已讀該版本 CHANGELOG,確認有無 ⚠️ 破壞性變更</li>
+      <li><span class="tick todo">☐</span> <strong><code>docker-compose.yml</code> 已更新到新版</strong>(容器組成可能有變動)</li>
+      <li><span class="tick todo">☐</span> <code>docker compose pull</code> 成功拉到新映像</li>
+      <li><span class="tick todo">☐</span> <code>docker compose up -d</code> 後六容器 healthy</li>
+      <li><span class="tick todo">☐</span> <code>/api/health</code> 回 ok,登入資料完整</li>
+      <li><span class="tick todo">☐</span> (如有 schema 變更)確認關鍵頁面正常</li>
+      </ul>
+      <div class="foot">
+        本頁由 <code>docs/deploy/upgrade.md</code> 自動產生(<code>scripts/build_docs.py</code>)。
+        要修改內容請改 Markdown 原始檔,不要直接編輯這份 HTML。<br>
+        排課與調代課系統 · MIT 授權 · <a href="https://github.com/begin0808/Course_Scheduling_System">GitHub</a>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeBtn');
+    // 跨頁記住深/淺色:讀者在部署手冊裡是會一頁一頁翻的
+    try{var s=localStorage.getItem('csDocsTheme'); if(s)root.setAttribute('data-theme',s);}catch(e){}
+    function cur(){var d=root.getAttribute('data-theme');if(d)return d;
+      return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+    btn.addEventListener('click',function(){
+      var next=cur()==='dark'?'light':'dark';
+      root.setAttribute('data-theme',next);
+      try{localStorage.setItem('csDocsTheme',next);}catch(e){}
+    });
+
+    var side=document.getElementById('side'), scrim=document.getElementById('scrim'),
+        tog=document.getElementById('navToggle');
+    function close(){side.classList.remove('open');scrim.classList.remove('on');}
+    tog.addEventListener('click',function(){side.classList.toggle('open');scrim.classList.toggle('on');});
+    scrim.addEventListener('click',close);
+
+    var links=Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    links.forEach(function(a){a.addEventListener('click',function(){
+      if(window.innerWidth<=960)close();});});
+    var secs=links.map(function(a){return document.getElementById(
+      decodeURIComponent(a.getAttribute('href').slice(1)));});
+    function spy(){
+      var best=-1;
+      for(var i=0;i<secs.length;i++){
+        if(secs[i]&&secs[i].getBoundingClientRect().top<=120)best=i;
+      }
+      links.forEach(function(a,i){a.classList.toggle('on',i===best);});
+    }
+    addEventListener('scroll',spy,{passive:true});spy();
+  })();
+</script>
+</body>
+</html>

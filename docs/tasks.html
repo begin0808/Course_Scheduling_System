@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="開發交棒計畫 — Milestone 與任務卡 — 排課與調代課系統開發文件">
+<title>開發交棒計畫 — Milestone 與任務卡 · 排課與調代課系統</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🛠</text></svg>">
+<!-- 本檔由 scripts/build_docs.py 從 docs/tasks.md 自動產生,請勿直接編輯。 -->
+<style>
+  :root{
+    --bg:#faf6f0; --surface:#fffdfa; --surface-2:#f4ece2; --surface-3:#ebe0d3;
+    --text:#241b14; --text-soft:#5c4c3f; --text-faint:#8d7a6a;
+    --border:#e5d8c8; --border-strong:#d3c1ad;
+    --accent:#b4531f; --accent-2:#8a3d13; --accent-soft:#fbeade; --accent-line:#e8bd99;
+    --good:#5a7d2a; --warn:#9c6008; --warn-soft:#fdefd6; --danger:#b1362b; --danger-soft:#fbe3df;
+    --info:#3d6485; --info-soft:#e9eef3;
+    --font-sans:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-serif:"Noto Serif TC","Songti TC","Source Han Serif TC",Georgia,serif;
+    --font-mono:"SF Mono","Cascadia Code","Consolas","Courier New",monospace;
+    --maxw:800px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+      --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+      --border:#3b2f25; --border-strong:#4d3e31;
+      --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+      --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+      --info:#86a9cf; --info-soft:#1c242e;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+    --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+    --border:#3b2f25; --border-strong:#4d3e31;
+    --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+    --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+    --info:#86a9cf; --info-soft:#1c242e;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);
+    line-height:1.78;font-size:16px;-webkit-font-smoothing:antialiased;letter-spacing:.01em}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+  .shell{display:grid;grid-template-columns:292px minmax(0,1fr);max-width:1240px;margin:0 auto}
+
+  /* ── sidebar ── */
+  .side{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:26px 18px 40px;
+    border-right:1px solid var(--border)}
+  .brand{display:block;margin-bottom:4px}
+  .brand .mark{font-family:var(--font-serif);font-weight:700;font-size:1.1rem;color:var(--accent);
+    display:block}
+  .brand .sub{font-size:.7rem;color:var(--text-faint);letter-spacing:.14em}
+  .side .grp{margin-top:20px;font-size:.7rem;letter-spacing:.16em;color:var(--text-faint);
+    text-transform:uppercase;font-family:var(--font-mono);padding:0 8px 6px}
+  .side nav{display:flex;flex-direction:column;gap:1px}
+  .side nav a{display:block;padding:6px 10px;border-radius:7px;color:var(--text-soft);
+    font-size:.88rem;transition:background .15s,color .15s}
+  .side nav a:hover{background:var(--surface-2);text-decoration:none;color:var(--text)}
+  .side nav a.here{background:var(--accent-soft);color:var(--accent-2);font-weight:600}
+  .side nav a .dev{font-size:.66rem;color:var(--text-faint);font-family:var(--font-mono);
+    margin-left:6px;letter-spacing:.04em}
+
+  /* 本頁目錄 */
+  .side .toc{margin-top:6px;display:flex;flex-direction:column;gap:0;
+    border-left:1px solid var(--border);padding-left:2px}
+  .side .toc a{font-size:.82rem;padding:4px 10px;color:var(--text-soft);border-radius:0 6px 6px 0}
+  .side .toc a.lv3{padding-left:24px;font-size:.78rem;color:var(--text-faint)}
+  .side .toc a:hover{background:var(--surface-2);color:var(--text);text-decoration:none}
+  .side .toc a.on{color:var(--accent-2);font-weight:600;box-shadow:inset 2px 0 0 var(--accent)}
+
+  .theme-btn{margin-top:22px;width:100%;padding:8px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text-soft);border-radius:8px;cursor:pointer;
+    font-size:.8rem;font-family:var(--font-sans)}
+  .theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ── main ── */
+  main{padding:0 clamp(20px,5vw,60px) 110px;min-width:0}
+  .wrap{max-width:var(--maxw);margin:0 auto}
+
+  .head{padding:52px 0 22px;border-bottom:1px solid var(--border);margin-bottom:8px}
+  .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:14px}
+  h1{font-family:var(--font-serif);font-weight:700;font-size:clamp(1.8rem,4.4vw,2.5rem);line-height:1.22;
+    margin:0;text-wrap:balance;letter-spacing:.01em}
+  .src{margin-top:16px;font-size:.78rem;color:var(--text-faint)}
+  .src code{font-size:.9em}
+
+  h2{font-family:var(--font-serif);font-size:1.55rem;font-weight:700;margin:52px 0 12px;line-height:1.3;
+    padding-bottom:8px;border-bottom:1px solid var(--border);text-wrap:balance;scroll-margin-top:16px}
+  h3{font-size:1.12rem;font-weight:700;margin:34px 0 10px;letter-spacing:.01em;
+    padding-left:12px;border-left:3px solid var(--accent);scroll-margin-top:16px}
+  h4{font-size:1rem;font-weight:700;margin:24px 0 8px;color:var(--text);scroll-margin-top:16px}
+  p{margin:14px 0}
+  strong{font-weight:700;color:var(--text)}
+  ul,ol{margin:14px 0;padding-left:1.4em}
+  li{margin:6px 0}
+  li > ul,li > ol{margin:6px 0}
+  hr{border:none;border-top:1px solid var(--border);margin:34px 0}
+
+  code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);
+    padding:2px 6px;border-radius:5px;color:var(--accent-2);word-break:break-word}
+  pre{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;overflow-x:auto;margin:18px 0;line-height:1.6}
+  pre code{background:none;padding:0;color:var(--text);font-size:.85rem;white-space:pre}
+
+  blockquote{margin:20px 0;padding:12px 18px;border:1px solid var(--border);border-left:4px solid var(--accent);
+    border-radius:10px;background:var(--accent-soft);color:var(--text-soft);font-size:.95rem}
+  blockquote p{margin:6px 0}
+  blockquote strong{color:var(--accent-2)}
+
+  .tw{overflow-x:auto;margin:20px 0;border:1px solid var(--border);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:440px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  thead th{background:var(--surface-2);font-weight:700;font-size:.8rem;letter-spacing:.03em;
+    color:var(--text-soft);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td code{white-space:nowrap}
+
+  /* tasks.md 的任務卡核取方塊 */
+  .tick{display:inline-block;width:1.15em;margin-right:.35em;font-family:var(--font-mono);font-weight:700}
+  .tick.done{color:var(--good)}
+  .tick.wip{color:var(--warn)}
+  .tick.todo{color:var(--text-faint)}
+
+  .foot{margin-top:70px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-faint);
+    font-size:.83rem}
+  .foot a{color:var(--text-soft)}
+
+  .navtoggle{display:none}
+  @media (max-width:960px){
+    .shell{grid-template-columns:1fr}
+    .side{position:fixed;z-index:40;top:0;left:0;width:284px;transform:translateX(-100%);
+      transition:transform .22s ease;background:var(--surface);height:100vh}
+    .side.open{transform:none;box-shadow:0 0 40px rgba(0,0,0,.34)}
+    .navtoggle{display:flex;position:fixed;z-index:50;top:14px;left:14px;gap:8px;align-items:center;
+      background:var(--surface);border:1px solid var(--border-strong);border-radius:9px;padding:8px 13px;
+      cursor:pointer;font-family:var(--font-sans);color:var(--text);font-size:.85rem;font-weight:600}
+    .scrim{display:none;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.45)}
+    .scrim.on{display:block}
+    .head{padding-top:56px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+  @media print{.side,.navtoggle,.scrim{display:none}.shell{grid-template-columns:1fr}
+    main{padding:0}pre,blockquote,.tw{break-inside:avoid}}
+  html{scroll-behavior:smooth}
+</style>
+</head>
+<body>
+<button class="navtoggle" id="navToggle" aria-label="開啟目錄">☰ 目錄</button>
+<div class="scrim" id="scrim"></div>
+<div class="shell">
+  <aside class="side" id="side">
+<a class="brand" href="index.html"><span class="mark">排課與調代課系統</span><span class="sub">文件</span></a>
+<div class="grp">給使用者</div><nav>
+<a href="index.html">教學組長操作手冊</a>
+</nav>
+<div class="grp">部署與維運手冊</div><nav>
+<a class="doc" href="deploy/README.html">總覽:從哪開始</a>
+<a class="doc" href="deploy/install.html">安裝指南</a>
+<a class="doc" href="deploy/upgrade.html">升級指南</a>
+<a class="doc" href="deploy/backup.html">備份與還原</a>
+<a class="doc" href="deploy/https.html">網域與 HTTPS</a>
+<a class="doc" href="deploy/faq.html">常見問題 FAQ</a>
+</nav>
+<div class="grp">專案技術文件</div><nav>
+<a class="doc" href="architecture.html">架構設計<span class="dev">開發用</span></a>
+<a class="doc" href="roadmap.html">路線圖<span class="dev">開發用</span></a>
+<a class="doc here" href="tasks.html">開發任務卡<span class="dev">開發用</span></a>
+</nav>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#專案目錄結構m0-建立全案遵循">專案目錄結構(M0 建立,全案遵循)</a><a class="lv2" href="#milestone-總覽">Milestone 總覽</a><a class="lv2" href="#m0-專案骨架">M0 專案骨架</a><a class="lv3" href="#m0-1-repo-初始化與-docker-compose-骨架"><span class="tick done">☑</span>M0-1 Repo 初始化與 Docker Compose 骨架</a><a class="lv3" href="#m0-2-帳號登入與-rbac"><span class="tick done">☑</span>M0-2 帳號、登入與 RBAC</a><a class="lv3" href="#m0-3-ci-與程式品質基線"><span class="tick done">☑</span>M0-3 CI 與程式品質基線</a><a class="lv2" href="#m1-基礎資料管理">M1 基礎資料管理</a><a class="lv3" href="#m1-0-地基補強m0-架構健檢產出先做完才進-m1-1"><span class="tick done">☑</span>M1-0 地基補強(M0 架構健檢產出,先做完才進 M1-1)</a><a class="lv3" href="#m1-1-學期與節次表"><span class="tick done">☑</span>M1-1 學期與節次表</a><a class="lv3" href="#m1-2-教師班級科目場地-crud"><span class="tick done">☑</span>M1-2 教師、班級、科目、場地 CRUD</a><a class="lv3" href="#m1-3-excel-匯入"><span class="tick done">☑</span>M1-3 Excel 匯入</a><a class="lv3" href="#m1-4-設定精靈"><span class="tick done">☑</span>M1-4 設定精靈</a><a class="lv3" href="#m1-5-開新學期複製精靈"><span class="tick done">☑</span>M1-5 開新學期複製精靈</a><a class="lv3" href="#m1-6-混合學制支援班級-節次表指派m2-前必做架構健檢-2026-07-09-產出"><span class="tick done">☑</span>M1-6 混合學制支援:班級 ↔ 節次表指派(M2 前必做,架構健檢 2026-07-09 產出)</a><a class="lv2" href="#m2-配課與手動排課">M2 配課與手動排課</a><a class="lv3" href="#m2-0-教師帳號綁定與聯絡資訊m1-健檢-2026-07-09-產出m2-1-前必做"><span class="tick done">☑</span>M2-0 教師帳號綁定與聯絡資訊(M1 健檢 2026-07-09 產出,M2-1 前必做)</a><a class="lv3" href="#m2-1-配課管理"><span class="tick done">☑</span>M2-1 配課管理</a><a class="lv3" href="#m2-2-timetablegrid-課表元件"><span class="tick done">☑</span>M2-2 TimetableGrid 課表元件</a><a class="lv3" href="#m2-3-衝突檢查服務與手動排課-api"><span class="tick done">☑</span>M2-3 衝突檢查服務與手動排課 API</a><a class="lv3" href="#m2-4-排課工作台整合"><span class="tick done">☑</span>M2-4 排課工作台整合</a><a class="lv3" href="#m2-5-版本管理與發布"><span class="tick done">☑</span>M2-5 版本管理與發布</a><a class="lv2" href="#m3-自動排課">M3 自動排課</a><a class="lv3" href="#m3-0-三套學制驗證資料集m2-健檢-2026-07-10-產出m3-1-前必做"><span class="tick done">☑</span>M3-0 三套學制驗證資料集(M2 健檢 2026-07-10 產出,M3-1 前必做)</a><a class="lv3" href="#m3-1-solver-資料層與-pre-flight-檢查"><span class="tick done">☑</span>M3-1 Solver 資料層與 pre-flight 檢查</a><a class="lv3" href="#m3-2-cp-sat-核心建模硬約束"><span class="tick done">☑</span>M3-2 CP-SAT 核心建模(硬約束)</a><a class="lv3" href="#m3-3-軟約束與目標函數"><span class="tick done">☑</span>M3-3 軟約束與目標函數</a><a class="lv3" href="#m3-4-worker-整合與進度回報"><span class="tick done">☑</span>M3-4 Worker 整合與進度回報</a><a class="lv3" href="#m3-5-無解衝突定位conflict-explainer"><span class="tick done">☑</span>M3-5 無解衝突定位(conflict explainer)</a><a class="lv2" href="#m4-調代課">M4 調代課</a><a class="lv3" href="#m4-1-請假登記與受影響節次展開"><span class="tick done">☑</span>M4-1 請假登記與受影響節次展開</a><a class="lv3" href="#m4-2-調代課處理工作台與推薦引擎"><span class="tick done">☑</span>M4-2 調代課處理工作台與推薦引擎</a><a class="lv3" href="#m4-3-通知系統"><span class="tick done">☑</span>M4-3 通知系統</a><a class="lv3" href="#m4-4-今日看板與調代課日誌"><span class="tick done">☑</span>M4-4 今日看板與調代課日誌</a><a class="lv3" href="#m4-5-代課鐘點統計"><span class="tick done">☑</span>M4-5 代課鐘點統計</a><a class="lv3" href="#m4-里程碑複審fable-52026-07-11與修正">M4 里程碑複審(Fable 5,2026-07-11)與修正</a><a class="lv2" href="#m5-報表備份與發行">M5 報表、備份與發行</a><a class="lv3" href="#m5-0-發行前置fable-5-建議m5-1-前必做"><span class="tick done">☑</span>M5-0 發行前置(Fable 5 建議,M5-1 前必做)</a><a class="lv3" href="#m5-1-課表匯出"><span class="tick todo">☐</span>M5-1 課表匯出</a><a class="lv3" href="#m5-1-課表匯出_1"><span class="tick done">☑</span>M5-1 課表匯出</a><a class="lv3" href="#m5-2-備份與還原"><span class="tick done">☑</span>M5-2 備份與還原</a><a class="lv3" href="#m5-3-部署文件與發行工程"><span class="tick done">☑</span>M5-3 部署文件與發行工程</a><a class="lv3" href="#m5-4-e2e-總驗收與效能"><span class="tick done">☑</span>M5-4 E2E 總驗收與效能</a><a class="lv3" href="#m5-里程碑複審fable-52026-07-11與修正">M5 里程碑複審(Fable 5,2026-07-11)與修正</a><a class="lv3" href="#最終發行前總體檢fable-52026-07-12與修正">最終發行前總體檢(Fable 5,2026-07-12)與修正</a><a class="lv2" href="#m6-v11-加固fable-5-開卡2026-07-13範圍與取捨理由見-docsroadmapmd">M6 v1.1 加固(Fable 5 開卡,2026-07-13;範圍與取捨理由見 docs/roadmap.md)</a><a class="lv3" href="#m6-1-e2e測試硬編日期動態化死線2026-11-前"><span class="tick done">☑</span>M6-1 E2E/測試硬編日期動態化(死線:2026-11 前)</a><a class="lv3" href="#m6-2-背景任務佇列拆分default-ops"><span class="tick done">☑</span>M6-2 背景任務佇列拆分(default / ops)</a><a class="lv3" href="#m6-3-部分排課三合一排不下的課不再炸整鍋"><span class="tick done">☑</span>M6-3 部分排課三合一(排不下的課不再炸整鍋)</a><a class="lv3" href="#m6-4-開新學期複製補全起訖日-constraint_config"><span class="tick done">☑</span>M6-4 開新學期複製補全(起訖日 + constraint_config)</a><a class="lv3" href="#m6-5-小型加固批次六小項"><span class="tick done">☑</span>M6-5 小型加固批次(六小項)</a><a class="lv3" href="#m6-6-複審修正fable-5-m6-複審判為有條件可發行的兩個阻擋項-兩個順手項"><span class="tick done">☑</span>M6-6 複審修正(Fable 5 M6 複審判為「有條件可發行」的兩個阻擋項 + 兩個順手項)</a><a class="lv3" href="#m6-7-還原後-log-噴-adminshutdown-tracebackm6-6-實測發現發行前修掉"><span class="tick done">☑</span>M6-7 還原後 log 噴 AdminShutdown traceback(M6-6 實測發現,發行前修掉)</a><a class="lv3" href="#m6-8-系統管理整頁打不開v100-起就有重拍手冊截圖時抓到"><span class="tick done">☑</span>M6-8 「系統管理」整頁打不開(v1.0.0 起就有,重拍手冊截圖時抓到)</a><a class="lv3" href="#m6-9-操作手冊-10-張截圖重拍-截圖產生器自備示範資料"><span class="tick done">☑</span>M6-9 操作手冊 10 張截圖重拍 + 截圖產生器自備示範資料</a><a class="lv3" href="#m6-10-首次登入改密頁補測試覆蓋清點後的最後一個缺口"><span class="tick done">☑</span>M6-10 首次登入改密頁補測試(覆蓋清點後的最後一個缺口)</a><a class="lv2" href="#測試策略總則">測試策略總則</a><a class="lv2" href="#給開發-ai-的固定工作準則">給開發 AI 的固定工作準則</a><a class="lv2" href="#backlog開發中冒出的點子記這裡不排程">Backlog(開發中冒出的點子記這裡,不排程)</a><a class="lv2" href="#m3-審查修正fable-5-獨立審查2026-07-10">M3 審查修正(Fable 5 獨立審查,2026-07-10)</a></div>
+    <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
+  </aside>
+  <main>
+    <div class="wrap">
+      <header class="head">
+        <div class="eyebrow">DEVELOPER DOCS</div>
+        <h1>開發交棒計畫 — Milestone 與任務卡</h1>
+        <div class="src">原始檔 <code>docs/tasks.md</code> · <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/docs/tasks.md">在 GitHub 上檢視</a></div>
+      </header>
+      <blockquote>
+      <p>版本:v1.0(2026-07-07)
+      前置閱讀:<strong><a href="architecture.html">architecture.md</a></strong>(需求、資料模型、引擎設計、技術棧皆以該文件為準)
+      使用方式:開發 AI(Opus 4.8 / Sonnet 5)每次領取<strong>一張任務卡</strong>,實作 → 依「驗收標準」自我驗證 → 回報 → 經使用者驗收後才進下一張。
+      任務卡狀態標記:<code>[ ]</code> 未開始 / <code>[~]</code> 進行中 / <code>[x]</code> 已驗收。開發者完成後請直接更新本檔的核取方塊。</p>
+      </blockquote>
+      <hr />
+      <h2 id="專案目錄結構m0-建立全案遵循">專案目錄結構(M0 建立,全案遵循)</h2>
+      <pre><code>Course_Scheduling_System/
+      ├── docker-compose.yml          # 正式部署用(6 容器:web/api/worker/worker-ops/postgres/redis)
+      ├── docker-compose.dev.yml      # 開發用(熱重載)
+      ├── .env.example                # 僅需改:管理員密碼、校名、SMTP(選填)
+      ├── Caddyfile
+      ├── docs/                       # 本規劃文件 + 使用者文件
+      │   ├── architecture.md
+      │   ├── tasks.md
+      │   └── deploy/                 # 中文部署圖文教學
+      ├── backend/
+      │   ├── pyproject.toml          # uv 管理;ruff + pytest 設定
+      │   ├── alembic/                # 資料庫遷移
+      │   ├── app/
+      │   │   ├── core/               # 設定、DB session、auth、安全
+      │   │   ├── models/             # SQLAlchemy models(對應 architecture.md §2.2)
+      │   │   ├── schemas/            # Pydantic schemas
+      │   │   ├── api/                # routers(依資源分檔:teachers.py、timetables.py …)
+      │   │   ├── services/           # 商業邏輯(衝突檢查、代課推薦、匯入匯出…)
+      │   │   ├── solver/             # OR-Tools CP-SAT 排課引擎(獨立、不 import app 其他層)
+      │   │   │   ├── model_builder.py    # 約束建模
+      │   │   │   ├── conflict_explainer.py # 無解衝突定位
+      │   │   │   └── preflight.py        # 排課前置檢查
+      │   │   ├── workers/            # RQ 任務(排課、寄信、備份)
+      │   │   └── main.py
+      │   └── tests/
+      │       ├── fixtures/           # 三套學制驗證資料集(見測試策略)
+      │       ├── unit/
+      │       └── solver/             # 引擎正確性測試
+      ├── frontend/
+      │   ├── package.json            # pnpm;Vue 3 + TS + Vite + Pinia + Naive UI
+      │   ├── src/
+      │   │   ├── api/                # API client(openapi-typescript 產生型別)
+      │   │   ├── stores/
+      │   │   ├── components/
+      │   │   │   └── timetable/      # TimetableGrid 拖拉課表元件(核心)
+      │   │   ├── views/              # 依資訊架構分頁(見 architecture.md §5.1)
+      │   │   └── router/
+      │   └── e2e/                    # Playwright
+      └── .github/workflows/ci.yml    # lint + test + 雙架構 image build
+      </code></pre>
+      <hr />
+      <h2 id="milestone-總覽">Milestone 總覽</h2>
+      <div class="tw"><table>
+      <thead>
+      <tr>
+      <th>Milestone</th>
+      <th>目標</th>
+      <th>完成的可見成果</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>M0 專案骨架</td>
+      <td>可跑起來的空殼</td>
+      <td><code>docker compose up -d</code> 後可登入看到空儀表板</td>
+      </tr>
+      <tr>
+      <td>M1 基礎資料</td>
+      <td>建置學校資料</td>
+      <td>設定精靈走完,教師/班級/科目/場地齊備</td>
+      </tr>
+      <tr>
+      <td>M2 手動排課</td>
+      <td>拖拉排課可用</td>
+      <td>手動排完一張班級課表並發布,教師可查詢</td>
+      </tr>
+      <tr>
+      <td>M3 自動排課</td>
+      <td>引擎上線</td>
+      <td>一鍵自動排課出草稿,無解時給人話報告</td>
+      </tr>
+      <tr>
+      <td>M4 調代課</td>
+      <td>學期中日常運作</td>
+      <td>請假→代課→通知→確認 全流程</td>
+      </tr>
+      <tr>
+      <td>M5 報表與上線</td>
+      <td>對外可發行</td>
+      <td>匯出/備份/部署文件完成,可發布 v1.0</td>
+      </tr>
+      <tr>
+      <td>M6 v1.1 加固</td>
+      <td>排課季前的體驗與韌性</td>
+      <td>ops 佇列拆分、部分排課不炸鍋等五項,發布 v1.1(範圍見 docs/roadmap.md)</td>
+      </tr>
+      </tbody>
+      </table></div>
+      <hr />
+      <h2 id="m0-專案骨架">M0 專案骨架</h2>
+      <h3 id="m0-1-repo-初始化與-docker-compose-骨架"><span class="tick done">☑</span> M0-1 Repo 初始化與 Docker Compose 骨架</h3>
+      <ul>
+      <li><strong>描述</strong>:建立上述目錄結構;<code>docker-compose.yml</code>(5 容器)與 <code>docker-compose.dev.yml</code>;FastAPI hello endpoint(<code>GET /api/health</code>);Vue 3 空專案由 Caddy 服務;Alembic 初始化;<code>.env.example</code>。</li>
+      <li><strong>模組</strong>:根目錄、<code>backend/app/main.py</code>、<code>frontend/</code>、<code>Caddyfile</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 全新機器上 <code>cp .env.example .env &amp;&amp; docker compose up -d</code> 後,瀏覽器開 <code>http://localhost</code> 見前端頁面,<code>/api/health</code> 回 <code>{"status":"ok"}</code>
+        2. <code>docker compose ps</code> 五容器皆 healthy
+        3. dev compose 支援前後端熱重載</li>
+      <li><strong>測試方式</strong>:CI 內 <code>docker compose up</code> + curl 煙霧測試</li>
+      </ul>
+      <h3 id="m0-2-帳號登入與-rbac"><span class="tick done">☑</span> M0-2 帳號、登入與 RBAC</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>user</code>/<code>user_role</code> model 與遷移;bcrypt + session cookie 登入;RBAC 依賴注入(admin/scheduler/director/teacher);首次啟動以 <code>.env</code> 建立 admin;首次登入強制改密碼;登入頁 UI。</li>
+      <li><strong>模組</strong>:<code>app/core/auth.py</code>、<code>app/api/auth.py</code>、<code>app/models/user.py</code>、<code>frontend/src/views/Login.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. admin 可登入/登出;錯誤密碼 5 次鎖定 15 分鐘
+        2. 未登入呼叫受保護 API 回 401;teacher 角色呼叫 scheduler API 回 403
+        3. 首次登入被導向改密碼頁,改完才能進系統</li>
+      <li><strong>測試方式</strong>:pytest(auth 流程 8+ 案例)+ Playwright 登入 E2E</li>
+      </ul>
+      <h3 id="m0-3-ci-與程式品質基線"><span class="tick done">☑</span> M0-3 CI 與程式品質基線</h3>
+      <ul>
+      <li><strong>描述</strong>:GitHub Actions:ruff + mypy + pytest / eslint + vitest / Playwright / 雙架構(amd64+arm64)image build push。pre-commit 設定。</li>
+      <li><strong>驗收標準</strong>:PR 觸發全部檢查;main 分支 push 產出 image;README 掛 CI badge</li>
+      <li><strong>測試方式</strong>:開測試 PR 驗證</li>
+      </ul>
+      <hr />
+      <h2 id="m1-基礎資料管理">M1 基礎資料管理</h2>
+      <h3 id="m1-0-地基補強m0-架構健檢產出先做完才進-m1-1"><span class="tick done">☑</span> M1-0 地基補強(M0 架構健檢產出,先做完才進 M1-1)</h3>
+      <ul>
+      <li><strong>描述</strong>:健檢發現三項「現在改便宜、日後改痛」的地基問題:
+        1. <strong>Session 撤銷</strong>:session token 由 <code>{"uid"}</code> 改為 <code>{"uid", "pv": password_hash[-12:]}</code>,<code>get_current_user</code> 驗證 <code>pv</code> 與現行密碼一致,不符回 401(改密碼即失效所有舊 session);
+        2. <strong>naming_convention</strong>:<code>Base.metadata</code> 加入標準約束命名慣例(ix/uq/ck/fk/pk),確保跨資料庫遷移可靠;
+        3. <strong>時區政策落地</strong>(architecture.md D6):<code>.env.example</code> 與 config 增 <code>TZ=Asia/Taipei</code> 設定;compose 傳入容器。</li>
+      <li>順手項:CI 增加「PostgreSQL service container 跑 <code>alembic upgrade head</code>」遷移驗證步驟;前端 <code>client.ts</code> 加 401 全域處理(清 store → 導向登入)。</li>
+      <li><strong>模組</strong>:<code>app/core/{security,auth,db,config}.py</code>、<code>tests/</code>、<code>.github/workflows/ci.yml</code>、<code>frontend/src/api/client.ts</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 登入後改密碼,以「舊 cookie」呼叫 <code>/api/auth/me</code> 回 401(新增 pytest 案例)
+        2. <code>Base.metadata.naming_convention</code> 已定義,<code>alembic upgrade head</code> 在 PostgreSQL 全新資料庫成功(CI 驗證)
+        3. session 過期或被撤銷後,前端任何 API 操作自動導回登入頁
+        4. 既有 15 個 auth 測試不退步</li>
+      <li><strong>測試方式</strong>:pytest + CI 遷移 job</li>
+      </ul>
+      <h3 id="m1-1-學期與節次表"><span class="tick done">☑</span> M1-1 學期與節次表</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>semester</code>/<code>period_table</code>/<code>period</code> CRUD(model+API+UI);節次表視覺化編輯器(表格點選標記節次類型:一般課/午休/導師時間/固定用途);五種學制範本資料(JSON seed,含預設節次表與科目清單);同學期多套節次表(完全中學)。</li>
+      <li><strong>模組</strong>:<code>app/models/{semester,period}.py</code>、<code>app/api/semesters.py</code>、<code>frontend/src/views/settings/PeriodTable.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 可建立 115 學年第 1 學期,選「國小範本」自動帶入 40 分節次表(含週三下午空)
+        2. 可將週五第 7 節改為「導師時間」,排課時段檢查 API 即反映
+        3. 可為同學期建第二套節次表並指派給不同班級群</li>
+      <li><strong>測試方式</strong>:pytest CRUD + 範本載入;Vitest 元件測試</li>
+      </ul>
+      <h3 id="m1-2-教師班級科目場地-crud"><span class="tick done">☑</span> M1-2 教師、班級、科目、場地 CRUD</h3>
+      <ul>
+      <li><strong>描述</strong>:四實體完整 CRUD(對應 architecture.md §2.2 欄位);教師任教科目多選、行政職減課、業界師資標記;班級的學制標籤與群科(技高);場地類型與容量;清單頁支援搜尋/排序。</li>
+      <li><strong>模組</strong>:<code>app/models/</code>、<code>app/api/</code>、<code>frontend/src/views/basedata/</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 四實體皆可增刪改查,刪除有引用檢查(被配課引用的教師不可刪,提示改為「離職」狀態)
+        2. 教師頁可設定「不可排時段」與「偏好時段」(週×節 點選格子)
+        3. 技高班級可填群科;國小班級可指定導師</li>
+      <li><strong>測試方式</strong>:pytest(含引用完整性案例)</li>
+      </ul>
+      <h3 id="m1-3-excel-匯入"><span class="tick done">☑</span> M1-3 Excel 匯入</h3>
+      <ul>
+      <li><strong>描述</strong>:教師、班級、科目三種 Excel 範本(系統內可下載,含填寫說明列與範例列);上傳→逐列驗證→錯誤清單(「第 N 列:XX 原因」)→全對才交易式入庫;匯入教師時可勾選「同時建立帳號」(預設密碼規則+強制首登改密)。</li>
+      <li><strong>模組</strong>:<code>app/services/importer.py</code>、<code>frontend/src/views/basedata/Import.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 下載範本→填 30 位教師→上傳→全數入庫且帳號建立
+        2. 故意填錯(科目不存在、重複姓名+身分末四碼)→回報確切列號與原因,資料庫零寫入
+        3. 範本欄位有中文說明列,匯入時自動略過</li>
+      <li><strong>測試方式</strong>:pytest 用 fixtures 內的正確/錯誤 Excel 檔</li>
+      </ul>
+      <h3 id="m1-4-設定精靈"><span class="tick done">☑</span> M1-4 設定精靈</h3>
+      <ul>
+      <li><strong>描述</strong>:首次登入(無任何學期資料時)自動進入五步驟精靈(architecture.md §5.2);每步可略過/回上一步;完成後導向配課管理;之後可從系統管理重新啟動精靈。</li>
+      <li><strong>模組</strong>:<code>frontend/src/views/wizard/</code>、<code>app/api/wizard.py</code>(進度狀態)</li>
+      <li><strong>驗收標準</strong>:
+        1. 全新系統登入即入精靈;五步走完後儀表板顯示資料摘要(N 位教師、N 個班級)
+        2. 中途關瀏覽器,再登入從上次步驟繼續
+        3. 使用者測試:不看文件 30 分鐘內完成國中範本建置(以 fixtures 資料模擬)</li>
+      <li><strong>測試方式</strong>:Playwright E2E 全精靈流程</li>
+      </ul>
+      <h3 id="m1-5-開新學期複製精靈"><span class="tick done">☑</span> M1-5 開新學期複製精靈</h3>
+      <ul>
+      <li><strong>描述</strong>:從既有學期複製教師/班級/科目/場地/節次表到新學期(可勾選項目);班級年級自動 +1(可關閉),畢業年級提示移除。</li>
+      <li><strong>驗收標準</strong>:複製後兩學期資料獨立(改 A 學期教師不影響 B);年級進位正確</li>
+      <li><strong>測試方式</strong>:pytest</li>
+      </ul>
+      <h3 id="m1-6-混合學制支援班級-節次表指派m2-前必做架構健檢-2026-07-09-產出"><span class="tick done">☑</span> M1-6 混合學制支援:班級 ↔ 節次表指派(M2 前必做,架構健檢 2026-07-09 產出)</h3>
+      <ul>
+      <li><strong>領域背景(使用者提供)</strong>:台灣完全中學通常全校統一 50 分/節(國中部配合高中部作息),故多數學校只需一套節次表;真正需要多套表的是<strong>附設國小部、K-12 實驗學校、進修部/夜間部</strong>。設計原則:預設路徑零負擔,彈性只在需要時浮現。</li>
+      <li><strong>描述</strong>:班級尚無「所屬節次表」關聯,M2 衝突檢查/排課引擎無從得知每班合法時段。實作:
+        1. <code>class_units.period_table_id</code>(nullable FK,空=學期預設節次表)+ 遷移;
+        2. 班級表單增「節次表」下拉——<strong>僅於該學期有 ≥2 套節次表時顯示</strong>(單一表學校完全看不到此欄位);Excel 班級範本增「節次表」欄(選填,以名稱對應);
+        3. 提供 helper <code>resolve_period_table(class_unit)</code>(指定表 → 回退學期預設表),<strong>無論單表或多表學校,M2 起所有時段邏輯一律走此函式</strong>;
+        4. 刪除節次表時檢查是否被班級引用(引用中則擋)。</li>
+      <li><strong>模組</strong>:<code>app/models/basedata.py</code>、<code>app/api/basedata.py</code>、<code>app/services/importer.py</code>、<code>frontend/src/views/basedata/ClassesTab.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 完全中學情境:同學期兩套節次表(國中 45 分/高中 50 分),301 班指到國中表、501 班指到高中表,各自 available-slots 正確
+        2. 未指派節次表的班級回退學期預設表
+        3. 被班級引用的節次表刪除時回 409
+        4. Excel 匯入班級可指定節次表名稱,名稱不存在時報列號錯誤</li>
+      <li><strong>測試方式</strong>:pytest(完全中學 fixture 情境)</li>
+      </ul>
+      <hr />
+      <h2 id="m2-配課與手動排課">M2 配課與手動排課</h2>
+      <h3 id="m2-0-教師帳號綁定與聯絡資訊m1-健檢-2026-07-09-產出m2-1-前必做"><span class="tick done">☑</span> M2-0 教師帳號綁定與聯絡資訊(M1 健檢 2026-07-09 產出,M2-1 前必做)</h3>
+      <ul>
+      <li><strong>背景</strong>:<code>user.py</code> docstring 承諾的 User↔Teacher 綁定在 M1 未實作(匯入建帳號僅存 display_name,無外鍵)。此綁定是 M2-5「教師查本人課表」、M4 全部(請假自登、代課確認、通知收件人)的前提。另使用者需求:教師需有聯絡欄位以利調代課通知。</li>
+      <li><strong>描述</strong>:
+        1. <code>teachers.user_id</code>(nullable FK → users,<code>ondelete=SET NULL</code>,同學期唯一 uq(semester_id, user_id));Excel 匯入「同時建立帳號」時自動綁定;教師表單(admin/scheduler)可選擇綁定既有帳號;
+        2. <code>teachers.email</code> / <code>teachers.phone</code> / <code>teachers.line_id</code>(皆 nullable String)——聯絡資訊掛教師(學期快照),因外聘/業界師資可能無系統帳號;
+        3. Excel 教師範本增 Email/手機/LINE ID 三選填欄;教師表單增欄位;
+        4. <code>semester_copy</code> 複製 user_id 與三個聯絡欄位(綁定跨學期延續);
+        5. helper <code>current_teacher(db, user, semester_id)</code>:由登入者解析其在指定學期的教師主檔(M2-5/M4 共用)。</li>
+      <li><strong>模組</strong>:<code>app/models/basedata.py</code>、<code>app/services/{importer,semester_copy}.py</code>、<code>app/api/basedata.py</code>、<code>frontend/src/views/basedata/TeachersTab.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 匯入 30 位教師勾「建立帳號」→ 每筆 <code>teachers.user_id</code> 正確綁定新帳號
+        2. 開新學期複製後,新學期教師仍綁定同一帳號、聯絡資訊完整
+        3. 同一帳號在同學期綁第二位教師 → 409
+        4. Email 格式錯誤時表單與匯入均回報錯誤</li>
+      <li><strong>測試方式</strong>:pytest(綁定/複製/唯一性);既有匯入測試不退步</li>
+      </ul>
+      <h3 id="m2-1-配課管理"><span class="tick done">☑</span> M2-1 配課管理</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>scheduling_unit</code>/<code>course_assignment</code>/<code>assignment_teacher</code>/<code>block_rule</code> model 與 CRUD;配課建立 UI(班級選科目→指定教師→週節數→連堂→場地需求);跑班群組建立(選多班級組成 group,群組內建多筆配課);教師鐘點即時統計側欄(配課數 vs 基本鐘點,超/不足變色);Excel 批次匯入配課。</li>
+      <li><strong>模組</strong>:<code>app/models/assignment.py</code>、<code>app/api/assignments.py</code>、<code>frontend/src/views/scheduling/Assignments.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 可建立「301 班 × 國文 × 王師 × 每週 5 節」與「高二多元選修跑班群組(3 班 5 組)」
+        2. 可建立「機械科實習 × 2 位協同教師 × 每週 6 節含 3 連堂×2」
+        3. 王師配 22 節、基本鐘點 20 → 側欄顯示「+2 超鐘點」紅字
+        4. 班級週配課總節數 &gt; 可排節次數(經 <code>resolve_period_table</code>+<code>regular_slots</code>)時警告
+        5. 跑班群組成員班級的節次表不一致 → 建立被拒(architecture.md D7 第 4 點)</li>
+      <li><strong>測試方式</strong>:pytest(含跑班/協同/連堂三種結構)</li>
+      </ul>
+      <h3 id="m2-2-timetablegrid-課表元件"><span class="tick done">☑</span> M2-2 TimetableGrid 課表元件</h3>
+      <ul>
+      <li><strong>描述</strong>:前端核心元件:CSS Grid 週課表,依節次表渲染(含反灰不排課時段);格位卡片(科目/教師/場地/鎖定圖示);HTML5 拖拉(從未排清單拖入、格間移動、拖出移除);視覺狀態(可放綠框/衝突紅框+原因浮窗);響應式(平板可用,手機唯讀)。<strong>純展示+事件元件,不含商業邏輯</strong>。</li>
+      <li><strong>模組</strong>:<code>frontend/src/components/timetable/</code></li>
+      <li><strong>驗收標準</strong>:
+        1. Storybook(或示範頁)展示:國小 40 分節次表與技高 50 分節次表各一張
+        2. 拖曳過程觸發 <code>check</code> 事件、放下觸發 <code>drop</code> 事件,由父層決定結果
+        3. Vitest 元件測試涵蓋渲染/拖放事件/鎖定顯示</li>
+      <li><strong>測試方式</strong>:Vitest + 示範頁人工檢視</li>
+      </ul>
+      <h3 id="m2-3-衝突檢查服務與手動排課-api"><span class="tick done">☑</span> M2-3 衝突檢查服務與手動排課 API</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>timetable</code>/<code>schedule_entry</code> model;衝突檢查服務(H1–H10 硬約束的單格檢查版,architecture.md §3.2);<strong>教師/場地衝突在跨節次表時以牆鐘時間區間重疊判定</strong>(architecture.md D7,同表退化為 period_no 相等);API:建立草稿、格位增刪改、<code>POST /timetables/{id}/check-conflict</code>(&lt;100ms)、鎖定/解鎖;跑班群組拖一格連動全組。</li>
+      <li><strong>模組</strong>:<code>app/services/conflict_checker.py</code>、<code>app/api/timetables.py</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 王師已在週一第一節有課,再排他班同時段 → 回衝突「教師王師 週一第一節 已有 302 班數學」
+           (時段一律以<strong>節次表中的名稱</strong>呈現:早自習/午休/第一節,不可用內部 period_no 索引)
+        2. 連堂課拖至跨午休位置 → 拒絕並說明
+        3. 跑班群組某組拖到新時段,全組連動;任一組衝突則整組拒絕
+        4. check-conflict 在 60 班資料量下 p95 &lt; 100ms
+        5. 跨節次表衝突:王師在國小部(40 分/節)週一第 4 節 10:30–11:10 有課,再排他至高中部(50 分/節)週一第 3 節 10:10–11:00 → 回報衝突(牆鐘時間重疊)</li>
+      <li><strong>測試方式</strong>:pytest 覆蓋 H1–H10 每項至少 2 案例(過/不過);效能測試腳本</li>
+      </ul>
+      <h3 id="m2-4-排課工作台整合"><span class="tick done">☑</span> M2-4 排課工作台整合</h3>
+      <ul>
+      <li><strong>描述</strong>:整合 M2-2 元件與 M2-3 API 成完整工作台(architecture.md §5.1 線框):左側未排課務清單(含剩餘節數)、三視角切換(班級/教師/場地)、草稿自動儲存、復原/重做(前端 command stack)。</li>
+      <li><strong>模組</strong>:<code>frontend/src/views/scheduling/Workbench.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 以國中 fixtures 手動排完一個班整週課表,未排清單歸零
+        2. 三視角資料一致(班級視角排的課,教師視角立即可見)
+        3. Ctrl+Z 可復原最近 20 步</li>
+      <li><strong>測試方式</strong>:Playwright E2E「排完一班」情境</li>
+      </ul>
+      <h3 id="m2-5-版本管理與發布"><span class="tick done">☑</span> M2-5 版本管理與發布</h3>
+      <ul>
+      <li><strong>描述</strong>:多草稿並存(複製/改名/刪除);發布(draft→published,同學期舊 published 轉 archived);發布前完整性檢查(未排完課務列警告,可強制發布);全員課表查詢頁(班級/教師/場地,唯讀,手機可用);audit_log 記錄發布。</li>
+      <li><strong>驗收標準</strong>:
+        1. 兩份草稿可並存互不影響;發布 B 後,查詢頁顯示 B,A 仍可編輯
+        2. 有 3 節未排時發布 → 出現警告清單,確認後仍可發布
+        3. teacher 角色登入手機瀏覽器可查本人課表</li>
+      <li><strong>測試方式</strong>:pytest 狀態轉換 + Playwright</li>
+      </ul>
+      <hr />
+      <h2 id="m3-自動排課">M3 自動排課</h2>
+      <h3 id="m3-0-三套學制驗證資料集m2-健檢-2026-07-10-產出m3-1-前必做"><span class="tick done">☑</span> M3-0 三套學制驗證資料集(M2 健檢 2026-07-10 產出,M3-1 前必做)</h3>
+      <ul>
+      <li><strong>背景</strong>:測試策略總則承諾的三套 fixtures(標註「M1 期間建立,全案共用」)實際從未建立——<code>backend/tests/fixtures/</code> 目錄不存在,M1–M2 測試皆為各檔就地造小數據。M3-1/2/3/5 與 M5-4 的驗收全部以「三套 fixtures」為前提;不先補齊,每張 M3 卡會各自造資料、解的品質彼此不可比。</li>
+      <li><strong>描述</strong>:以 Python builder 函式(非靜態 JSON,直接用 models 寫入測試 session)實作三套資料集:
+        1. <code>elementary_small</code>:國小 6 班(包班+科任、週三下午空、導師時間);
+        2. <code>junior_high_mid</code>:國中 12 班(領域課程+彈性課程+兼行政減課教師);
+        3. <code>vocational_high</code>:技高 15 班 3 科(3 連堂實習+實習工場+業界師資 unavailable 時段+跑班群組);
+        4. 各附煙霧測試證明資料自洽:teacher_loads 無超鐘點、class_loads 不超可排節數、跑班群組同節次表。</li>
+      <li><strong>模組</strong>:<code>backend/tests/fixtures/{__init__,elementary,junior_high,vocational}.py</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 三套 builder 可在乾淨測試 DB 建出完整學期(節次表/教師/班級/科目/場地/配課/連堂/時段規則)
+        2. 煙霧測試通過(資料自洽,可被 CP-SAT 排出全解)
+        3. 既有 135 個後端測試不退步</li>
+      <li><strong>測試方式</strong>:pytest</li>
+      </ul>
+      <h3 id="m3-1-solver-資料層與-pre-flight-檢查"><span class="tick done">☑</span> M3-1 Solver 資料層與 pre-flight 檢查</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>solver/</code> 模組骨架:從 DB 讀取學期資料轉為純 dataclass 問題描述(solver 不碰 SQLAlchemy;<strong>DB→dataclass 轉換層放 <code>app/services/solver_data.py</code></strong>,因 loader 必須 import models,放 solver/ 內會違反驗收 3);pre-flight 必要條件檢查(教師配課數≤可排格數、場地供需、班級節數,architecture.md §3.4)+ 班級人數&gt;場地容量警告(D8);檢查報告 API。</li>
+      <li><strong>補遺(M2 健檢 2026-07-10)</strong>:<code>schedule_entries.room_id</code>(nullable FK,空=沿用配課的 room_id)+ 遷移——§2.2 承諾格位帶場地但 M2 未實作;solver 對「指定場地類型而未綁定場地」的配課需逐格指派場地,結果無處可存(M4 教室異動也需要)。conflict_checker <code>_build_occupancy</code> 與課表序列化改以 <code>coalesce(entry.room_id, assignment.room_id)</code> 取場地。</li>
+      <li><strong>pre-flight「教師可排格數」定義</strong>:單一節次表(絕大多數學校)=一般課格數 − unavailable 格數;跨表任教的教師以牆鐘區間聯集去重計數(D7 重疊矩陣)。</li>
+      <li><strong>模組</strong>:<code>app/solver/preflight.py</code>、<code>app/solver/problem.py</code>、<code>app/services/solver_data.py</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 三套 fixtures(M3-0)皆可轉出問題描述且 pre-flight 通過
+        2. 人為製造「王師 22 節但可排 20 格」→ 報告明確指出教師、數字
+        3. solver 模組 <code>import</code> 不到 <code>app.api</code>/<code>app.models</code>(以 import-linter 或測試保證)
+        4. 手動排課將格位放到與配課不同的場地後,check-conflict 以格位場地判定佔用</li>
+      <li><strong>測試方式</strong>:pytest</li>
+      </ul>
+      <h3 id="m3-2-cp-sat-核心建模硬約束"><span class="tick done">☑</span> M3-2 CP-SAT 核心建模(硬約束)</h3>
+      <ul>
+      <li><strong>描述</strong>:實作 H1–H10 硬約束建模(architecture.md §3.2);連堂以區間建模;跑班同步;鎖定格位;場地互斥(D8);教師/場地跨節次表以 D7 重疊矩陣建模;求解取出結果轉 schedule_entry 列表(含逐格 room_id)。</li>
+      <li><strong>補遺(M2 健檢 2026-07-10)</strong>:
+        1. <code>ortools</code> 依賴<strong>此卡才加入</strong> pyproject(M3-1 不需要,保持 pre-flight 輕量);注意 wheel 體積(~50MB)與 arm64 wheel 可用性,重建映像驗證;
+        2. <strong>H10 精確定義以獨立 validator 為準</strong>:同班同科目每日「單節」數 ≤ 上限,連堂(block_rule 產生)的節數不計入;M2-3 手動 conflict_checker 目前把既有連堂 span 也計入每日計數,與此不一致,此卡順手對齊(改法:佔用索引的 subj_count 排除 span&gt;1 或掛 block_rule 的格位)。</li>
+      <li><strong>模組</strong>:<code>app/solver/model_builder.py</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 三套 fixtures 各自可解,且<strong>逐項驗證</strong>解零硬約束違反(以獨立 validator 檢查,不信任 solver 自己)
+        2. 技高 fixture 的 3 連堂課全部連續且不跨午休;實習工場同時段不超容量
+        3. 鎖定 5 格後重解,該 5 格位置不變
+        4. 12 班國中 fixture 在 CI 機器 60 秒內解出</li>
+      <li><strong>測試方式</strong>:<code>tests/solver/</code> + <code>validator.py</code>(獨立驗證器,亦供日後回歸)</li>
+      </ul>
+      <h3 id="m3-3-軟約束與目標函數"><span class="tick done">☑</span> M3-3 軟約束與目標函數</h3>
+      <ul>
+      <li><strong>描述</strong>:實作 S1–S8 軟約束(architecture.md §3.2)加權目標;權重設定存 DB(<code>constraint_config</code>,含 H10 每日上限值),UI 於 v2 才做,先用預設值;解出後產出「軟約束達成度報告」(各項得分/滿分、未達成明細)。<strong>補遺</strong>:<code>subjects.is_major</code>(主科標記,S5 用)+ 遷移 + 科目表單勾選——現行 Subject 無此欄位。</li>
+      <li><strong>驗收標準</strong>:
+        1. 同 fixture 開/關 S2(同科分散)比較:開啟後同班同科目同日 ≥2 節的數量顯著下降
+        2. 教師 avoid 時段在有替代方案時被避開
+        3. 報告列出「王師週四第7節被排課(偏好未達成)」等人話明細</li>
+      <li><strong>測試方式</strong>:pytest 比較性測試(斷言方向性,不斷言絕對分數)</li>
+      </ul>
+      <h3 id="m3-4-worker-整合與進度回報"><span class="tick done">☑</span> M3-4 Worker 整合與進度回報</h3>
+      <ul>
+      <li><strong>描述</strong>:排課任務走 RQ:<code>POST /timetables/{id}/auto-schedule</code> 入佇列;CP-SAT callback 每 5 秒寫進度(已找到解的目標值、經過時間)至 Redis;前端進度頁(polling)含「提前結束取目前最佳解」與「取消」;timeout 預設 10 分鐘可設定;結果寫回為新草稿。<strong>輸入輸出流定義(M2 健檢 2026-07-10)</strong>:以來源草稿為輸入;<code>locked</code> 格位作為固定約束(H9)複製至結果草稿並保持鎖定;未鎖定的既有格位以 CP-SAT hint(<code>AddHint</code>)餵入以提高解的穩定性(重排時盡量少動);結果草稿命名「{來源名} 自排結果」,來源草稿不動。</li>
+      <li><strong>模組</strong>:<code>app/workers/solve_job.py</code>、<code>frontend/src/views/scheduling/AutoSchedule.vue</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 啟動排課後 UI 顯示進度;點「提前結束」拿到當前最佳解草稿
+        2. 排課期間 Web 其他功能不受影響(worker 隔離)
+        3. worker 容器被 kill 後任務標記失敗,UI 有明確錯誤而非永久轉圈</li>
+      <li><strong>測試方式</strong>:pytest(RQ 假佇列)+ Playwright 長流程</li>
+      </ul>
+      <h3 id="m3-5-無解衝突定位conflict-explainer"><span class="tick done">☑</span> M3-5 無解衝突定位(conflict explainer)</h3>
+      <ul>
+      <li><strong>描述</strong>:衝突定位(architecture.md §3.4):無解時指出是哪幾條硬約束湊在一起,轉譯為教務語言建議;「部分排課」模式(使用者勾選可放寬的約束類別,將其轉為高權重軟約束,未排入課務列清單)。</li>
+      <li><strong>模組</strong>:<code>app/solver/conflict_explainer.py</code></li>
+      <li><strong>驗收標準</strong>:
+        1. ✅ 製造「音樂教室需求 30 節 &gt; 實際可用 28 節」的 fixture → 報告指出場地與數字
+        2. ✅ 製造教師時段矛盾 → 報告指出該教師(兩位協同教師都點名)
+        3. ✅ 部分排課模式:同 fixture 產出 97.8%(88/90)排入的草稿 + 未排清單</li>
+      <li><strong>測試方式</strong>:pytest(3 種人造無解情境 + 部分排課 + pre-flight 短路);Playwright ×2;真實 PostgreSQL + RQ 實測</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>改用刪除法,不用 assumption / unsat core</strong>。原設計是每類硬約束掛 assumption literal 取 unsat core,實測不可行:enforcement literal 讓 presolve 認不出鴿籠結構,同一份資料<strong>純硬約束 0.8 秒證完,掛 assumption 後 60 秒證不完</strong>(換過三種編碼皆然)。改成「把一組約束整個關掉、重建乾淨模型重解」,整套定位約 2~3 秒,且每條結論都被一次真實求解驗證過。
+      - 旋鈕只取教學組長改得動的東西:<code>H4</code> 教師不可排時段、<code>H3</code> 場地互斥、<code>H10</code> 每日科目上限、<code>H9</code> 鎖定格位。<code>H1</code>/<code>H2</code> 沒有旋鈕可轉,其成因 pre-flight 已算得出來。
+      - <code>H1</code>/<code>H2</code>/<code>H3</code> <strong>永不可放寬</strong>——那是物理不是政策(API 收到會回 400)。
+      - <strong>逾時且零解時也跑定位</strong>:帶軟約束目標函數的 CP-SAT 常證不出 INFEASIBLE,一律以純硬約束探測一次,才分得出「不可能」與「只是慢」。這是實機驗證才發現的——單元測試裡的小問題秒證無解,看不到這個坑。
+      - 部分排課的懲罰量級:未排入(10000) ≫ 放寬的約束(1000) ≫ 軟約束(1~8);因此其 <code>objective</code> 與一般模式尺度不同,UI 顯示「未排 N 節」而非目標值。
+      - 部分排課的 pre-flight 只擋結構性錯誤(連堂放不進、群組節數不一致、某類型場地掛零)。
+      - 部分排課結果一律再過 <code>validator</code>:除了被放寬的那類,其餘硬約束零違反。</p>
+      <hr />
+      <h2 id="m4-調代課">M4 調代課</h2>
+      <h3 id="m4-1-請假登記與受影響節次展開"><span class="tick done">☑</span> M4-1 請假登記與受影響節次展開</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>leave_request</code>/<code>affected_period</code> model;教師自登/組長代登 UI;依 published 課表展開受影響節次(半天/多天/跨週假);銷假(級聯取消處置並通知,architecture.md §5.3 狀態機)。</li>
+      <li><strong>驗收標準</strong>:
+        1. 王師請週三整天假 → 自動列出週三 5 節受影響課
+        2. 請假 3 天跨週末 → 只展開上課日節次
+        3. 銷假後已指派代課的教師收到取消通知</li>
+      <li><strong>測試方式</strong>:pytest(日期邊界:週末、學期起訖外拒絕)</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong><code>affected_period</code> 是快照,不是 join</strong>(這是 M4 的地基決策):展開當下把配課/教師/班級/場地/節次名稱/起訖時間一併寫死。理由與 D4 一致——課表可以重新發布,但「王師 11/12 第三節原本要上 301 班國文」是既成事實,不該隨課表改版漂移,更不該讓一筆已指派的代課隔天指向另一門課。溯源指標(schedule_entry_id/course_assignment_id)課表刪除時 SET NULL,快照欄位仍在。真機驗過:刪掉已發布課表後,受影響節次原封不動。
+      - <strong>只看已發布課表</strong>:草稿隨時會變,拿草稿找代課老師沒意義。課表未發布時假單照樣成立,只是展開 0 節。
+      - <strong>上課日由節次表決定</strong>,不寫死週一~週五:六日制學校的週六有課由 <code>num_weekdays</code> 判定(週末跳過 = <code>isoweekday() &gt; num_weekdays</code>)。
+      - <strong>半天假以牆鐘時間區間重疊判定</strong>;節次表沒填起訖時間時保守列入(寧可多列一節讓組長刪,也不要漏掉一節變成沒老師的教室)。多日假只有頭尾兩天受時間限制,中間整天。
+      - <strong>銷假級聯</strong>:已完成的節次不動(課上過了,鐘點照算);已指派代課的轉為已取消並<strong>合併</strong>通知代課教師(一人多節一封信);當事人另收銷假通知。這條在 M4-1 就做掉,不留到 M4-3。
+      - <strong>通知只落地、不寄送</strong>:<code>notifications.notify()</code> 是 M4-3 <code>NotificationChannel</code> 的寫入點;寫入永遠成功,寄送(站內鈴鐺/Email)可失敗可重試,不綁同一交易。
+      - <strong>RBAC</strong>:教師自登只能登自己、只看自己;組長/主任可代登代銷看全校。教師端請假頁手機可用(路由守衛新增 <code>leaves</code> 為教師可進頁面)。
+      - <strong>前端</strong>:日期一律附星期(「2026-11-11(週三)」),否則看不出跨六天為何只有一天有課;已取消狀態改用淡色文字,不與「待處理」搶眼(Naive 的 tag <code>type="default"</code> 在此仍沿用前次主題色,故不用 tag)。日期用本機格式不用 <code>toISOString</code>(UTC 會讓台灣凌晨倒退一天)。</p>
+      <h3 id="m4-2-調代課處理工作台與推薦引擎"><span class="tick done">☑</span> M4-2 調代課處理工作台與推薦引擎</h3>
+      <ul>
+      <li><strong>描述</strong>:逐節處理 UI(代課/調課/併班/自習/不處理);<strong>代課推薦服務</strong>:硬性過濾(該時段空堂、當日未請假)→ 排序(同科目 &gt; 當日已在校 &gt; 本月代課鐘點少),每位候選附排序理由;調課(swap)驗證(architecture.md §5.3);指派即生效(<strong>不設邀請/婉拒流程</strong>,2026-07-09 使用者定案:組長實務上已事先口頭徵得同意,通知僅為正式告知+確認收到)。</li>
+      <li><strong>模組</strong>:<code>app/services/substitution_recommender.py</code>、<code>frontend/src/views/substitution/</code></li>
+      <li><strong>驗收標準</strong>:
+        1. 推薦清單第一名必為空堂+同科;已滿 6 節者排序靠後
+        2. swap 後任一方衝突 → 拒絕並說明是誰在哪一節衝突
+        3. 該時段全校無人空堂 → 顯示「無可代教師」並建議併班/自習</li>
+      <li><strong>測試方式</strong>:pytest 推薦排序表格測試(10+ 情境)</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>「週格 vs 特定日期」的落差用獨立的 <code>availability.py</code> 收斂</strong>(Fable 5 M3 審查點名的 M4 最大架構工作):可用性判斷疊三層——週課表有沒有課(D7 牆鐘重疊)、當天自己有沒有請假、當天有沒有被指派代別班。今日看板(M4-4)與代課推薦共用這一層。
+      - <strong>當日請假必須讀假單本身的日期/時間窗,不是展開的 <code>affected_period</code></strong>——這是實作時測試抓到的真 bug:老師請整天假、但某節恰好是他的空堂時,<code>affected_period</code> 不涵蓋那一格(它只在有課的節次才存在),若照它判斷會把一位不在校的老師找來代課。改為直接比對 <code>leave_request</code> 的 start/end 日期時間(與 <code>leaves.expand</code> 同一套半天窗語意)。
+      - <strong>推薦排序</strong>:同科目 &gt; 當天已在校 &gt; 本月代課鐘點少 &gt; 姓名(穩定)。每位候選附人話理由(「同科目教師 · 當天已在校 · 本月已代 2 節」),不是黑箱分數。
+      - <strong>swap(調課)驗四件事</strong>:乙在甲那節無課、swap_entry 確是乙的課、甲在補課那節無課也沒請假、補課日星期與該節課相符。任一撞課指名道姓拒絕。swap 交換的節次以快照保存(swap_date/period_name/class_names/subject_name),課表改版不影響已成立的調課。
+      - <strong>鐘點政策</strong>:代課計、併班/自習/不處理不計(可覆寫),供 M4-5 月結。<code>substitution</code> 是處置真相來源,<code>affected_period.handler_teacher_id</code>/<code>status</code> 為冗餘指標。
+      - <strong>指派即生效</strong>:建立處置 → 節次轉『已確認』+ 記處理教師 → 通知處理教師(站內落地,M4-3 才寄送)。撤回處置退回待處理並通知取消。無邀請/婉拒(2026-07-09 定案)。</p>
+      <h3 id="m4-3-通知系統"><span class="tick done">☑</span> M4-3 通知系統</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>notification</code> model;通知寄送走 <code>NotificationChannel</code> 介面(architecture.md §5.3,MVP 實作站內+Email 兩個 channel,v2 增 webhook/LINE adapter);收件人解析經 <code>teachers.user_id</code>(站內)與 <code>teachers.email</code>(Email,M2-0 欄位);站內通知(鈴鐺、未讀數、輪詢);Email 寄送走 RQ(SMTP 設定於系統管理,未設定則僅站內通知並提示);通知模板(代課指派/取消、課表發布);教師「確認收到」頁(手機可用,一鍵確認);組長看板顯示各筆確認狀態,未確認者可一鍵再次提醒。</li>
+      <li><strong>驗收標準</strong>:
+        1. 指派代課後,教師站內+Email 雙通知,點連結直達確認頁,一鍵「確認收到」
+        2. 組長於看板可見確認/未確認狀態;對未確認者按「再次提醒」重發通知
+        3. SMTP 未設定時系統正常運作(僅站內通知)</li>
+      <li><strong>測試方式</strong>:pytest(mailhog 容器攔信)+ Playwright 手機視窗尺寸</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>NotificationChannel 分層</strong>:<code>notifications.notify()</code> 建立站內通知列(永遠送達)後,逐一經 <code>CHANNELS</code>(<code>InAppChannel</code> no-op + <code>EmailChannel</code>)派送;v2 加 webhook/LINE 只需再實作一個 channel 並 append。
+      - <strong>Email 的交易語意</strong>:EmailChannel 不直接 enqueue,而是把信放進 <code>session.info</code> 的寄件匣;SQLAlchemy 的 <code>after_commit</code> 事件才排入 RQ,<code>after_rollback</code> 則丟棄——交易回滾就不會寄出一封對應到不存在通知的信(雙寫問題的正解)。已測 rollback 不寄、commit 才寄。
+      - <strong>站內永遠可用,Email 是加分</strong>:SMTP 未設定時 <code>email.send</code> 回 False、<code>email_job</code> 只記 log,整個調代課流程照常。這是驗收③,實機在 mailhog 上驗過雙通道。
+      - <strong>SMTP 設定存 <code>app_settings</code></strong>(全域 key/value,非學期範圍);密碼留空 = 不變更,回傳不含明文。管理員專屬。<code>POST /settings/smtp/test</code> 當場寄測試信回報結果(不走 RQ)。
+      - <strong>確認收到 = 通知層已讀確認</strong>,不影響課務(指派即生效,2026-07-09 定案)。教師鈴鐺(輪詢 20s + 未讀數 badge)、組長看板(確認狀態 + 對未確認者「再次提醒」重發,已確認則 409)。
+      - <strong>開發用 mailhog</strong>:docker-compose 加 <code>mailhog</code>(profile <code>dev</code>,不影響正式部署);<code>docker compose --profile dev up</code> 才啟動,Web UI :8025。
+      - <strong>E2E 教訓</strong>:共用 e2e_teacher 帳號 + 發布課表的測試會用「最近學期」預設互相污染;測試中途失敗會跳過收尾清理,故改用 <code>test.afterEach</code> 兜底刪除學期。另 Naive 的 message toast 與 tag 同字串會觸發 strict-mode(getByText 命中兩個),toast 文案要與 tag 區隔。</p>
+      <h3 id="m4-4-今日看板與調代課日誌"><span class="tick done">☑</span> M4-4 今日看板與調代課日誌</h3>
+      <ul>
+      <li><strong>描述</strong>:儀表板「今日調代課看板」(今日全部異動:誰代誰的課、教室異動);當日調代課通知單列印(A4,傳統公告格式);歷史查詢(依教師/日期/假別篩選)。</li>
+      <li><strong>驗收標準</strong>:
+        1. 看板即時反映今日已確認處置;無異動顯示「今日無調代課」
+        2. 列印版面 A4 一頁內,含節次/班級/原教師/代課教師</li>
+      <li><strong>測試方式</strong>:Playwright 快照</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>看板/日誌不新增真相,只攤平</strong>:<code>substitution_log.py</code> 把「受影響節次 + 處置」join 成一列列可讀紀錄,今日看板與歷史查詢共用同一 <code>LogEntry</code>。真相仍在 <code>affected_period</code>(快照)與 <code>substitution</code>(處置決定)。
+      - <strong>「今日」以學校時區判定</strong>(config.tz,預設 Asia/Taipei),不是 UTC——台灣凌晨的 UTC 仍是前一天(D6)。前端深連結可帶 <code>?date=&amp;semester_id=</code> 指定任一天,未帶則後端以 <code>school_today()</code> 為準。
+      - <strong>看板含待處理節次</strong>,好讓組長一眼看出還有幾節沒排代課;排除已銷假(cancelled)的節次(那天沒有異動)。列印通知單則只列已安排的處置(公告只公告已定案的)。
+      - <strong>歷史查詢的 <code>teacher_id</code> 同時比對缺課當事人與接手代課者</strong>——查一位教師,他缺的課與他代的課都算相關(以冗餘的 <code>affected_period.handler_teacher_id</code> 命中接手方)。
+      - <strong>A4 列印頁是獨立路由 <code>/daily-board/print</code></strong>(不套側邊欄版面),<code>window.open</code> 新分頁開啟;<code>@media print</code> 隱藏工具列、設 <code>@page A4</code>。校名取自 config.school_name,隨看板回應帶出(免另設定)。
+      - <strong>踩雷:<code>date</code>/<code>start_time</code> 欄位名遮蔽 datetime 型別</strong>——dataclass/pydantic 內欄位命名為 <code>date</code> 後,同類別後續以 <code>date</code> 標註型別會被 mypy 視為「用變數當型別」而報錯。以模組別名 <code>_Date = date</code> 標註型別解決。</p>
+      <h3 id="m4-5-代課鐘點統計"><span class="tick done">☑</span> M4-5 代課鐘點統計</h3>
+      <ul>
+      <li><strong>描述</strong>:月結統計:依教師彙total(代課節數、計費節數——併班/自習不計、假別、經費來源標記);Excel 匯出;教師個人可查本人明細。</li>
+      <li><strong>驗收標準</strong>:
+        1. fixture 一個月 20 筆處置 → 統計數字與手算一致(含不計費項排除)
+        2. 匯出 Excel 欄位:教師/日期/節次/班級/科目/原教師/假別/計費</li>
+      <li><strong>測試方式</strong>:pytest 計算正確性(邊界:跨月假單拆月計)</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>兩個數字</strong>:代課節數(所有接手處置:代課/調課/併班)vs 計費節數(<code>counts_toward_hours</code> 為真者)。自習/不處理沒有處理教師,不計入任何人;併班有接手者但預設不計費(可覆寫)。「併班/自習不計」指的是計費,不是代課節數。
+      - <strong>跨月假單自動拆月</strong>:以每一個 <code>affected_period</code> 自己的日期分月,不是以假單分月。王師請 1/30~2/2,1 月的節次進 1 月報表、2 月的進 2 月,無需特別處理。
+      - <strong>銷假的節次不計但已完成的保留</strong>:<code>leaves.cancel</code> 把未完成節次轉 <code>cancelled</code>(那堂課沒上)、保留 <code>completed</code>(課上過了鐘點照算);統計以 <code>affected_period.status != cancelled</code> 過濾,不看假單狀態(才不會漏掉部分銷假的已完成節次)。
+      - <strong>RBAC</strong>:組長/主任看全校並匯出 Excel(<code>/substitution-stats</code> + <code>/export</code>);教師只能查自己(<code>/substitution-stats/mine</code>,以 current_teacher 綁定解析,無綁定回空報表)。前端同一頁依角色分流:管理者有教師篩選+匯出鈕,教師版隱藏。教師頁加入路由守衛白名單。
+      - <strong>Excel 兩張表</strong>:彙總(教師/代課節數/計費節數)+ 明細(教師/日期/節次/班級/科目/原教師/假別/處置/計費/經費來源);沿用 importer 的 openpyxl Workbook + FastAPI Response(Content-Disposition attachment)。前端以 <code>window.open</code> 帶 cookie 觸發下載。
+      - <strong>深連結</strong>:統計頁與看板頁一樣支援 <code>?year=&amp;month=&amp;semester_id=</code>,便於分享與測試。</p>
+      <h3 id="m4-里程碑複審fable-52026-07-11與修正">M4 里程碑複審(Fable 5,2026-07-11)與修正</h3>
+      <ul>
+      <li><strong>條件 A(已修)——「已完成」不落盤,改讀取時推導</strong>:§5.3 的「已確認→已完成:上課日結束自動轉換」原本無任何程式寫入 <code>completed</code>,導致兩道完整性保護失效(銷假會抹掉已上過課的鐘點、可事後改派已上完的代課)。改為 <code>app/core/clock.py</code> 的 <code>is_past_slot(date,end_time)</code>(以 config.tz 判定):<code>leaves.cancel</code> 對已上過的節次不轉 cancelled、<code>substitutions.assign/clear</code> 對已上過的節次回 409;顯示層 <code>leaves.effective_status()</code> 把 resolved+已過推導為 completed。M5-2 的 RQ scheduler 上線後可再補夜間 sweep 落盤,但正確性不依賴排程。</li>
+      <li><strong>條件 B(已修)——swap 補課判定漏比對教師</strong>:<code>availability._already_covering</code> 的 swap 分支原本只比對 <code>swap_date</code>+<code>period_no</code>,任一筆調課成立後補課日該節次會誤判<strong>全校</strong>已佔用。改為 join <code>AffectedPeriod→LeaveRequest</code> 加 <code>teacher_id</code>(補課方=該調課請假的當事人)+ <code>status=registered</code> + 節次未取消。</li>
+      <li><strong>條件 C(已修)——公平計數含幽靈代課</strong>:<code>_monthly_sub_counts</code> 未排除已銷假節次,銷假後那筆代課仍計入「本月已代 N 節」,與 M4-5 統計口徑不一。加 <code>status != cancelled</code>。公平計數維持以<strong>計費節數</strong>(counts_toward_hours)計,與顯示的「本月已代 N 節」一致。</li>
+      <li><strong>條件 E(已處理)</strong>:(1) 看板與統計口徑差已記於補遺(唯一分歧=銷假假單中已完成的節次:不上看板但計鐘點,合理);(2) swap 補課可用性退化為 period_no 比對,跨節次表學校有 D7 精度損失,列 v1.x;(3) <code>notifications</code> 的 after_commit enqueue 失敗改為 <code>logger.warning</code> 留痕,不再無聲吞掉。</li>
+      <li><strong>條件 D(排入 M5-0)</strong>:學期中重新發布課表後,未來日期的 <code>affected_period</code> 仍指向舊格位——見 M5-0。</li>
+      </ul>
+      <hr />
+      <h2 id="m5-報表備份與發行">M5 報表、備份與發行</h2>
+      <h3 id="m5-0-發行前置fable-5-建議m5-1-前必做"><span class="tick done">☑</span> M5-0 發行前置(Fable 5 建議,M5-1 前必做)</h3>
+      <ul>
+      <li><strong>描述</strong>:一次備妥 M5 各卡的共用基礎設施,避免每張卡各自處理環境。
+        1. <strong>PDF/字型基礎</strong>:worker 映像安裝 WeasyPrint 系統依賴(Pango/Cairo/gdk-pixbuf)與<strong>中文內嵌字型</strong>(Noto Sans TC / Noto Serif TC),供 M5-1 PDF、M5-2 之後的報表共用。字型與重量級原生依賴只裝在 worker(匯出走背景任務),api 映像維持精簡。
+        2. <strong>RQ scheduler 骨架</strong>:立起定時任務排程器(M5-2 每日備份、條件 A 選配夜間 sweep 都掛這裡);docker-compose 加 scheduler 服務,先跑一個 heartbeat/no-op 週期任務驗證存活。
+        3. <strong>效能 fixture</strong>:以 M3-0 的學制 builder 長出 60 班規模資料集,供 M5-1「60 班批次 &lt; 60 秒」與 M5-4 壓測共用;先確認 builder 能產生該規模。
+        4. <strong>條件 D:重新發布重展開受影響節次</strong>:<code>leaves.expand</code> 只在登記當下依當時 published 課表展開;學期中重新發布課表後,<strong>今日之後</strong>的 pending/resolved 受影響節次仍指向舊格位(代課老師被派去上已移走的課)。M5-0 先做最小防護——publish 時偵測該學期「今日之後」的受影響節次數 &gt; 0 就於回應與 UI 加警告;完整重跑 expand+diff+通知列為後續增強。</li>
+      <li><strong>驗收標準</strong>:
+        1. worker 容器內 <code>python -c "import weasyprint"</code> 成功,且以內嵌字型渲染中文 PDF 無 tofu(目視一張測試頁)
+        2. scheduler 服務啟動後,週期任務有觸發紀錄(log)
+        3. 60 班 fixture builder 產出資料,基本查詢正常</li>
+      <li><strong>測試方式</strong>:容器內 smoke test(WeasyPrint 匯入 + 中文 PDF)、scheduler 存活紀錄、fixture builder pytest</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>多階段 Dockerfile(base / worker)</strong>:api 用 <code>base</code>(精簡),worker 用 <code>worker</code>(額外裝 Pango/Cairo/gdk-pixbuf + <code>fonts-noto-cjk</code> + poppler-utils + <code>pip .[export]</code> 的 WeasyPrint)。compose 與 CI 皆以 <code>target:</code> 指定;CI 另推 <code>-worker</code> 映像。<code>app/services/pdf.py</code> 的 <code>render_pdf</code> 延遲匯入 weasyprint,api 匯入不會失敗(匯出一律走 worker 背景任務)。<strong>實機驗證</strong>:worker 容器內 weasyprint 69.0 匯入成功,渲染繁中 PDF→PNG 目視無 tofu(排課/調代課/王小明/國文/甲乙丙丁…/藝術與人文 皆清晰)。
+      - <strong>排程器骨架</strong>:worker 已 <code>with_scheduler=True</code>;不加獨立容器(單校部署少一個行程),改用「執行時排下一次」的自我續期心跳(固定 job_id,重啟不堆疊),<code>ensure_scheduled()</code> 於 worker 啟動時排入。M5-2 每日備份、條件 A 選配夜間 sweep 都掛此模式。<strong>實機驗證</strong>:ScheduledJobRegistry 含 <code>scheduler-heartbeat</code>,手動觸發 job 狀態 FINISHED 且自我重排成功。
+      - <strong>60 班效能 fixture</strong>:<code>tests/fixtures/scale.py</code> 的 <code>build_large_school(num_classes=60)</code>,以貪婪「最少負載且不超 base」指派教師(不保證可完全排課,量為主);pytest 驗 60 班 660 配課、無教師超鐘點。
+      - <strong>條件 D 最小防護(已做)</strong>:<code>timetable_publish.stale_future_affected_count</code> 算「今日之後、依先前課表展開」的待處理/已指派受影響節次;發布回應加 <code>stale_affected</code>,前端發布成功後 &gt;0 則跳警告 toast(請至今日看板/調代課紀錄重新檢視)。完整解(重跑 expand+diff+通知)仍列後續增強。</p>
+      <h3 id="m5-1-課表匯出"><span class="tick todo">☐</span> M5-1 課表匯出</h3>
+      <h3 id="m5-1-課表匯出_1"><span class="tick done">☑</span> M5-1 課表匯出</h3>
+      <ul>
+      <li><strong>描述</strong>:班級/教師/場地課表匯出 Excel(openpyxl)、PDF(WeasyPrint,A4 直式含校名/學期/列印日)、PNG;全校總表 Excel;批次匯出(全部班級一鍵 zip)。</li>
+      <li><strong>驗收標準</strong>:
+        1. 三種格式與畫面課表內容一致;PDF 中文無亂碼(內嵌字型)
+        2. 60 班批次匯出 &lt; 60 秒</li>
+      <li><strong>測試方式</strong>:pytest 內容比對(Excel 讀回驗證)+ 人工檢視 PDF 版面</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>共用格線模型</strong>:<code>timetable_export.py</code> 把已發布課表(D4 快照)攤成 <code>Grid</code>(節次列 × 星期欄,連堂以 span 合併),三種對象(班級=科目/教師/教室、教師=科目/班級/教室、場地=科目/班級/教師)與三種格式共用,確保內容一致(驗收①)。
+      - <strong>Excel 在 api、PDF/PNG 在 worker</strong>:openpyxl 輕量,班級/教師/場地/全校總表/批次 zip 皆 api 同步產生。PDF 需 WeasyPrint(系統依賴+中文字型只在 worker,見 M5-0),故 PDF/PNG 由 api 以 <code>queue.render_export</code> <strong>阻塞式</strong>派到 worker 渲染再取回(RQ result);PNG = WeasyPrint 出 PDF 後 poppler <code>pdftoppm</code> 轉單頁。
+      - <strong>全校總表 vs 批次</strong>:總表=一個 Excel 每班一分頁;批次=每班各一 Excel 打包 zip。單一課表匯出開放所有登入者(課表本就全校可查),總表/批次限教學組長以上。
+      - <strong>中文檔名</strong>:Content-Disposition 用 RFC 5987 <code>filename*=UTF-8''</code>,前端以 fetch blob 下載並解出檔名(順帶處理 4xx/5xx 與載入狀態)。
+      - <strong>驗收②</strong>:60 班批次為 CPU-bound(60 個 openpyxl workbook),與資料庫無關,pytest 用 <code>build_large_school</code> 實測 &lt; 60 秒。<strong>驗收①</strong>:E2E 下載班級 PNG(走 worker WeasyPrint→pdftoppm)存檔目視:標題/校名/學期/列印日、節次×星期格線、早自習/午休淡色、週三第一節顯示國文/王老師,繁中無 tofu。</p>
+      <h3 id="m5-2-備份與還原"><span class="tick done">☑</span> M5-2 備份與還原</h3>
+      <ul>
+      <li><strong>描述</strong>:每日 02:00 自動 pg_dump(保留 30 份,RQ scheduler);管理 UI:立即備份/下載/上傳還原(還原前自動先備份現狀+二次確認);還原後強制全員重新登入。</li>
+      <li><strong>驗收標準</strong>:
+        1. 備份→改資料→還原→資料回到備份點
+        2. 上傳非法檔案被拒絕且系統無損
+        3. 自動備份保留數正確輪替</li>
+      <li><strong>測試方式</strong>:pytest + docker 整合測試</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>pg 工具版本</strong>:基底映像已是 Debian trixie(非 bookworm),其 main 內含 postgresql-client <strong>17</strong>;pg_dump 17 可備份 postgres:16 伺服器(client ≥ server 允許)。原想從 PGDG 裝 client 16,但 PGDG 的 libpq5 18 在 trixie 有相依衝突,故直接用發行版的 client。pg 工具只裝在 <strong>worker</strong> 映像(與 M5-1 的 WeasyPrint 同層),api 維持精簡。
+      - <strong>跨版本還原的可忽略錯誤</strong>:pg_dump 17 的備份含 <code>SET transaction_timeout</code>(v17 GUC),pg_restore 進 v16 伺服器會噴一個可忽略錯誤、exit code=1。依 pg_restore 慣例(0=全成功、1=完成但有忽略錯誤、&gt;1=失敗)放行 exit 1 並記 log,資料仍正確還原(實測 revert OK)。
+      - <strong>api/worker 分工</strong>:清單/下載/上傳由 api 直接讀寫共掛的 <code>backups</code> volume;pg_dump/pg_restore 派到 worker(<code>queue.run_backup</code>/<code>run_restore</code> 阻塞式)。每日備份掛 M5-0 的排程器(<code>schedule_daily_backup</code> 於 backup_hour 排 enqueue_at,執行後自我續期;固定 job_id 重啟不堆疊)。
+      - <strong>強制全員重新登入</strong>:session 是無狀態簽章 cookie,還原資料庫不會使其失效。改在 <strong>Redis</strong> 記一個「最小有效簽發時間」(<code>session_epoch</code>),還原後設為現在;<code>get_current_user</code> 拒絕簽發早於此的 session。Redis 只是被還原的 PostgreSQL 之外的存放點。auth 端有 5 秒行程內快取(fail-open),故強制登出有 ≤5 秒傳播延遲(可接受)。
+      - <strong>還原後補寫稽核的坑</strong>:還原會 <code>pg_terminate_backend</code> 中止所有其他連線(含本請求的 DB 連線),且還原本身會覆蓋整個資料庫——所以還原前寫的稽核會被蓋掉、還原後用舊連線寫會失敗。正解:還原後 <code>engine.dispose()</code> 再開新連線,把稽核寫進<strong>還原後</strong>的資料庫。
+      - <strong>非法上傳(驗收②)</strong>:<code>save_uploaded</code> 先驗 <code>PGDMP</code> 魔數,非法直接拒絕、檔案不落地、不碰資料庫;還原既有備份前也再驗一次檔頭。
+      - <strong>實機驗證(docker 整合)</strong>:worker 內 pg_dump 17.10;備份→插入學期→還原→筆數回到備份點 ✅;輪替 3→keep=1→1 ✅;api POST /backups(RQ 阻塞)→201、POST restore→200(自動 presafe 備份)、/auth/me 由 200 轉 401(強制登出,~5s)、重登 200 ✅;非法上傳 400 且無檔案落地(pytest)。</p>
+      <h3 id="m5-3-部署文件與發行工程"><span class="tick done">☑</span> M5-3 部署文件與發行工程</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>docs/deploy/</code> 中文圖文:Docker 安裝(Win/Linux/NAS)、三步驟安裝、升級、備份策略、VPS+HTTPS 選配、常見問題;README(中文為主+英文摘要);CHANGELOG;GitHub Release 流程(tag→CI 出雙架構 image);LICENSE(MIT);CONTRIBUTING.md。</li>
+      <li><strong>驗收標準</strong>:
+        1. 依文件在乾淨 VM 從零安裝成功(實測)
+        2. <code>docker compose pull &amp;&amp; up -d</code> 從前一版升級,資料完整、遷移自動執行</li>
+      <li><strong>測試方式</strong>:乾淨環境實測(記錄於 PR)</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>同一份 compose,兩種部署</strong>:為讓驗收②的 <code>docker compose pull</code> 有意義,<code>docker-compose.yml</code> 的 web/api/worker 三服務同時掛 <code>image:</code>(GHCR)與 <code>build:</code>——clone 原始碼者 <code>up -d</code> 仍在本機建置(行為不變),只需檔案者 <code>pull &amp;&amp; up -d</code> 拉官方映像。映像版本由 <code>.env</code> 的 <code>IMAGE_TAG</code>(預設 latest,建議正式部署釘選版本號)決定。
+      - <strong>CI 補版本標籤</strong>:原 <code>images</code> job 只推 <code>:latest</code> 與 <code>:sha</code>,<code>IMAGE_TAG=v1.0.0</code> 會拉不到映像。三個映像各補推 <code>:${github.ref_name}</code>(main push=<code>main</code>、版本標籤=<code>v1.0.0</code>),版本釘選才真的成立;版本標籤仍為唯一觸發雙架構(amd64+arm64)的條件。
+      - <strong>HTTPS 選配做成一個設定</strong>:Caddyfile 站台位址寫死 <code>:80</code> 且烘進映像,拉映像的學校改不到。改為 <code>{$SITE_ADDRESS::80}</code> 環境變數(預設 <code>:80</code> 內網 HTTP;於 <code>.env</code> 設 <code>SITE_ADDRESS=網域名</code> 即自動申請/續期 Let's Encrypt 憑證)。compose 補 443 埠映射與 <code>caddydata</code> volume(憑證持久化,避免重啟觸發速率限制)。<strong>實測</strong>:預設(無網域)重建 web 後 <code>/api/health</code> 與首頁皆 200、web healthy,內網 HTTP 部署未受影響;<code>docker compose config</code> 在有/無 <code>SITE_ADDRESS</code> 兩路徑皆正確解析。
+      - <strong>文件產出</strong>:<code>docs/deploy/</code>(index/install/upgrade/backup/https/faq 六篇中文,含 Win/Linux/Synology/QNAP 安裝、異地備援、回滾與 schema 變更提醒、VPS 對外埠與資安)、改寫 <code>README.md</code>(英文摘要+功能總覽+雙部署快速開始+文件索引)、新增 <code>CHANGELOG.md</code>(Keep a Changelog,彙整 M0–M5)、<code>CONTRIBUTING.md</code>(開發環境/品質門檻/任務卡制/發布新版本流程)。<code>LICENSE</code>(MIT)M0 已具備。
+      - <strong>驗收①「乾淨 VM 實測」的界線</strong>:compose 解析、web 重建與預設 HTTP 服務已在本機 Docker 驗過;真正的「全新 VM 從零 pull 安裝」需待版本標籤推上 GHCR 後才可端到端跑(目前尚無 release tag),此步驟留給實際發布時(或使用者)在乾淨環境驗收並記錄於 PR。</p>
+      <h3 id="m5-4-e2e-總驗收與效能"><span class="tick done">☑</span> M5-4 E2E 總驗收與效能</h3>
+      <ul>
+      <li><strong>描述</strong>:Playwright 全流程情境:精靈建置→匯入→配課→自動排課→發布→請假→代課→月統計;效能驗收;無障礙基本檢查(鍵盤可操作、對比度)。</li>
+      <li><strong>驗收標準</strong>:
+        1. 三套 fixtures 全流程 E2E 綠燈
+        2. 60 班規模:頁面載入 p95 &lt; 2s、check-conflict p95 &lt; 100ms、自動排課 &lt; 10 分鐘
+        3. 以 4GB RAM 容器限制跑全流程不 OOM</li>
+      <li><strong>測試方式</strong>:CI E2E + 壓測腳本</li>
+      </ul>
+      <p><strong>補遺(實作後)</strong>
+      - <strong>驗收①分兩面落實</strong>:(a) 後端 <code>tests/test_full_flow.py</code> 對<strong>三套學制 fixtures</strong>(國小/國中/技高)各跑完整管線——求解 → validator 驗零硬違反 → 發布快照 → 挑一位有課教師請整天假 → 依已發布課表展開受影響節次 → 用推薦挑空堂教師指派代課 → 月結統計數字對上;證明下游鏈路能吃真實求解結果並在三種學制一致成立(M3 只證到「解得出」)。(b) 前端 <code>full-journey.spec.ts</code> 一個學期連續走完自動排課(真實 solver worker)→ 版本發布 → 課表查詢 → 請假+代課(API)→ 月結(UI),截圖目視:自排「已找到 16 個解、產生草稿A 自排結果」、月結頁「國文師1 代 國文師2 事假 1 節、計費 1 節」。個別旅程細節仍由既有 26 支 spec 深入覆蓋。
+      - <strong>踩雷:全流程測試的兩個時間性地雷</strong>。(1) 求解要用 <strong>hard-only config</strong>(<code>SolverConfig.hard_only()</code>),否則掛軟約束目標函數的 CP-SAT 會為了逼近最佳跑到 <code>max_seconds</code> 天花板——三套 fixtures 各跑 120 秒共 6 分鐘;改 hard-only 後全部 15 秒。(2) 學期起訖必須設在<strong>今日之後</strong>:代課處置會用 <code>clock.is_past_slot</code> 拒絕已結束的節次,起初用 2025 的日期整批被判為「已結束」而指派失敗。
+      - <strong>驗收②(check-conflict p95&lt;100ms)</strong>:<code>tests/test_perf_scale.py</code> 以 <code>build_large_school(60)</code>(660 配課)塞入 &gt;1500 格合法佔用,量 30 次單格衝突檢查 p95。<strong>頁面載入 p95&lt;2s</strong>:<code>perf-page-load.spec.ts</code> 對灌了 60 班的執行中全棧量測。<strong>方法學校正</strong>:最初用重複 <code>page.goto</code> 全頁重載量到配課頁 p95≈2.9s——那是每次重新下載/解析 ~1.4MB SPA bundle 的成本(CPU 競爭下放大),不是使用者實際的換頁延遲。改量<strong>應用內導覽</strong>(bundle 已暖):配課頁/課表查詢 p95≈85–89ms;冷啟首載(含 bundle)另記 1069ms,兩者皆 &lt;2s。1.4MB bundle 的冷啟成本仍列 Backlog(按元件 import 縮小)。<strong>自排&lt;10 分</strong>:60 班求解耗時不放進 CI 單元測試(以免每次跑十分鐘),由 M3 的 junior_high &lt;60s 建模測試 + 全流程實測共同保證。
+      - <strong>驗收③(4GB 不 OOM)</strong>:新增 <code>docker-compose.limits.yml</code>(疊在正式 compose 上,<code>mem_limit</code> 合計 3.2GB:worker 1.5G/api 768M/postgres 512M/redis 256M/web 128M,留 ~0.8G 餘裕)。以此上限重建全棧跑完整旅程(含真實 solver),<code>docker stats</code> 峰值 api 132M/768M、postgres 36M/512M、worker 於小校求解下寬裕;全五容器 <code>OOMKilled=false</code>、<code>Restarts=0</code>。此檔亦作為 4GB 主機/NAS 部署參考。
+      - <strong>無障礙基本檢查</strong>:<code>a11y.spec.ts</code> 三案——(1) 僅鍵盤(Tab/輸入/Enter)完成登入直達儀表板;(2) 連續 Tab 焦點可達可互動元素;(3) 以 WCAG 相對亮度公式量對比:內文 ≥4.5:1(1.4.3 正常文字)。<strong>誠實揭露(Fable 5 M5 複審 H)</strong>:主要按鈕白字 on 主題綠(#18a058)≈ 3.4:1,只達 1.4.11 非文字元件的 3:1 底線,<strong>未達 AA 文字標準 4.5:1</strong>;測試僅以 ≥3:1 為最低防線並註明此限制,主題色調整列 Backlog(v1.x)。
+      - <strong>品質門檻</strong>:後端 ruff/mypy 乾淨、pytest <strong>371 passed</strong>(+4);前端 eslint/vue-tsc build/vitest 11 綠;Playwright 全套(既有 26 + 新增 a11y 3 / 全旅程 1 / 頁面載入 1)。</p>
+      <h3 id="m5-里程碑複審fable-52026-07-11與修正">M5 里程碑複審(Fable 5,2026-07-11)與修正</h3>
+      <p>M5 完成後由 Fable 5 做獨立技術審查,判決「<strong>有條件可發行</strong>」:核心(備份資料路徑、匯出正確性、排程時區)健全,裂縫集中在佇列互踩與發行流程未演練。以下 A/B/D/E/F 已修(各附回歸測試 <code>tests/test_m5_hardening.py</code>),H 誠實化,C 待使用者決定公開時機一起走。</p>
+      <ul>
+      <li><strong>A(已修)——單一佇列阻塞式派工互踩,逾時的還原仍會晚點偷跑</strong>:排課佔住單一 worker 時,還原排在後面;api 逾時回失敗,worker 空下來後卻仍執行還原→資料庫被無預警覆蓋。修:<code>queue._run_blocking</code>/<code>render_export</code> 逾時後 <code>job.cancel()</code>(不留在佇列裡等著跑);<code>queue.solver_busy()</code> 偵測排課進行/排隊中,<code>backups._restore</code> 在還原前檢查,進行中回 <strong>409「排課進行中,請待排課完成後再還原」</strong>。分出 ops 佇列 + 第二 worker 行程為更完整解,但會引入行程/容器/記憶體(4GB 預算)複雜度,列 Backlog 專卡處理;A 的資料安全洞已由 cancel + 409 封死。</li>
+      <li><strong>B(已修)——每日備份鏈一次失敗即永久靜默斷裂</strong>:<code>daily_backup_job</code> 先備份再排下一次,任一次失敗→例外→下次永不排入→自動備份無聲停止。修:<code>daily_backup_job</code> 改 try/finally 先在 finally 排下一次;<code>scheduler.heartbeat</code> 同改 try/finally,並順帶自癒——每小時檢查 <code>DAILY_BACKUP_JOB_ID</code> 不在 <code>ScheduledJobRegistry</code> 就補排。</li>
+      <li><strong>D(已修)——<code>:latest</code> 對 ARM 用戶是地雷</strong>:main push 只建 amd64 卻覆蓋 <code>:latest</code>,ARM NAS(<code>IMAGE_TAG=latest</code>)pull 到無 arm64 manifest 會起不來。修:CI <code>images</code> job 以 channel 區分——main push 推 <code>:main</code>,<code>:latest</code> 只在版本標籤(雙架構)時更新。</li>
+      <li><strong>E(已修)——pg_restore exit 1 容忍面太寬、警告不進 UI</strong>:exit 1 涵蓋任何被忽略錯誤,某張表 COPY 失敗也是 exit 1,只憑 returncode 會把資料缺漏報成成功。修:<code>backup._classify_restore_stderr</code> 白名單化——只容忍「設定參數不認得」(跨版本 GUC),其餘 <code>pg_restore: error</code> 一律視為失敗(presafe 在,可回退);可忽略警告經 <code>RestoreResult.warnings</code> 上接,前端 <code>System.vue</code> 以對話框顯示給管理員(不再只留 log)。</li>
+      <li><strong>F(已修)——session_epoch 落盤耐久性</strong>:Redis 預設 RDB 條件下這個單一 SET 可能一小時未落盤,還原後 Redis 崩潰→epoch 遺失→舊 cookie 復活。修:<code>force_logout_all</code> 設 key 後補 <code>bgsave()</code>(盡力而為,失敗不擋)。</li>
+      <li><strong>H(已誠實化)——a11y 對比主張過度</strong>:主色按鈕實為文字(適用 4.5:1)卻套了 3:1 非文字門檻。已在 <code>a11y.spec.ts</code> 與上方補遺如實標註「達 3:1、未達 AA 文字 4.5:1」;主題色調整列 Backlog。</li>
+      <li><strong>C(待處理,發行阻擋-流程,非程式)</strong>:repo 私有→<code>raw.githubusercontent</code> 匿名 404、GHCR 映像 private→<code>docker compose pull</code> 被拒、<code>IMAGE_TAG=v1.0.0</code> 依賴的版本標籤從未推過(雙架構 arm64 build 一次都沒跑),驗收①「乾淨 VM 從零 pull 安裝」實質未驗。<strong>處置</strong>:發行前 repo/GHCR 轉 public + 先打 <code>v1.0.0-rc1</code> 演練(驗雙架構 build + 乾淨環境 pull 安裝)再打 <code>v1.0.0</code>。<strong>留待使用者決定公開時機一起走。</strong></li>
+      <li><strong>v1.x 可延(Fable 5 判定合理,不阻擋發行)</strong>:G(還原溯源 append-only log、stale 提示持久化;presafe 檔名時戳現已足夠)、以及既有 Backlog。</li>
+      </ul>
+      <p><strong>修正後品質門檻</strong>:pytest <strong>392 passed</strong>(+21,含 test_m5_hardening 12)、ruff/mypy 乾淨;前端 eslint/vue-tsc build/vitest 綠;Playwright 全套迴歸;docker 實測 A(排課中還原被 409 擋)、B(備份失敗鏈仍存活)。M5 里程碑完成,<strong>有條件可發行</strong>(待清 C)。</p>
+      <h3 id="最終發行前總體檢fable-52026-07-12與修正">最終發行前總體檢(Fable 5,2026-07-12)與修正</h3>
+      <p>公開發行 v1.0.0 前,Fable 5 做全系統(非逐卡)總體檢。<strong>核心健全</strong>:逐一核對每個 API 端點的 RBAC——管理類全由 viewer/editor/admin_only 守住,教師類全部限縮本人(<code>_get_leave</code>、<code>_get_own_notification</code>、<code>substitution-stats/mine</code> 忽略用戶端 teacher_id),跨學期寫入有 <code>semester_id</code> 校驗,<strong>無 IDOR 洞</strong>;無 SQL 注入面(全 ORM)、無 v-html/XSS;正式 compose 只對外 80/443;<code>.env</code> 不進映像;15 個遷移 downgrade 全部有實作(可逆)。判「有條件可發行」——裂縫集中在「交給非資訊背景教師自架時的安全預設」。發行阻擋 A/B/C + F 已修(回歸測試 <code>tests/test_config_hardening.py</code> 9 個):
+      - <strong>A(SECRET_KEY 預設無防呆)</strong>:<code>config.py</code> 加 <code>_harden</code> 驗證器——secret_key 落在不安全值集合(<code>dev-insecure-change-me</code>/<code>please-change-this-...</code>/空)即以 <code>secrets.token_hex(32)</code> 取代並 <code>logger.warning</code>。避免以公開金鑰簽署 session。
+      - <strong>B(HTTPS 部署 cookie 未帶 Secure)</strong>:<code>site_address</code> 為真實網域且未顯式設 <code>cookie_secure</code> → 自動 True;<code>docker-compose.yml</code> 把 <code>SITE_ADDRESS</code> 也傳給 api;<code>.env.example</code> 補 <code>COOKIE_SECURE</code> 說明。
+      - <strong>C(無請求體上限→單校 OOM)</strong>:Caddyfile 加 <code>request_body { max_size 200MB }</code>(容得下真實 .dump 還原與 Excel 匯入);<code>backup.md</code> 註明超大 DB 還原改用 volume 複製法。相關端點皆需 editor/admin,屬內部誤操作等級。
+      - <strong>F(第三方授權揭露)</strong>:新增 <code>THIRD-PARTY-NOTICES.md</code>(psycopg=LGPL、poppler/pdftoppm=GPL 子行程、Noto CJK=OFL,皆動態相依/子行程使用,MIT 相容),README 連結。
+      - D/E/G 列 v1.x(下方 Backlog)。</p>
+      <hr />
+      <h2 id="m6-v11-加固fable-5-開卡2026-07-13範圍與取捨理由見-docsroadmapmd">M6 v1.1 加固(Fable 5 開卡,2026-07-13;範圍與取捨理由見 docs/roadmap.md)</h2>
+      <p>目標:2026 年 8 月排課季前發布 v1.1。依序做,M6-2 先定容器架構,後面的文件與 E2E 疊在其上。
+      CI 已含 e2e job(30 tests),每張卡完成後 push 即有全棧迴歸把關;仍須遵守既有 DoD(含真 PostgreSQL 實測與截圖目視)。</p>
+      <h3 id="m6-1-e2e測試硬編日期動態化死線2026-11-前"><span class="tick done">☑</span> M6-1 E2E/測試硬編日期動態化(死線:2026-11 前)</h3>
+      <ul>
+      <li><strong>描述</strong>:多處測試硬編未來日期,真實日期越過後 <code>clock.is_past_slot</code> 會拒絕代課指派,CI 將無聲轉紅。已知:<code>frontend/e2e/substitution-stats.spec.ts</code>(<code>DAY='2026-11-11'</code>)、<code>full-journey.spec.ts</code>、<code>backend/tests/test_full_flow.py</code>(<code>_SEM_START=2026-09-01</code>、<code>_SEM_END=2027-01-31</code>)等;開工先全案掃一次(grep <code>2026-</code>/<code>2027-</code>)。改為以「執行當日」推算:請假日=下一個週三(或其他固定星期),學期起訖=今天前後推(起=今天往前一個月、訖=往後六個月之類),集中成 helper(前端 <code>e2e/helpers.ts</code>、後端 conftest 或 fixtures)供各 spec 共用。</li>
+      <li><strong>驗收標準</strong>:
+        1. 全案無「會過期」的硬編日期(節次表等與日曆無關的常數不在此列)
+        2. 日期 helper 有單元測試(含「今天就是週三」邊界)
+        3. 全套 pytest 與 e2e 綠</li>
+      <li><strong>測試方式</strong>:pytest + Playwright 全套;人工檢視 grep 結果確認無漏網</li>
+      <li><strong>實作後(commit 待補)</strong>:兩支 helper——<code>backend/tests/dates.py</code> 與 <code>frontend/e2e/dates.ts</code>(同一套規則),由「執行當日」推算出一個<strong>基準週</strong>(距今 ≥14 天:確保基準週每一節都還沒上過,不受執行時刻影響)。範圍比卡上預估大:後端 8 個測試檔、前端 9 支 spec 全數改用 helper 常數。</li>
+      <li><strong>基準週必須「當週到下週三同月」——這是硬需求,不是美觀</strong>:代課推薦的公平計數與月結統計都以「受影響節次那一天的月份」為範圍(<code>_monthly_sub_counts</code> 用 <code>affected.date.replace(day=1)</code>)。第一版 helper 只保證「距今 ≥14 天」,今天(2026-07-14)推出來的基準週剛好是 WED=7/29、WED2=8/5 <strong>跨月</strong>,於是 <code>test_fewer_monthly_sub_periods_ranks_higher</code>(林師本月已代 1 節、陳師 0 節)與 <code>test_cancelling_leave_keeps_already_taught_period</code> 當場翻車——<strong>動態化第一天就抓到自己的設計缺陷</strong>。修正:<code>base_monday()</code> 往後找到「週一 +9 天仍同月」的那一週;跨月案例改由 <code>cross_month_wednesday()</code>(相鄰兩個週三分屬前後月)專門負責,月結拆帳測試仍驗得到。</li>
+      <li><strong>順手修掉一個假 fallback</strong>:<code>full-journey.spec.ts</code> 的 <code>leaveDay || '2026-11-11'</code> 是死路徑(兩邊同值),真正該做的是「請假日跟著該格位的星期走」,已改為 <code>dayOfBaseWeek(entry.weekday)</code>。</li>
+      <li><strong><code>manual-shots.spec.ts</code>(手冊截圖產生器,非迴歸)</strong>:改為向示範站查學期,取「學期內、今日之後的第一個週三」;學期已過期則明確報錯要求重建示範資料,不再靜默產出錯的圖。</li>
+      <li><strong>驗證</strong>:pytest <strong>452 綠</strong>(+59,含 helper 的參數化單元測試:每種「今天」落點、跨年、閏年、以及「不論今天是哪一天,WED/WED2 都同月」40 組)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;乾淨全棧(schedci,:8090)e2e <strong>30/30 綠</strong>;截圖目視確認 UI 顯示的是動態算出的「2026-08-05(週三)」而非硬編日期。</li>
+      </ul>
+      <h3 id="m6-2-背景任務佇列拆分default-ops"><span class="tick done">☑</span> M6-2 背景任務佇列拆分(default / ops)</h3>
+      <ul>
+      <li><strong>描述</strong>:單一 RQ worker 循序執行,排課(可達數分鐘)期間匯出/備份逾時失敗(M5 複審 A 的正解)。拆 <code>ops</code> 佇列:匯出(<code>render_export</code>)、備份/還原(<code>_run_blocking</code>)、email 改走 <code>ops</code>;自動排課獨走 <code>default</code>。同一 worker 映像加第二個容器(如 <code>worker-ops</code>,<code>command</code> 帶佇列名;<code>app/workers/worker.py</code> 支援指定佇列)。<strong>資料安全語意不變</strong>:排課中還原仍須 409(還原覆蓋整個 DB,與排課寫回互斥),<code>solver_busy()</code> 只看 <code>default</code> 佇列即可;每日備份排程器要決定歸屬(建議 ops)。更新 <code>docker-compose.yml</code>(5→6 容器)、<code>docker-compose.limits.yml</code>(worker-ops 建議 512M,總和仍 ≤4GB)、部署/升級文件(docs/deploy/)、CONTRIBUTING 架構描述。</li>
+      <li><strong>驗收標準</strong>:
+        1. 真實 60 班自動排課進行中,匯出 Excel/PNG 與「立即備份」數秒內成功(docker 實測)
+        2. 排課進行中還原仍被 409 擋下(既有測試不退步)
+        3. 排課中 worker-ops 被 kill,匯出回明確錯誤而非無聲卡死;重啟後恢復
+        4. limits compose 全棧跑 M5-4 旅程無 OOMKilled</li>
+      <li><strong>測試方式</strong>:pytest(佇列路由單元測試)+ docker 全棧實測(排課中匯出/備份/還原)+ e2e 全套</li>
+      <li><strong>實作後</strong>:<code>queue.py</code> 分出 <code>default</code>(只跑 <code>run_auto_schedule</code>)與 <code>ops</code>(匯出 <code>render_export</code>、備份/還原 <code>_run_blocking</code>、寄信 <code>enqueue_email</code>);<code>worker.py</code> 收佇列名參數(<code>python -m app.workers.worker [ops]</code>),entrypoint <code>worker</code> 角色把餘下參數透傳;compose 新增 <code>worker-ops</code>(同一 worker 映像,<code>command: ["worker","ops"]</code>),5→6 容器。</li>
+      <li><strong>排程器改掛 ops worker</strong>:定時任務(每日備份、心跳)都是維運工作,排進 <code>ops</code> 並由 <code>worker-ops</code> 以 <code>with_scheduler=True</code> 撈回執行。排課 worker 不跑排程器——<strong>它一忙就是好幾分鐘,不該負責「準時」的事</strong>。</li>
+      <li><strong>升級路徑的隱形殺手</strong>:M6-2 之前每日備份排在 <code>default</code> 的 ScheduledJobRegistry。排程器改看 <code>ops</code> 後,舊的那筆再也沒人撈——<strong>每日備份會在升級當天靜默斷裂</strong>(備份最不能忍的失敗模式)。<code>_drop_legacy_default_schedules()</code> 於 ops worker 啟動時以固定 job_id 精準移除舊排程再重排(不碰別人的 job),附回歸測試。</li>
+      <li><strong><code>solver_busy()</code> 的 409 保留,但理由改寫</strong>:分佇列後還原不再「排在排課後面」,可是仍必須擋——<strong>這是資料安全不是排隊</strong>:pg_restore 覆蓋整個資料庫,而排課 worker 正要把結果寫回同一個庫。</li>
+      <li><strong>驗證(docker 全棧,六容器 + limits 3.7GB)</strong>:60 班自動排課<strong>進行中</strong>打維運端點——① 匯出 Excel <strong>0.0s</strong>、② 匯出 PNG(ops worker WeasyPrint 渲染)<strong>4.0s</strong>、③ 立即備份(ops worker pg_dump)<strong>0.5s</strong>、④ 還原被 <strong>409</strong> 擋下;排課全程 <code>running</code> 未被打斷。<strong>舊架構下 ①②③ 會排在排課後面直到逾時失敗——這就是這張卡的全部意義。</strong> 另驗 ops worker 停擺:匯出/備份回明確 <strong>502</strong>(「背景忙碌或逾時」,90s/120s 上限後)而非無聲卡死,重啟後 3.6s 恢復。limits 下跑全套 e2e 30/30 綠,六容器 OOMKilled 全 false、Restarts 全 0(worker-ops 峰值遠低於 512MB 上限)。</li>
+      <li><strong>品質門檻</strong>:pytest 463(+11,<code>test_queue_split.py</code>)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;<code>docker compose config</code> 與 limits 疊加皆通過。</li>
+      <li><strong>文件</strong>:<code>docs/architecture.md</code> 新增 <strong>D9 佇列分工</strong>(含容器圖改繪)、<code>deploy/README</code>、<code>install</code>、<code>upgrade</code>(<strong>顯著警語:v1.1 多一個容器,只換映像不換 compose 會讓匯出/備份/寄信全部逾時失敗</strong>)、<code>faq</code>(新增「匯出一直失敗怎麼查」)、<code>README</code>、<code>CONTRIBUTING</code>(新增背景任務該走哪條佇列的準則)。</li>
+      </ul>
+      <h3 id="m6-3-部分排課三合一排不下的課不再炸整鍋"><span class="tick done">☑</span> M6-3 部分排課三合一(排不下的課不再炸整鍋)</h3>
+      <ul>
+      <li><strong>描述</strong>:(a) <code>model_builder</code> 對候選為空的課直接 raise <code>SolverInputError</code>,整個部分排課失敗——改為部分排課模式下建模前把該課移入未排清單,其餘正常;非部分排課維持 raise(訊息要進 log,順手修 Backlog「check_feasibility 吞訊息」)。(b) 未排清單目前只活在 Redis 24h(<code>progress.py</code> TTL),草稿可被 force 發布後就沒有任何紀錄——改為隨結果草稿持久化(建議 timetables 加 JSON 欄或子表,Alembic 遷移),版本頁與發布警告都改讀持久來源。(c) <code>_unscheduled()</code> 按 assignment 逐筆記,跑班群組掉一格記 N 筆——按排課單位去重,「未排 N 節」不再灌水。</li>
+      <li><strong>驗收標準</strong>:
+        1. 一門完全被擋死的課(如未放寬 H4 的協同教學)→ 部分排課成功,該課列未排清單並註明原因
+        2. Redis 清空後,草稿的未排清單仍可查;force 發布後版本頁可見「發布時未排 N 節」
+        3. 跑班群組掉 1 格只記 1 筆(單元測試)
+        4. validator 全套與既有 solver 測試不退步</li>
+      <li><strong>測試方式</strong>:pytest(solver + API)+ 真 PostgreSQL 實測 + e2e auto-schedule spec 擴充</li>
+      <li><strong>實作後(2026-07-14)</strong>:</li>
+      <li><strong>(a) 完全排不下的課不再炸整鍋</strong>:<code>_make_lesson_vars</code> 對候選為空的 lesson,<strong>只在部分排課模式下</strong>改為 <code>_force_drop()</code>(建一個恆為 1 的 drop 變數,不建 x/pos 變數),列入未排清單並帶上原因;一般模式維持 raise。部分排課的承諾就是「排不下的列清單、其他照排」,先前卻在最需要它的時候整鍋失敗。</li>
+      <li><strong>(b) 未排清單持久化</strong>:<code>timetables.unscheduled</code> JSONB(遷移 0016,真 PG 驗過 upgrade/downgrade 可逆),由 <code>write_result</code> 隨結果草稿寫入。<strong>但 Backlog 的描述與現況不符,已據實修正</strong>:「哪些課沒排」其實一直查得到——<code>completeness()</code> 從 DB 重算(配課應排節數 vs 已排格位),對草稿與已發布課表皆可,不依賴 Redis。真正只活在 Redis 24h 的是<strong>排不下的原因</strong>(只有建模當下的 solver 知道)。故設計為:未排清單仍以 DB 推導為唯一真相(連手動改過的課表都算得對),持久化的 solver 紀錄只補上「為什麼」——<code>completeness()</code> 的每筆 <code>unplaced</code> 多一個 <code>reason</code> 欄。</li>
+      <li><strong>(c) 跑班群組不灌水</strong>:<code>extract()</code> 的未排節數改以<strong>排課單位</strong>計數(先前按 assignment 逐筆記)。順帶發現群組的 <code>subject_name</code> 只印第一門選修會誤導(一個群組是「多門選修同時段開」),改為列出所有科目(「選修A、選修B」)。</li>
+      <li><strong>順手修</strong>:<code>check_feasibility</code> 吞掉 <code>SolverInputError</code> 訊息 → 改為記 log(不記的話,未來任何建模 bug 都會偽裝成「這份資料無解」)。Backlog 該項結案。</li>
+      <li><strong>驗證</strong>:pytest <strong>468</strong>(+5,<code>tests/solver/test_partial_hardening.py</code>)、ruff/mypy 乾淨;前端 eslint/vue-tsc/vitest 綠;遷移 0016 對真 PostgreSQL upgrade→downgrade→upgrade 全過;e2e <strong>31/31</strong>(新增 <code>partial-unscheduled.spec.ts</code>),<strong>截圖目視確認</strong>自排頁未排表列出「美術 · 找不到任何可排的 1 連堂時段」、版本頁發布警告的「原因」欄同樣顯示該句,且 force 發布後 <code>completeness</code> 仍查得到。</li>
+      </ul>
+      <h3 id="m6-4-開新學期複製補全起訖日-constraint_config"><span class="tick done">☑</span> M6-4 開新學期複製補全(起訖日 + constraint_config)</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>semester_copy.py</code> 不帶學期起訖日與 <code>constraint_config</code>(軟約束權重回預設),新學期忘補起訖日會讓「今日」判定全錯。複製對話框加起訖日欄位(必填,預設帶「上學期 +半年」推算值);<code>constraint_config</code> 隨複製帶過去。</li>
+      <li><strong>驗收標準</strong>:
+        1. 複製後新學期有正確起訖日與相同軟約束權重(真 PG 實測)
+        2. 前端對話框有起訖日欄位與預設值
+        3. e2e copy-semester spec 擴充驗證</li>
+      <li><strong>測試方式</strong>:pytest + e2e</li>
+      <li><strong>實作後(2026-07-14)</strong>:<code>SemesterCopyRequest</code> 加 <code>start_date</code>/<code>end_date</code>(pydantic 驗證結束不早於開始 → 422)與 <code>constraint_config: bool = True</code>;<code>copy_semester()</code> 以 keyword-only 收起訖日,並複製 <code>constraint_configs</code> 各列。<strong>起訖日刻意不沿用來源</strong>(那是上學期的日期),由呼叫端明確給。前端複製對話框新增起訖日 date-picker,預設值為<strong>來源學期往後推半年</strong>(<code>halfYearLater()</code>),並在下方提示「請確認實際校曆後修改」;起訖日未填時「建立新學期」停用(漏填不會報錯,但請假展開、今日看板、代課「已上過」判定會整個算錯,而畫面上看不出來)。複製項目多一個「排課偏好設定」勾選——先前新學期會<strong>悄悄</strong>回到預設權重,上學期調好的偏好就白調了。</li>
+      <li><strong>驗證</strong>:pytest <strong>472</strong>(+4:起訖日寫入、顛倒日期 422、偏好跟著複製、明確不勾選時回預設)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build/vitest 綠;e2e <strong>31/31</strong>(<code>copy-semester.spec.ts</code> 擴充為驗起訖日預設值 +6 個月、實際寫入、偏好設定跟著走),<strong>截圖目視確認</strong>對話框帶出「2027-03-01 ~ 2027-07-20」。<strong>真 PostgreSQL 實測</strong>:來源設 cap=4/S2=55/S5=30 → 複製後新學期起訖 2027-02-15~2027-06-30、偏好完全一致;顛倒日期回 422。</li>
+      </ul>
+      <h3 id="m6-5-小型加固批次六小項"><span class="tick done">☑</span> M6-5 小型加固批次(六小項)</h3>
+      <ul>
+      <li><strong>描述</strong>:一次出貨六個 S 級項目——①班級名稱加 <code>uq(semester_id, name)</code>(遷移前先清重複,API 撞名回 409);②<code>/api/docs</code>/<code>openapi.json</code> 預設關閉,<code>.env</code> 顯式開啟(<code>API_DOCS_ENABLED</code>,dev compose 帶開);③主題主色調深至白字對比 ≥4.5:1(不動整體設計),<code>a11y.spec.ts</code> 按鈕門檻提到 4.5 並移除「未達 AA」註記;④衝突定位把 <code>should_stop</code> 傳進 <code>conflict_explainer</code> 逐步試解迴圈,按取消得 cancelled;~~⑤<code>check_feasibility</code> 的 <code>SolverInputError</code> 訊息記 log~~(<strong>M6-3 已修,本卡不必再做</strong>);⑥<code>substitution-log</code>/<code>leaves</code> 等清單查詢加伺服器端上限(如 limit≤1000,完整分頁留 v1.2)。</li>
+      <li><strong>驗收標準</strong>:逐項——重複班名 409 且遷移可從有重複資料的庫升級;正式 compose 下 <code>/api/docs</code> 404、設定開啟後可用;a11y 測試以 4.5 門檻綠;定位中按取消 ≤數秒內回 cancelled;清單超限回截斷結果與提示</li>
+      <li><strong>測試方式</strong>:pytest(每項至少一測)+ e2e(a11y、取消路徑)+ 真 PG 遷移實測</li>
+      <li><strong>實作後(2026-07-14)</strong>:</li>
+      <li><strong>① 班名唯一</strong>:<code>uq(semester_id, name)</code>(遷移 0017)+ API 建立/改名 409 + <strong>Excel 匯入逐列擋下</strong>(檔案內重複、與既有班級重複都指出是第幾列,不讓它撞 DB 約束變成看不懂的錯誤)。<strong>遷移必須先處理既有重複資料</strong>——有重複班名的學校正是最需要這個約束的人,不能讓他們一升級就失敗。重複者依 id 保留第一筆、其餘改名為「301 (2)」…,且<strong>會避開資料庫裡已存在的同名</strong>;不刪任何資料。真 PG 實測最惡劣情況(三個 301 + 一個既有的「301 (2)」)→ 得到 301 / 301 (3) / 301 (4) / 301 (2) / 302,零重複、約束建立、可逆。</li>
+      <li><strong>② <code>/api/docs</code> 預設關閉</strong>:<code>api_docs_enabled=False</code>(<code>docs_url=None</code> → 路由不存在,404);<code>.env</code> 可顯式打開,<code>docker-compose.dev.yml</code> 帶開。端點本身都有權限守著,公開它不是漏洞,但沒必要把整套內部 API 攤在網路上(尤其 VPS + 公開網域)。正式棧實測 <code>/api/docs</code> → 404。</li>
+      <li><strong>③ 主色達 AA</strong>:新增 <code>frontend/src/theme.ts</code>——Naive 預設 <code>#18a058</code> 白字只有 ~3.4:1(那是 1.4.11 非文字元件的門檻,而按鈕上的字<strong>就是文字</strong>)。壓深到 <code>#0d7a43</code>(<strong>5.41:1</strong>),hover <code>#0e8449</code>(4.76:1)也達標,色相不動。<code>a11y.spec.ts</code> 門檻從權宜的 3:1 提到 <strong>AA 的 4.5:1</strong>,並移除 M5 留下的「未達 AA」誠實揭露——現在真的達了。</li>
+      <li><strong>④ 定位可取消</strong>:<code>explain()</code> 收 <code>should_stop</code>,每次試解前檢查並擲 <code>Cancelled</code>;solve_job 接住後把任務標為 <strong>cancelled</strong>(而非 failed)。定位最長跑一分鐘,先前完全不看取消旗標——使用者按了取消只能乾等,最後還收到一份他已經說不要的報告。</li>
+      <li><strong>⑥ 清單上限</strong>:<code>substitution_log.query(limit=MAX_ROWS)</code> 與 <code>GET /leaves</code>(<code>MAX_LEAVE_ROWS</code>)各 1000,<strong>下到 SQL 的 <code>.limit()</code></strong>(測試以 limit=1 驗證真的生效,不是個沒人用的參數)。完整分頁 UI 留 v1.2。</li>
+      <li><strong>驗證</strong>:pytest <strong>482</strong>(+10,<code>tests/test_m6_hardening.py</code>)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build/vitest 綠;e2e <strong>31/31</strong>;真 PG 遷移實測(含重複資料與可逆);正式棧 <code>/api/docs</code> 404;截圖目視新主色。</li>
+      <li><strong>e2e 抓到一個既有的測試腳本缺陷</strong>:<code>substitutions.spec.ts</code> 的 <code>klass()</code> 看似 get-or-create,其實每次都 POST——<code>place('王師','國文','701')</code> 會把「701」再建一次。先前靠著「允許重複班名」矇混過去(實際上悄悄建了兩個 701),加了唯一約束後當場 409。已改為真正的 get-or-create。連帶 <code>wizard.spec</code> 也曾紅一次:它斷言儀表板顯示的學期,而 substitutions 失敗後沒跑清理、殘留的學期把儀表板頂掉了——<strong>是連鎖傷害,不是第二個 bug</strong>。</li>
+      </ul>
+      <h3 id="m6-6-複審修正fable-5-m6-複審判為有條件可發行的兩個阻擋項-兩個順手項"><span class="tick done">☑</span> M6-6 複審修正(Fable 5 M6 複審判為「有條件可發行」的兩個阻擋項 + 兩個順手項)</h3>
+      <ul>
+      <li><strong>描述</strong>:A(阻擋)ops 佇列無 worker 時 fail-fast;B(阻擋)dev compose 沒有任何行程守 ops;C 核心相依釘主版號上限;D 清單截斷提示。</li>
+      <li><strong>驗收標準</strong>:停掉 worker-ops 後匯出/備份/還原<strong>立即</strong>回一句說得出處置的錯誤(不是逾時);dev compose 起得動匯出/備份;相依裝得起來且全測綠;清單取到上限時畫面講明被截斷。</li>
+      <li><strong>測試方式</strong>:pytest + vitest + 六容器棧實測(含<strong>實跑一次完整還原</strong>)</li>
+      <li><strong>實作後(2026-07-14)</strong>:</li>
+      <li><strong>A</strong>:<code>ops_worker_available()</code>(<code>rq.Worker.count(connection, queue=ops_queue)</code>)。<code>render_export</code> 與 <code>_run_blocking</code>(備份/還原)在<strong>派工前</strong>檢查,沒有 worker 就立刻擲 <code>RenderError</code>/<code>BackupJobError</code>,訊息直接點名 worker-ops 與 docker-compose.yml。派工前擋下對還原尤其要緊:任務若躺在佇列裡,晚點 worker 起來會<strong>無預警覆蓋資料庫</strong>。<code>enqueue_email</code> 只 <code>logger.error</code> <strong>不擲例外</strong>——它的呼叫點在交易 commit 之後,站內通知已送達,不能為了一封信讓已成功的操作看起來像失敗(信照排,worker-ops 一起來就補寄)。api 啟動時另做一次背景檢查(給 6×2 秒寬限期,避開 compose 平行啟動的假警報)寫進 log。判斷不了時(Redis 抖動)<strong>一律放行</strong>——誤判成「沒有 worker」會擋掉本來會成功的匯出,比讓它照原路逾時更糟。</li>
+      <li><strong>原本的升級陷阱比 M6-2 卡上寫的更嚴重</strong>:舊 compose 的 <code>command: ["worker"]</code> 在新映像下不只不守 ops,<strong>也不跑排程器</strong>——每日自動備份是<strong>靜默</strong>停擺的(匯出逾時至少還很吵)。這正是 fail-fast 必須做進 v1.1 的理由:文件警語擋不住沒讀文件的人。</li>
+      <li><strong>B</strong>:<code>docker-compose.dev.yml</code> 的 worker 改 <code>command: ["worker", "ops", "default"]</code>(單行程守兩條佇列;正式環境才拆兩個容器)。先前 dev <strong>完全沒有</strong>行程在守 ops,匯出、備份、寄信、定時任務全失效——repo 已公開,這會是外部貢獻者的第一印象。</li>
+      <li><strong>C</strong>:核心相依全部釘主版號上限(fastapi/sqlalchemy/redis/rq/pydantic/psycopg/alembic/uvicorn/bcrypt/openpyxl/itsdangerous)。踩過:<code>redis</code> 未設上限 → 某次重建裝到 redis-py 8 → 匯出/備份在新環境一律逾時。映像每次發行重新建置,不釘上限等於「上游哪天發大版,使用者的部署自己壞掉」。</li>
+      <li><strong>D</strong>:<code>SubstitutionLog</code> 與 <code>Leaves</code> 取到上限筆數(1000)時各顯示一行截斷提示(要看更早的請縮小日期區間/改用調代課紀錄查詢)。M6-5 卡上寫了「與提示」卻只做了截斷——不講的話,組長會以為「這學期就只有這些紀錄」。</li>
+      <li><strong>驗證</strong>:pytest <strong>488</strong>(+6,<code>test_queue_split.py</code>:count=0 → 匯出/備份/還原立即擲含「worker-ops」的錯且<strong>沒有派工</strong>、email 不擲例外仍派工並記 error、Redis 異常時放行)、ruff/mypy 乾淨;前端 eslint/vue-tsc/build 綠、vitest <strong>15</strong>(+4:兩個畫面各驗「達上限提示/未達上限不提示」);e2e <strong>31/31</strong>。<strong>六容器棧實測</strong>:①停 worker-ops → 匯出 <strong>502/0.07s</strong>、備份 502/0.014s、還原 502/0.016s,訊息完整(先前是 90~180 秒的謎樣逾時);②<code>docker compose start worker-ops</code> → 匯出 200(43KB PNG);③<strong>實跑一次完整還原</strong>(M6-2 之後從未在新架構驗過):還原 4.05s、presafe 備份自動產生、學期/班級/已發布課表格位全數回復、舊 session 401「系統已還原或重設,請重新登入」、重新登入後資料正確;順帶確認備份清單裡有 <code>backup_20260714_020000_auto.dump</code>——每日排程確實跑在 worker-ops 上。</li>
+      </ul>
+      <h3 id="m6-7-還原後-log-噴-adminshutdown-tracebackm6-6-實測發現發行前修掉"><span class="tick done">☑</span> M6-7 還原後 log 噴 AdminShutdown traceback(M6-6 實測發現,發行前修掉)</h3>
+      <ul>
+      <li><strong>描述</strong>:還原<strong>成功</strong>後,api log 會噴一段 <code>ERROR: Exception in ASGI application</code> + <code>AdminShutdown</code> traceback。功能完全正常(回應 200、資料正確、後續請求正常),但<strong>剛按下「還原」的教學組長是全系統最緊張的那一刻</strong>——他去看 log 想確認成功與否,迎面一段紅字,只會以為還原壞了。這不是資料問題,是信任問題,不該帶著發行。</li>
+      <li><strong>根因</strong>:<code>pg_restore --clean</code> 會中止資料庫上的所有連線,包含本請求<strong>驗證身分時</strong>開的那條 session(路由本身沒宣告 <code>db</code>,但 <code>admin_only</code> → <code>get_active_user</code> → <code>Depends(get_db)</code> 有)。FastAPI 0.106 起,yield 依賴的收尾是在<strong>回應送出後</strong>才執行,屆時 <code>db.close()</code> 對一條已死的連線送出 ROLLBACK → <code>AdminShutdown</code> 逸出成 ASGI 例外。因為回應早已送出,使用者拿到的是正確的 200——只有 log 難看。</li>
+      <li><strong>修法</strong>(兩層):
+        1. <strong>根因</strong>:<code>_restore()</code> 在派工前先 <code>db.close()</code>。還原期間本來就用不到這條 session(稽核一向另開新連線寫進<strong>還原後</strong>的資料庫)。路由多宣告一個 <code>db: Session = Depends(get_db)</code>——FastAPI 對同一個 callable 有請求內快取,拿到的<strong>就是</strong> <code>admin_only</code> 內部那條 session,不是第二條。關閉前先把 <code>user.id</code>/<code>user.username</code> 取成純量,避免 <code>user</code> 成為 detached instance。
+        2. <strong>防線</strong>:<code>get_db()</code> 的 <code>finally</code> 吞掉 <code>close()</code> 的例外並記一行 warning。收尾發生在回應送出後,此時擲例外只會變成一段沒有請求可歸屬的 traceback;真正的失敗會在<strong>查詢當下</strong>就報錯,不會被這裡蓋掉。這道防線也涵蓋「還原期間其他使用者的 in-flight 請求」。</li>
+      <li><strong>驗證</strong>:pytest <strong>490</strong>(+2:①攔下請求 session,斷言 <code>run_restore</code> 被呼叫的那一刻它<strong>已經關了</strong>;②<code>get_db</code> 收尾遇上 close 失敗不擲出、只記 warning)、ruff/mypy 乾淨;e2e <strong>31/31</strong>。<strong>六容器棧實測</strong>:建學期 152/班級 799 → 備份 → 刪學期 → 還原 → <strong>api log 全程零 traceback、零 ERROR</strong>(先前必噴),回應 200/3.5s、學期與班級回復、舊 session 401、稽核以新連線寫入(<code>admin | 還原自 …;現狀已備份為 …</code>)。</li>
+      </ul>
+      <h3 id="m6-8-系統管理整頁打不開v100-起就有重拍手冊截圖時抓到"><span class="tick done">☑</span> M6-8 「系統管理」整頁打不開(v1.0.0 起就有,重拍手冊截圖時抓到)</h3>
+      <ul>
+      <li><strong>描述</strong>:<code>/settings/system</code> 只剩左側選單,內容區一片空白——<strong>備份、還原、SMTP、重設精靈四項功能全都點不進去</strong>。<code>System.vue</code> 呼叫 <code>useDialog()</code>(M5 複審 fca20ca 加的,用來顯示還原後的可忽略警告),但 <code>App.vue</code> 從來沒掛 <code>&lt;n-dialog-provider&gt;</code>;Naive 會在 setup 直接擲錯,整頁渲染不出來。</li>
+      <li><strong>為什麼溜過所有測試</strong>:這一頁<strong>沒有任何 e2e 覆蓋</strong>(31 支 spec 沒一支碰它),vitest 也沒測。備份/還原的驗證一直是走 API,從沒走過 UI。是「重拍手冊截圖」這件事把它逼出來的——截圖產生器截到一張白畫面。</li>
+      <li><strong>修法</strong>:<code>App.vue</code> 補上 <code>&lt;n-dialog-provider&gt;</code>;<code>seed_e2e</code> 新增 <code>e2e_admin</code> 帳號(卡片是 admin-only);新增 <code>system-settings.spec.ts</code>——三張卡片渲染 + 立即備份(真的打到 worker-ops 的 pg_dump)+ 刪除備份。第一個斷言就是核心:頁面只要 setup 擲錯就是全白,必紅。</li>
+      <li><strong>驗證</strong>:pytest <strong>490</strong>、vitest 15、e2e <strong>32/32</strong>(+1)、ruff/mypy/eslint/vue-tsc 乾淨;<strong>截圖目視</strong>系統管理頁三張卡片完整。</li>
+      </ul>
+      <h3 id="m6-9-操作手冊-10-張截圖重拍-截圖產生器自備示範資料"><span class="tick done">☑</span> M6-9 操作手冊 10 張截圖重拍 + 截圖產生器自備示範資料</h3>
+      <ul>
+      <li><strong>描述</strong>:M6-5 把主色調深後,手冊的 10 張截圖全成了舊主色;且截圖產生器 <code>manual-shots.spec.ts</code> 依賴一台「已經灌好示範資料」的測試站——那些資料當初是手動灌的、沒留腳本,導致要重拍時沒人知道當初的資料長什麼樣。</li>
+      <li><strong>修法</strong>:示範資料(115 學年度、8 位教師、701~703 班、24 筆配課)與首次登入改密都收進 spec 本身,冪等且可重跑;發布用的 locator 不再寫死草稿名;工作台改先排一半的課(空白課表講不了「拖拉排課」);備份頁先真的備一份再截。整套從<strong>空資料庫</strong>一次跑完 = 10 張圖。</li>
+      <li><strong>驗證</strong>:<code>docker compose -p manual up -d</code>(空 DB)→ <code>E2E_BASE_URL=... npm run e2e:manual</code> → 10 張全新截圖,<strong>逐張目視</strong>:新主色、真實資料、鐘點「剛好」不再滿江紅、看板有實際代課紀錄、系統管理頁完整。</li>
+      </ul>
+      <h3 id="m6-10-首次登入改密頁補測試覆蓋清點後的最後一個缺口"><span class="tick done">☑</span> M6-10 首次登入改密頁補測試(覆蓋清點後的最後一個缺口)</h3>
+      <ul>
+      <li><strong>描述</strong>:M6-8 的教訓(整頁壞掉兩個版本沒人發現,因為沒有 e2e)促成一次全面清點——把 20 個前端路由對照 e2e 實際造訪的頁面。結果 18 個有覆蓋,<strong>唯一沒有的是 <code>/change-password</code></strong>:所有測試都走 API 改密碼,從沒有人點過那個畫面。而它是<strong>每一位新使用者進入系統的第一個畫面</strong>,壞掉的話連門都進不來。</li>
+      <li><strong>這一頁的特殊性</strong>:只有在「被強制改密」狀態下進得去(路由守衛會把非強制狀態的人導回儀表板),所以測試必須用一個處於首次登入狀態的帳號。<code>seed_e2e</code> 新增 <code>e2e_newuser</code>,且<strong>每次 seed 都強制重設回首次登入</strong>——測試必然會把這個狀態用掉(它就是去改密碼的),不重設的話第二次跑 e2e 會失敗。</li>
+      <li><strong>測試涵蓋</strong>:登入後被導向改密頁 → 頁面真的渲染(核心:整頁空白就必紅)→ <strong>後端也擋</strong>(未改密前功能性 API 回 403,不是只靠前端守衛)→ 想繞去別頁會被送回來 → 密碼太短/兩次不一致/原密碼錯誤各自的訊息 → 成功後離開該頁且 API 通了 → 新密碼真的能用且不再被要求改密。</li>
+      <li><strong>順帶抓到一隻 bug 並修掉</strong>:送出鈕同時掛了 <code>attr-type="submit"</code>(觸發表單 submit)與 <code>@click</code>,確認欄又另外掛 <code>@keyup.enter</code>,於是 <code>onSubmit</code> <strong>每次送出都跑兩遍</strong>。在成功路徑上等於送出兩次改密請求,第二次必然因為密碼已被改掉而回「原密碼錯誤」——<strong>新使用者設定密碼時,會同時看到「密碼已更新」和一則紅色錯誤</strong>。改為只走表單 submit 這一條路(按鈕仍是 <code>type=submit</code>,輸入框按 Enter 照樣觸發),並加上送出中不受理的防連點。測試以「同一次送出只出現一則訊息」守住。</li>
+      <li><strong>驗證</strong>:pytest <strong>490</strong>、vitest 15、e2e <strong>33/33</strong>(+1)、ruff/mypy/eslint/vue-tsc 乾淨;<code>seed_e2e</code> 連跑兩次驗冪等(第二次顯示「已重設回首次登入狀態」);<strong>截圖目視</strong>改密頁渲染正確;Enter 鍵送出路徑在測試中實際走過。</li>
+      </ul>
+      <hr />
+      <h2 id="測試策略總則">測試策略總則</h2>
+      <ol>
+      <li><strong>三套學制驗證資料集</strong>(<code>backend/tests/fixtures/</code>,M1 期間建立,全案共用):
+         - <code>elementary_small</code>:國小 6 班(包班+科任+週三下午空+導師時間)
+         - <code>junior_high_mid</code>:國中 12 班(領域課程+彈性課程+兼行政減課教師)
+         - <code>vocational_high</code>:技高 15 班 3 科(3 連堂實習+工場容量限制+業界師資限定時段+跑班)</li>
+      <li><strong>排課引擎雙重驗證</strong>:所有 solver 測試以獨立 <code>validator.py</code> 逐項檢查硬約束,絕不以 solver 自身狀態為準;validator 同時用於「匯入外部課表檢查衝突」功能的基礎。</li>
+      <li><strong>測試金字塔</strong>:pytest 單元(服務層/引擎)為主體;Vitest 覆蓋 TimetableGrid 等核心元件;Playwright 僅覆蓋六大關鍵旅程(登入、精靈、手排、自排、調代課、匯出)。</li>
+      <li><strong>每張任務卡的完成定義(DoD)</strong>:功能實作 + 卡上驗收標準自驗通過 + 新增測試綠燈 + 既有測試不退步 + ruff/eslint 乾淨。</li>
+      </ol>
+      <hr />
+      <h2 id="給開發-ai-的固定工作準則">給開發 AI 的固定工作準則</h2>
+      <ol>
+      <li>開工前先讀 <code>docs/architecture.md</code> 對應章節;規格衝突時以 architecture.md 為準並回報矛盾。</li>
+      <li>一次只做一張卡;卡外的好點子記入本檔末尾「Backlog」區,不順手實作。</li>
+      <li>UI 文案一律繁體中文台灣教務用語(節次、科任、配課、鐘點、跑班)。</li>
+      <li>資料庫 schema 變更必附 Alembic 遷移,且可從前一版順向升級。</li>
+      <li>完成後更新本檔核取方塊為 <code>[x]</code>,並在 PR/回報中逐條對照驗收標準說明驗證方式與結果。</li>
+      <li><strong>UI 驗收由 AI 以 Playwright 直接執行</strong>(2026-07-09 起,使用者已授權):對含 UI 的任務卡,撰寫 Playwright 驗收腳本,以 headed + slowMo 模式在使用者螢幕上可見地執行,關鍵步驟截圖存 <code>frontend/e2e/screenshots/</code>(gitignore),AI 讀取截圖確認後向使用者回報;腳本存入 <code>frontend/e2e/</code> 累積為迴歸測試套件(即 M5-4 的分攤)。使用者僅需在旁觀看並對 UX/文案給回饋,不再手動逐步操作。</li>
+      </ol>
+      <h2 id="backlog開發中冒出的點子記這裡不排程">Backlog(開發中冒出的點子記這裡,不排程)</h2>
+      <ul>
+      <li>【Fable 5 總體檢 D】CORS <code>cors_origins</code> 內建 localhost 且不可由 .env 設定;同源部署下無害,v1.x 改為可設定並於正式部署收斂。</li>
+      <li>【Fable 5 總體檢 E】清單查詢未分頁 → <strong>M6-5 已加伺服器端上限 1000(下到 SQL)</strong>,<code>audit-logs</code> 本來就有 limit;<strong>完整分頁 UI 仍列 v1.2</strong>(單校規模下上限已足夠)。</li>
+      <li>~~【Fable 5 總體檢 G】<code>/api/docs</code> 與 openapi 在正式環境公開~~ <strong>已於 M6-5 修畢(2026-07-14)</strong>:預設關閉(404),<code>.env</code> 的 <code>API_DOCS_ENABLED</code> 可顯式打開,dev compose 帶開。</li>
+      <li>【Fable 5 總體檢 C 後續】<code>restore-upload</code> 目前 <code>await file.read()</code> 整包進記憶體;v1.x 改為串流落地,免大備份佔滿 api 記憶體(現以 Caddy 200MB 上限 + 超大 DB 走 volume 複製法緩解)。</li>
+      <li>【Fable 5 M5 複審 A 正解】背景任務分 <code>default</code>(排課)/<code>ops</code>(匯出/備份/還原)兩佇列 + 第二個 worker 行程,讓快慢任務隔離——目前排課佔住單一 worker 時,組長匯出課表會逾時失敗(已由 cancel-on-timeout + 還原前 409 封死資料安全洞,但匯出體驗仍受影響)。需評估行程管理、4GB 記憶體預算與部署文件(5→6 容器或單容器雙進程)。</li>
+      <li>~~【Fable 5 M5 複審 H】主題主色 <code>#18a058</code> 白字按鈕對比僅 ~3.4:1~~ <strong>已於 M6-5 修畢</strong>:主色壓深至 <code>#0d7a43</code>(5.41:1),a11y 測試門檻提到 AA 的 4.5:1。</li>
+      <li>【Fable 5 M5 複審 G】還原溯源:<code>backup_dir</code> 加 append-only <code>restore.log</code>(誰於何時還原哪份),因目前稽核寫進還原後 DB 有溯源斷點(presafe 檔名時戳暫可佐證);條件 D 的 stale 警告改為今日看板持久徽章而非一閃即逝的 toast。</li>
+      <li>前端 bundle 偏大(~1.4MB,主因 <code>app.use(naive)</code> 全量註冊 Naive UI)。M2 課表頁完成後改為按元件 import 或用 <code>naive-ui/es</code> 自動匯入,縮小體積。</li>
+      <li>~~M0-3 CI 的 Playwright E2E job 尚未加入~~ <strong>已完成(2026-07-13,Fable 5)</strong>:CI 新增 <code>e2e</code> job——runner 上以 buildx 建三映像(GHA cache 與 <code>images</code> job 共用 scope,PR 才驗得到 PR 自己的程式碼)、<code>docker compose up -d --wait</code> 起全棧、<code>python -m app.scripts.seed_e2e</code> 建測試帳號(冪等,含精靈標完成)、跑 Playwright <code>chromium</code> project(30 tests;<code>manual-shots</code>/<code>perf-page-load</code> 以 project 分組排除——前者需另備示範資料站,後者為 60 班壓測、門檻受 runner 效能影響易 flaky)。失敗上傳 playwright-report/trace/失敗截圖/容器 log;<code>images</code> job 改為 needs e2e,E2E 紅燈不發映像。本機等價驗證:乾淨棧(project schedci,:8090)→ seed 兩次驗冪等 → 30/30 綠(1.8m)。<strong>CI 首跑即抓到一隻真蟲</strong>:redis-py 8(pyproject <code>redis&gt;=5.2</code> 無上限,重建映像靜默升級)下,RQ <code>latest_result(timeout=)</code> 的阻塞 XREAD 在「共用 client + 多執行緒併發」時被污染,<code>Timeout reading from socket</code>——worker 6 秒完成 PNG 渲染,api 卻等到逾時回 500(容器內最小重現:阻塞 XREAD + 並行 ping 同一 client,5 秒炸)。本機因渲染 2 秒內結束撞不到 race 窗口而全綠——正是 e2e 進 CI 要抓的環境性回歸。修法:<code>queue._wait_result()</code> 以 XREVRANGE 每 0.5s 輪詢取代阻塞讀(render_export 與 _run_blocking 共用),不依賴 blocked-client 喚醒,任何 client 版本皆穩。</li>
+      <li>~~前端 CI 用 <code>npm install</code>(未提交 package-lock.json)~~ <strong>描述已過時,順手處理(2026-07-13)</strong>:lock 檔其實早已入庫;CI 的 frontend 與 e2e job 改用 <code>npm ci</code> + npm 快取(以 <code>npm ci --dry-run</code> 驗證 lock 與 package.json 同步)。</li>
+      <li>~~<code>docker compose up</code> 端到端煙霧測試尚未納入 CI~~ <strong>已由 e2e job 涵蓋(2026-07-13)</strong>:e2e job 即為「compose 起全棧 + healthcheck + 真實使用者流程」的煙霧測試超集。</li>
+      <li><strong>LINE 通知 adapter(v2)</strong>:LINE Notify 已停用(2025-03),改走 LINE 官方帳號 Messaging API:各校自申請 OA 取得 channel token 填入系統設定;教師加 OA 好友後以綁定碼綁定取得推播用 userId(<code>teachers.line_id</code> 為人工聯絡用,不能直接推播)。實作為 <code>NotificationChannel</code> 的一個 adapter。</li>
+      <li>~~開新學期複製目前不帶學期起訖日~~ <strong>已於 M6-4 修畢(2026-07-14)</strong>:複製對話框加起訖日欄位(必填,預設帶來源 +半年)。</li>
+      <li>~~班級名稱同學期無唯一性約束(可建兩個「301」)~~ <strong>已於 M6-5 修畢</strong>:<code>uq(semester_id, name)</code>(遷移 0017,會先為既有重複資料改名)+ API/匯入擋下。</li>
+      <li><strong>跑班群組內配課的 <code>periods_per_week</code> 未強制一致</strong>(M3-0 發現):群組是「同時段開課」,<code>placements_for</code> 一次放入全部成員配課,節數不一致時較短的一筆會先被 H8 週節數守恆擋下,語意曖昧。<code>class_loads</code> 已取群組內最長者計算班級佔用;M3-2 的 pre-flight 已加 <code>group_shape_mismatch</code> 錯誤、建模則直接拒絕。仍建議在配課建立/修改的 API 就擋下(409),讓使用者當場知道。</li>
+      <li><strong>映像因 ortools 膨脹到 660MB</strong>(M3-2):ortools 連帶拉進 numpy/pandas/protobuf。實際只有 worker 容器需要排課引擎,api 容器不需要。可拆成兩個映像(共用 base + worker 額外裝 ortools),或改用 <code>ortools</code> 的精簡發行版。部署頻寬敏感時再處理。</li>
+      <li>~~<strong>開新學期複製不帶 <code>constraint_config</code></strong>(M3-3)~~ <strong>已於 M6-4 修畢</strong>:複製對話框加「排課偏好設定」勾選(預設帶)。</li>
+      <li><strong>軟約束權重設定 UI</strong>(M3-3,v2):目前只有 <code>GET/PUT /api/solver/config</code>,沒有畫面。等 M3-4 的自動排課頁上線後,把權重滑桿放在該頁的「進階設定」摺疊區。</li>
+      <li><strong>科目 Excel 匯入沒有「主科」欄</strong>(M3-3):<code>subjects.is_major</code> 只能在科目表單勾選。匯入範本可加一個選填欄。</li>
+      <li><strong>一門課整學期固定一間教室</strong>(M3-2 建模選擇):<code>y[配課, 教室]</code> 是每筆配課一個變數,而非逐格挑教室。符合實務(課表上一門課就在一間教室),變數量也小得多。若日後需要「同一門課不同節在不同教室」,改為 <code>y[配課, 節次, 教室]</code> 即可,約束式不變。</li>
+      <li><code>teacher_time_rule</code> 無節次表維度(M2 健檢 2026-07-10):(weekday, period_no) 的牆鐘意義隨班級節次表浮動,多表學校中同一條規則在國中部與高中部指到不同時間。v1 定案:規則以「該筆配課班級的節次表」解讀(現行 conflict_checker 行為,M3-2 建模比照,單表學校無此問題);日後如有跨表教師的實際需求,再改為牆鐘區間定義(schema 需加 period_table_id 或改存時間區間)。</li>
+      <li>~~【Fable 5 審查】部分排課宣稱「永遠有解」,但 <code>_make_lesson_vars</code> 在候選為空時先 raise~~ <strong>已於 M6-3 修畢(2026-07-14)</strong>:部分排課模式改為 <code>_force_drop</code> 列入未排清單並註明原因;一般模式維持 raise。</li>
+      <li>~~【Fable 5 審查】跑班群組在部分排課掉一格時,「未排 N 節」會灌水數倍~~ <strong>已於 M6-3 修畢</strong>:未排節數改以排課單位計數。</li>
+      <li>~~【Fable 5 審查】衝突定位期間(最長 60 秒)不檢查 <code>should_stop</code>~~ <strong>已於 M6-5 修畢</strong>:每次試解前檢查,取消得 cancelled。</li>
+      <li>【Fable 5 審查】<code>check_feasibility</code> 吞掉 <code>SolverInputError</code> 的訊息:未來任何建模 bug 都會偽裝成「資料無解」。至少把原始訊息記入 log / conflict detail。</li>
+      <li>【Fable 5 審查】<code>test_purity.py</code> 只收 <code>level == 0</code> 的 import,相對匯入(<code>from ..models import ...</code>)可完全繞過純度掃描。</li>
+      <li>~~【Fable 5 審查】未排清單只活在 Redis(24h TTL)~~ <strong>已於 M6-3 處理,但敘述須更正(2026-07-14)</strong>:「哪些課沒排」其實一直查得到——<code>completeness()</code> 從 DB 重算,對草稿與已發布課表皆可。真正會遺失的是<strong>排不下的原因</strong>(只有 solver 知道),已隨草稿存進 <code>timetables.unscheduled</code>(遷移 0016)並在完整性報告中呈現。</li>
+      <li>【Fable 5 審查】「validator/report 與 model_builder 零共用程式碼」嚴格說不成立:三者共用 <code>problem.py</code> 的 <code>slots_overlap</code>(D7 判定)與 <code>course_key</code>(排課單位語意)。獨立性涵蓋<strong>約束編碼</strong>,不涵蓋這兩個定義層謂詞。應為它們補直接的邊界單元測試。</li>
+      <li>求解前先跑一次 hard-only 可行性探測(約 1 秒):既能提早回報「這份資料無解」,又能把該解當成正式求解的 warm start。目前是在失敗之後才探測。</li>
+      <li>部分排課的 timeout 幾乎必定用滿:CP-SAT 找到最佳的「未排 2 節」很快,但要證明「不可能只少排 1 節」很慢。可考慮找到解後以未排節數為上界再收斂,或給部分排課獨立的較短預設時限。</li>
+      <li>衝突定位的旋鈕清單未含「班級可排節次」與「連堂結構」;<code>structural</code> 模式目前只列最吃緊的班級/教師,沒有具體到「哪一門課改成連堂就好」。</li>
+      <li>~~【E2E 進 CI 後的定時炸彈,2026-07-13 發現】多支 e2e spec 硬編未來日期~~ <strong>已於 M6-1 修畢(2026-07-14)</strong>:前後端各一支 <code>dates</code> helper 由執行當日推算基準週,全案 17 個測試檔改用;引信拆除。</li>
+      </ul>
+      <hr />
+      <h2 id="m3-審查修正fable-5-獨立審查2026-07-10">M3 審查修正(Fable 5 獨立審查,2026-07-10)</h2>
+      <p>M3 完成後由 Fable 5 做獨立技術審查,判決「有條件可進 M4」。以下 5 項已修:</p>
+      <ul>
+      <li><strong>A. H10 雙軌判定</strong>:<code>conflict_checker</code> 寫死 <code>cap=2</code>,solver 卻讀 <code>constraint_config</code>。學校把上限設成 3,自動排課排得出來、手動拖曳卻報違規。改為由 <code>check_conflict</code> 讀學期設定(hot path 加一次查詢,p95 仍 &lt;100ms)。<strong>M4 調代課直接重用這支檢查器,這條裂縫必須先補。</strong></li>
+      <li><strong>B. 軟約束權重無上限</strong>:<code>PUT /solver/config</code> 接受 <code>{"S2": 20000}</code>,而部分排課的「整節不排入」懲罰是 10000 → solver 會理性地丟課換分散度。新增 <code>MAX_WEIGHT = 100</code>(API 擋、<code>load_config</code> 讀取時夾),並在 <code>Relaxation.__post_init__</code> 斷言量級順序。</li>
+      <li><strong>C. <code>unknown</code> 靜默降級</strong>:試解逾時回 <code>unknown</code> 時被當成「不可行」,但 <code>complete</code> 沒有跟著降,<code>structural</code> 於是宣稱「即使放寬所有可調整的項目仍然無解」——一句從未被證明的話。新增 <code>_Prober</code> 追蹤 <code>certain</code>,任何 <code>unknown</code> 都讓 <code>complete=False</code>,structural 措辭隨之收斂。</li>
+      <li><strong>D. pre-flight 場地供給不看科目適用性</strong>:唯一的專科教室綁「美術」,音樂課要求專科教室 → 檢查放行、建模必然失敗、定位找不到該場地、報告文不對題。改為依「候選場地集合」分組比對供需(與 <code>_candidate_rooms</code> 同義),新增 <code>room_no_candidate</code> 結構性錯誤(部分排課亦擋)。</li>
+      <li><strong>E. <code>_room_numbers</code> 混用池需求與單間供給</strong>:多間同類型教室時,原因卡會憑空放大缺口。改為整池計算並在訊息中列出教室名。</li>
+      </ul>
+      <p>驗證:pytest 273(+11,含 unknown 路徑 4 個測試)、真實 PostgreSQL 打過 A/B/D 端點、e2e 16 綠。</p>
+      <div class="foot">
+        本頁由 <code>docs/tasks.md</code> 自動產生(<code>scripts/build_docs.py</code>)。
+        要修改內容請改 Markdown 原始檔,不要直接編輯這份 HTML。<br>
+        排課與調代課系統 · MIT 授權 · <a href="https://github.com/begin0808/Course_Scheduling_System">GitHub</a>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeBtn');
+    // 跨頁記住深/淺色:讀者在部署手冊裡是會一頁一頁翻的
+    try{var s=localStorage.getItem('csDocsTheme'); if(s)root.setAttribute('data-theme',s);}catch(e){}
+    function cur(){var d=root.getAttribute('data-theme');if(d)return d;
+      return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+    btn.addEventListener('click',function(){
+      var next=cur()==='dark'?'light':'dark';
+      root.setAttribute('data-theme',next);
+      try{localStorage.setItem('csDocsTheme',next);}catch(e){}
+    });
+
+    var side=document.getElementById('side'), scrim=document.getElementById('scrim'),
+        tog=document.getElementById('navToggle');
+    function close(){side.classList.remove('open');scrim.classList.remove('on');}
+    tog.addEventListener('click',function(){side.classList.toggle('open');scrim.classList.toggle('on');});
+    scrim.addEventListener('click',close);
+
+    var links=Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    links.forEach(function(a){a.addEventListener('click',function(){
+      if(window.innerWidth<=960)close();});});
+    var secs=links.map(function(a){return document.getElementById(
+      decodeURIComponent(a.getAttribute('href').slice(1)));});
+    function spy(){
+      var best=-1;
+      for(var i=0;i<secs.length;i++){
+        if(secs[i]&&secs[i].getBoundingClientRect().top<=120)best=i;
+      }
+      links.forEach(function(a,i){a.classList.toggle('on',i===best);});
+    }
+    addEventListener('scroll',spy,{passive:true});spy();
+  })();
+</script>
+</body>
+</html>

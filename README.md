@@ -84,6 +84,10 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 | [變更紀錄](CHANGELOG.md) | 各版本變更 |
 | [貢獻指南](CONTRIBUTING.md) | 開發環境、程式風格、測試、發布流程 |
 
+> **離線閱讀**:上表 `docs/` 下的每份 `.md` 都有一份對應的 `.html`(如 `docs/deploy/install.html`),
+> 附側邊目錄與深/淺色切換,雙擊即可用瀏覽器開,不必連網、不必裝軟體——機房裡沒網路時特別好用。
+> 這些 HTML 由 `python scripts/build_docs.py` 從 Markdown 產生,**請勿直接編輯**;改完 `.md` 重跑一次即可。
+
 ---
 
 ## 技術棧

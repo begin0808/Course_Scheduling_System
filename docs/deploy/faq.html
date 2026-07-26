@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="常見問題 FAQ — 排課與調代課系統部署與維運文件">
+<title>常見問題 FAQ · 排課與調代課系統</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📗</text></svg>">
+<!-- 本檔由 scripts/build_docs.py 從 docs/deploy/faq.md 自動產生,請勿直接編輯。 -->
+<style>
+  :root{
+    --bg:#faf6f0; --surface:#fffdfa; --surface-2:#f4ece2; --surface-3:#ebe0d3;
+    --text:#241b14; --text-soft:#5c4c3f; --text-faint:#8d7a6a;
+    --border:#e5d8c8; --border-strong:#d3c1ad;
+    --accent:#b4531f; --accent-2:#8a3d13; --accent-soft:#fbeade; --accent-line:#e8bd99;
+    --good:#5a7d2a; --warn:#9c6008; --warn-soft:#fdefd6; --danger:#b1362b; --danger-soft:#fbe3df;
+    --info:#3d6485; --info-soft:#e9eef3;
+    --font-sans:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-serif:"Noto Serif TC","Songti TC","Source Han Serif TC",Georgia,serif;
+    --font-mono:"SF Mono","Cascadia Code","Consolas","Courier New",monospace;
+    --maxw:800px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+      --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+      --border:#3b2f25; --border-strong:#4d3e31;
+      --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+      --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+      --info:#86a9cf; --info-soft:#1c242e;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+    --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+    --border:#3b2f25; --border-strong:#4d3e31;
+    --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+    --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+    --info:#86a9cf; --info-soft:#1c242e;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);
+    line-height:1.78;font-size:16px;-webkit-font-smoothing:antialiased;letter-spacing:.01em}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+  .shell{display:grid;grid-template-columns:292px minmax(0,1fr);max-width:1240px;margin:0 auto}
+
+  /* ── sidebar ── */
+  .side{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:26px 18px 40px;
+    border-right:1px solid var(--border)}
+  .brand{display:block;margin-bottom:4px}
+  .brand .mark{font-family:var(--font-serif);font-weight:700;font-size:1.1rem;color:var(--accent);
+    display:block}
+  .brand .sub{font-size:.7rem;color:var(--text-faint);letter-spacing:.14em}
+  .side .grp{margin-top:20px;font-size:.7rem;letter-spacing:.16em;color:var(--text-faint);
+    text-transform:uppercase;font-family:var(--font-mono);padding:0 8px 6px}
+  .side nav{display:flex;flex-direction:column;gap:1px}
+  .side nav a{display:block;padding:6px 10px;border-radius:7px;color:var(--text-soft);
+    font-size:.88rem;transition:background .15s,color .15s}
+  .side nav a:hover{background:var(--surface-2);text-decoration:none;color:var(--text)}
+  .side nav a.here{background:var(--accent-soft);color:var(--accent-2);font-weight:600}
+  .side nav a .dev{font-size:.66rem;color:var(--text-faint);font-family:var(--font-mono);
+    margin-left:6px;letter-spacing:.04em}
+
+  /* 本頁目錄 */
+  .side .toc{margin-top:6px;display:flex;flex-direction:column;gap:0;
+    border-left:1px solid var(--border);padding-left:2px}
+  .side .toc a{font-size:.82rem;padding:4px 10px;color:var(--text-soft);border-radius:0 6px 6px 0}
+  .side .toc a.lv3{padding-left:24px;font-size:.78rem;color:var(--text-faint)}
+  .side .toc a:hover{background:var(--surface-2);color:var(--text);text-decoration:none}
+  .side .toc a.on{color:var(--accent-2);font-weight:600;box-shadow:inset 2px 0 0 var(--accent)}
+
+  .theme-btn{margin-top:22px;width:100%;padding:8px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text-soft);border-radius:8px;cursor:pointer;
+    font-size:.8rem;font-family:var(--font-sans)}
+  .theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ── main ── */
+  main{padding:0 clamp(20px,5vw,60px) 110px;min-width:0}
+  .wrap{max-width:var(--maxw);margin:0 auto}
+
+  .head{padding:52px 0 22px;border-bottom:1px solid var(--border);margin-bottom:8px}
+  .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:14px}
+  h1{font-family:var(--font-serif);font-weight:700;font-size:clamp(1.8rem,4.4vw,2.5rem);line-height:1.22;
+    margin:0;text-wrap:balance;letter-spacing:.01em}
+  .src{margin-top:16px;font-size:.78rem;color:var(--text-faint)}
+  .src code{font-size:.9em}
+
+  h2{font-family:var(--font-serif);font-size:1.55rem;font-weight:700;margin:52px 0 12px;line-height:1.3;
+    padding-bottom:8px;border-bottom:1px solid var(--border);text-wrap:balance;scroll-margin-top:16px}
+  h3{font-size:1.12rem;font-weight:700;margin:34px 0 10px;letter-spacing:.01em;
+    padding-left:12px;border-left:3px solid var(--accent);scroll-margin-top:16px}
+  h4{font-size:1rem;font-weight:700;margin:24px 0 8px;color:var(--text);scroll-margin-top:16px}
+  p{margin:14px 0}
+  strong{font-weight:700;color:var(--text)}
+  ul,ol{margin:14px 0;padding-left:1.4em}
+  li{margin:6px 0}
+  li > ul,li > ol{margin:6px 0}
+  hr{border:none;border-top:1px solid var(--border);margin:34px 0}
+
+  code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);
+    padding:2px 6px;border-radius:5px;color:var(--accent-2);word-break:break-word}
+  pre{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;overflow-x:auto;margin:18px 0;line-height:1.6}
+  pre code{background:none;padding:0;color:var(--text);font-size:.85rem;white-space:pre}
+
+  blockquote{margin:20px 0;padding:12px 18px;border:1px solid var(--border);border-left:4px solid var(--accent);
+    border-radius:10px;background:var(--accent-soft);color:var(--text-soft);font-size:.95rem}
+  blockquote p{margin:6px 0}
+  blockquote strong{color:var(--accent-2)}
+
+  .tw{overflow-x:auto;margin:20px 0;border:1px solid var(--border);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:440px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  thead th{background:var(--surface-2);font-weight:700;font-size:.8rem;letter-spacing:.03em;
+    color:var(--text-soft);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td code{white-space:nowrap}
+
+  /* tasks.md 的任務卡核取方塊 */
+  .tick{display:inline-block;width:1.15em;margin-right:.35em;font-family:var(--font-mono);font-weight:700}
+  .tick.done{color:var(--good)}
+  .tick.wip{color:var(--warn)}
+  .tick.todo{color:var(--text-faint)}
+
+  .foot{margin-top:70px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-faint);
+    font-size:.83rem}
+  .foot a{color:var(--text-soft)}
+
+  .navtoggle{display:none}
+  @media (max-width:960px){
+    .shell{grid-template-columns:1fr}
+    .side{position:fixed;z-index:40;top:0;left:0;width:284px;transform:translateX(-100%);
+      transition:transform .22s ease;background:var(--surface);height:100vh}
+    .side.open{transform:none;box-shadow:0 0 40px rgba(0,0,0,.34)}
+    .navtoggle{display:flex;position:fixed;z-index:50;top:14px;left:14px;gap:8px;align-items:center;
+      background:var(--surface);border:1px solid var(--border-strong);border-radius:9px;padding:8px 13px;
+      cursor:pointer;font-family:var(--font-sans);color:var(--text);font-size:.85rem;font-weight:600}
+    .scrim{display:none;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.45)}
+    .scrim.on{display:block}
+    .head{padding-top:56px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+  @media print{.side,.navtoggle,.scrim{display:none}.shell{grid-template-columns:1fr}
+    main{padding:0}pre,blockquote,.tw{break-inside:avoid}}
+  html{scroll-behavior:smooth}
+</style>
+</head>
+<body>
+<button class="navtoggle" id="navToggle" aria-label="開啟目錄">☰ 目錄</button>
+<div class="scrim" id="scrim"></div>
+<div class="shell">
+  <aside class="side" id="side">
+<a class="brand" href="../index.html"><span class="mark">排課與調代課系統</span><span class="sub">文件</span></a>
+<div class="grp">給使用者</div><nav>
+<a href="../index.html">教學組長操作手冊</a>
+</nav>
+<div class="grp">部署與維運手冊</div><nav>
+<a class="doc" href="README.html">總覽:從哪開始</a>
+<a class="doc" href="install.html">安裝指南</a>
+<a class="doc" href="upgrade.html">升級指南</a>
+<a class="doc" href="backup.html">備份與還原</a>
+<a class="doc" href="https.html">網域與 HTTPS</a>
+<a class="doc here" href="faq.html">常見問題 FAQ</a>
+</nav>
+<div class="grp">專案技術文件</div><nav>
+<a class="doc" href="../architecture.html">架構設計<span class="dev">開發用</span></a>
+<a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
+<a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
+</nav>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#安裝與啟動">安裝與啟動</a><a class="lv2" href="#帳號與登入">帳號與登入</a><a class="lv2" href="#資料與備份">資料與備份</a><a class="lv2" href="#效能與規模">效能與規模</a><a class="lv2" href="#升級與版本">升級與版本</a><a class="lv2" href="#其他">其他</a></div>
+    <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
+  </aside>
+  <main>
+    <div class="wrap">
+      <header class="head">
+        <div class="eyebrow">DEPLOYMENT GUIDE</div>
+        <h1>常見問題 FAQ</h1>
+        <div class="src">原始檔 <code>docs/deploy/faq.md</code> · <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/docs/deploy/faq.md">在 GitHub 上檢視</a></div>
+      </header>
+      <h2 id="安裝與啟動">安裝與啟動</h2>
+      <p><strong>Q:<code>docker compose up -d</code> 後開網頁看到「502」或「無法連線」。</strong>
+      容器可能還在啟動(尤其首次要跑資料庫遷移)。等 20–30 秒再試,並看狀態:</p>
+      <pre><code class="language-bash">docker compose ps          # 看是否都 healthy
+      docker compose logs api    # 看 api 是否卡在遷移或報錯
+      </code></pre>
+      <p><strong>Q:<code>docker compose ps</code> 有容器一直 restarting。</strong>
+      看該容器 log 找原因:</p>
+      <pre><code class="language-bash">docker compose logs --tail=50 &lt;服務名&gt;   # 例如 api / worker / postgres
+      </code></pre>
+      <p>常見:<code>.env</code> 的 <code>DATABASE_URL</code> 與 <code>POSTGRES_*</code> 帳密不一致;<code>SECRET_KEY</code> 未設。</p>
+      <p><strong>Q:80 埠被占用,啟動失敗(port is already allocated)。</strong>
+      改 <code>.env</code> 的 <code>HTTP_PORT</code>(例如 <code>8080</code>)再 <code>docker compose up -d</code>,改用 <code>http://&lt;主機IP&gt;:8080</code>。</p>
+      <p><strong>Q:校內其他電腦連不到。</strong>
+      確認用的是主機的<strong>區網 IP</strong>(非 <code>localhost</code>),且主機防火牆放行該埠。手機/平板需與主機同一網段(同一 Wi-Fi)。</p>
+      <hr />
+      <h2 id="帳號與登入">帳號與登入</h2>
+      <p><strong>Q:忘記管理員密碼怎麼辦?</strong>
+      若你還記得 <code>.env</code> 的初始 <code>ADMIN_PASSWORD</code>,那是<strong>首次登入</strong>用的;登入後改過的密碼存在資料庫。若連改過的都忘了,目前需由具資料庫存取權者重設。最務實的做法是<strong>還原一份記得密碼的舊備份</strong>(見<a href="backup.html">備份指南</a>),或聯繫維護者。請妥善保管管理員密碼。</p>
+      <p><strong>Q:還原備份後大家被登出了。</strong>
+      這是預期行為。還原會替換整個資料庫(含帳號),為安全起見系統會強制所有人以還原時點的帳密重新登入。</p>
+      <p><strong>Q:老師收不到調代課 Email。</strong>
+      Email 為<strong>選配</strong>;未在「系統管理」設定 SMTP 時,只有站內通知(鈴鐺),系統一切正常。要寄 Email 需填學校的 SMTP 主機資訊,並可按「寄測試信」當場驗證。</p>
+      <hr />
+      <h2 id="資料與備份">資料與備份</h2>
+      <p><strong>Q:我的資料存在哪?會不會不見?</strong>
+      存在 Docker volume <code>pgdata</code>。只要不刪這個 volume,<code>docker compose down</code> / 重啟 / 升級都不會動到資料。<strong>但主機硬碟壞掉 volume 會一起沒</strong>,所以務必做<a href="backup.html">異地備援</a>。</p>
+      <p><strong>Q:<code>docker compose down</code> 會刪資料嗎?</strong>
+      不會。<code>down</code> 只停止並移除容器,volume 保留。<strong>只有 <code>docker compose down -v</code> 的 <code>-v</code> 會刪 volume(含你的資料)</strong>,請勿誤用。</p>
+      <p><strong>Q:怎麼把系統搬到新主機?</strong>
+      新主機裝好空系統 → 舊主機下載一份備份 <code>.dump</code> → 新主機「系統管理 → 上傳還原」。詳見<a href="backup.html">備份指南</a>。</p>
+      <hr />
+      <h2 id="效能與規模">效能與規模</h2>
+      <p><strong>Q:自動排課很慢或跑不出來。</strong>
+      排課是計算密集工作,受班級數、約束複雜度影響。建議主機 ≥ 4 核 8GB。無解時系統會給「衝突定位」報告,依提示放寬條件或補資源。可設定求解逾時(預設 10 分鐘),逾時取當前最佳解。</p>
+      <p><strong>Q:頁面偶爾轉圈久。</strong>
+      自動排課/大量匯出時 worker 較忙,但與 api 分離,一般操作不受影響。自 v1.1 起排課(<code>worker</code>)與匯出/備份(<code>worker-ops</code>)分屬兩個容器,<strong>排課進行中按匯出仍是秒回</strong>。若持續緩慢,查主機資源(<code>docker stats</code>)是否吃緊。</p>
+      <p><strong>Q:匯出/備份時出現「維運背景服務(worker-ops)沒有在執行」。</strong></p>
+      <p>你的 <code>docker-compose.yml</code> 少了 <code>worker-ops</code> 這個容器(多半是用了舊版的 compose 檔)。它負責匯出、備份、還原、寄信與每日自動備份——沒有它,這些功能全都沒人處理,而且<strong>每日自動備份是無聲停擺的</strong>。</p>
+      <p>取得最新的 compose 檔再重啟即可,資料不受影響:</p>
+      <pre><code class="language-bash">curl -fLO https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
+      docker compose up -d
+      docker compose ps          # 應看到六個容器,含 worker 與 worker-ops
+      </code></pre>
+      <p><strong>Q:匯出課表 / 備份失敗,說「背景忙碌或逾時」。</strong></p>
+      <p><code>worker-ops</code> 有在跑但沒做完。查它的 log:</p>
+      <pre><code class="language-bash">docker compose ps worker-ops
+      docker compose logs --tail=50 worker-ops
+      </code></pre>
+      <p>PDF/PNG 匯出在低階機器上偶爾會超過 90 秒;主機吃緊(<code>docker stats</code>)時先讓自動排課跑完再試。</p>
+      <hr />
+      <h2 id="升級與版本">升級與版本</h2>
+      <p><strong>Q:怎麼知道有沒有新版、這版改了什麼?</strong>
+      看專案 <a href="../../CHANGELOG.html">CHANGELOG.md</a> 與 GitHub Releases。升級步驟見<a href="upgrade.html">升級指南</a>。</p>
+      <p><strong>Q:升級會不會弄壞資料?</strong>
+      資料表結構變更由 <code>api</code> 啟動時自動、向前相容地遷移,資料保留。仍建議升級前先「立即備份」。破壞性變更(若有)會在 CHANGELOG 該版本以 ⚠️ 標註。</p>
+      <hr />
+      <h2 id="其他">其他</h2>
+      <p><strong>Q:可以多所學校共用一套嗎?</strong>
+      本系統設計為<strong>單校自架</strong>,一所學校一套部署,資料彼此隔離、最單純也最安全。多校請各自部署。</p>
+      <p><strong>Q:如何完全移除?</strong></p>
+      <pre><code class="language-bash">docker compose down -v     # ⚠️ 連同資料 volume 一起刪除,不可復原,請先備份!
+      </code></pre>
+      <p><strong>Q:找不到答案 / 想回報問題?</strong>
+      到專案 GitHub 開 Issue(見 <a href="../../CONTRIBUTING.html">CONTRIBUTING.md</a>)。回報時附上 <code>docker compose logs</code> 相關片段會更快解決。</p>
+      <div class="foot">
+        本頁由 <code>docs/deploy/faq.md</code> 自動產生(<code>scripts/build_docs.py</code>)。
+        要修改內容請改 Markdown 原始檔,不要直接編輯這份 HTML。<br>
+        排課與調代課系統 · MIT 授權 · <a href="https://github.com/begin0808/Course_Scheduling_System">GitHub</a>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeBtn');
+    // 跨頁記住深/淺色:讀者在部署手冊裡是會一頁一頁翻的
+    try{var s=localStorage.getItem('csDocsTheme'); if(s)root.setAttribute('data-theme',s);}catch(e){}
+    function cur(){var d=root.getAttribute('data-theme');if(d)return d;
+      return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+    btn.addEventListener('click',function(){
+      var next=cur()==='dark'?'light':'dark';
+      root.setAttribute('data-theme',next);
+      try{localStorage.setItem('csDocsTheme',next);}catch(e){}
+    });
+
+    var side=document.getElementById('side'), scrim=document.getElementById('scrim'),
+        tog=document.getElementById('navToggle');
+    function close(){side.classList.remove('open');scrim.classList.remove('on');}
+    tog.addEventListener('click',function(){side.classList.toggle('open');scrim.classList.toggle('on');});
+    scrim.addEventListener('click',close);
+
+    var links=Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    links.forEach(function(a){a.addEventListener('click',function(){
+      if(window.innerWidth<=960)close();});});
+    var secs=links.map(function(a){return document.getElementById(
+      decodeURIComponent(a.getAttribute('href').slice(1)));});
+    function spy(){
+      var best=-1;
+      for(var i=0;i<secs.length;i++){
+        if(secs[i]&&secs[i].getBoundingClientRect().top<=120)best=i;
+      }
+      links.forEach(function(a,i){a.classList.toggle('on',i===best);});
+    }
+    addEventListener('scroll',spy,{passive:true});spy();
+  })();
+</script>
+</body>
+</html>

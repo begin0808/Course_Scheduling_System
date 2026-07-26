@@ -71,7 +71,10 @@
   .brand{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}
   .brand .mark{font-family:var(--font-serif);font-weight:700;font-size:1.15rem;color:var(--accent)}
   .brand .sub{font-size:.72rem;color:var(--text-faint);letter-spacing:.14em}
+  .side .grp{margin-top:22px;font-size:.7rem;letter-spacing:.16em;color:var(--text-faint);
+    text-transform:uppercase;font-family:var(--font-mono);padding:0 10px 5px}
   .side nav{margin-top:22px;display:flex;flex-direction:column;gap:2px}
+  .side .grp + nav{margin-top:0}
   .side nav a{display:flex;gap:10px;align-items:baseline;padding:7px 10px;border-radius:7px;
     color:var(--text-soft);font-size:.9rem;transition:background .15s,color .15s}
   .side nav a .n{font-family:var(--font-mono);font-size:.72rem;color:var(--text-faint);min-width:1.4em}
@@ -216,6 +219,7 @@
       <span class="mark">排課與調代課系統</span>
     </div>
     <div class="brand"><span class="sub">教學組長操作手冊 · v1.1</span></div>
+    <div class="grp">本手冊章節</div>
     <nav id="toc">
       <a href="#intro"><span class="n">00</span>如何使用本手冊</a>
       <a href="#value"><span class="n">01</span>這套系統能幫你做什麼</a>
@@ -229,6 +233,16 @@
       <a href="#export"><span class="n">09</span>匯出課表</a>
       <a href="#admin"><span class="n">10</span>系統管理</a>
       <a href="#faq"><span class="n">11</span>常見情境 FAQ</a>
+    </nav>
+    <!-- 給裝機的人。刻意放在 #toc 之外:scrollspy 只認本頁錨點 -->
+    <div class="grp">部署與維運手冊</div>
+    <nav>
+      <a href="deploy/README.html">總覽:從哪開始</a>
+      <a href="deploy/install.html">安裝指南</a>
+      <a href="deploy/upgrade.html">升級指南</a>
+      <a href="deploy/backup.html">備份與還原</a>
+      <a href="deploy/https.html">網域與 HTTPS</a>
+      <a href="deploy/faq.html">常見問題 FAQ</a>
     </nav>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
@@ -602,12 +616,15 @@
 
 <script>
   (function(){
-    // theme toggle
+    // theme toggle(與部署手冊共用 csDocsTheme,翻頁不會被打回系統色)
     var root=document.documentElement, btn=document.getElementById('themeBtn');
+    try{var s=localStorage.getItem('csDocsTheme'); if(s)root.setAttribute('data-theme',s);}catch(e){}
     function cur(){var d=root.getAttribute('data-theme');if(d)return d;
       return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
     btn.addEventListener('click',function(){
-      root.setAttribute('data-theme', cur()==='dark'?'light':'dark');});
+      var next=cur()==='dark'?'light':'dark';
+      root.setAttribute('data-theme',next);
+      try{localStorage.setItem('csDocsTheme',next);}catch(e){}});
 
     // mobile nav
     var side=document.getElementById('side'), scrim=document.getElementById('scrim'),
