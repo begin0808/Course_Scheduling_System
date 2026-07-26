@@ -7,6 +7,52 @@ on:
     tags: ["v*"]
 
 jobs:
+  # 新增遷移就必須同步更新架構文件。這道關卡是有前科才加的:0015 / 0016 / 0017
+  # 三支遷移都在沒動 docs/architecture.md 的情況下進版,於是「規格權威來源」少了
+  # 三張實際存在的資料表,還留著一張從未實作的 `school`。靠人記得已經證明無效。
+  # 真的與架構無關時,在 commit 訊息寫 [no-arch] 放行。
+  docs-sync:
+    name: 架構文件同步檢查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 比對遷移與架構文件
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          # 取得本次改動的檔案清單(PR 比對基底分支;push 比對前一次提交)
+          if [ -n "${BASE_SHA:-}" ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            RANGE="$BASE_SHA...HEAD"
+          else
+            RANGE="HEAD~1...HEAD"   # 首次推送等取不到基底時,退回看最後一顆
+          fi
+          echo "比對範圍:$RANGE"
+          CHANGED=$(git diff --name-only "$RANGE")
+          NEW_MIGRATIONS=$(git diff --name-only --diff-filter=A "$RANGE" \
+            | grep '^backend/alembic/versions/' || true)
+
+          if [ -z "$NEW_MIGRATIONS" ]; then
+            echo "本次未新增遷移,略過。"; exit 0
+          fi
+          echo "新增的遷移:"; echo "$NEW_MIGRATIONS" | sed 's/^/  /'
+
+          if git log --format=%B "$RANGE" | grep -qF '[no-arch]'; then
+            echo "commit 訊息含 [no-arch],放行。"; exit 0
+          fi
+          if echo "$CHANGED" | grep -q '^docs/architecture.md$'; then
+            echo "docs/architecture.md 已同步更新 ✓"; exit 0
+          fi
+
+          echo "::error::新增了資料庫遷移,但沒有更新 docs/architecture.md。"
+          echo "docs/architecture.md 是本專案的規格權威來源:schema 變更(新表、"
+          echo "新欄位、新約束)必須反映在 §2 核心實體定義,否則後人照著文件理解"
+          echo "資料庫就會錯。請補上說明後再推;若這支遷移純技術性、與架構無關,"
+          echo "在 commit 訊息加上 [no-arch] 即可放行。"
+          exit 1
+
   backend:
     name: 後端 lint / type / test
     runs-on: ubuntu-latest
