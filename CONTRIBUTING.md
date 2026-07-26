@@ -51,12 +51,12 @@ cd frontend && npm install && npm run test
 - **UI 文案一律繁體中文、台灣教務用語**(節次、科任、配課、鐘點、跑班)。衝突/提示訊息用節次表中儲存的名稱(早自修/午休/第一節),不用內部 `period_no`。
 - **資料庫 schema 變更必附 Alembic 遷移**,且能從前一版順向升級。
 - solver 模組(`app/solver/`)不得 import `app.api` / `app.models`(以測試保證純度)。
-- **背景任務分兩條佇列**:`default` 只跑自動排課(可佔住 worker 數分鐘),`ops` 跑匯出/備份/還原/寄信與定時任務。新增背景任務時先問「這會不會跑很久」——會的話走 `default`,否則一律 `ops`,別讓秒級任務排在排課後面。兩者由 `worker` 與 `worker-ops` 兩個容器分別守著(同一映像,見 `app/workers/worker.py`)。
+- **背景任務分兩條佇列**:`default` 只跑自動排課(可佔住 worker 數分鐘),`ops` 跑匯出/備份/還原/寄信與定時任務。新增背景任務時先問「這會不會跑很久」——會的話走 `default`,否則一律 `ops`,別讓秒級任務排在排課後面。正式環境由 `worker` 與 `worker-ops` 兩個容器分別守著(同一映像,見 `app/workers/worker.py`);開發用 compose 是單一行程同時守兩條(dev 不在乎排課堵住匯出)。
 - 架構規格以 [docs/architecture.md](docs/architecture.md) 為準;與任務卡衝突時以架構文件為準並回報矛盾。
 
 ### E2E(Playwright)
 
-對「執行中的 Docker 全棧」驅動真實瀏覽器。需先 `docker compose up -d`,再建立測試帳號(冪等,`e2e_scheduler` 與 `e2e_teacher`,並將設定精靈標記完成):
+對「執行中的 Docker 全棧」驅動真實瀏覽器。需先 `docker compose up -d`,再建立測試帳號(`e2e_scheduler` / `e2e_teacher` / `e2e_admin` / `e2e_newuser`,並將設定精靈標記完成):
 
 ```bash
 docker compose exec -T api python -m app.scripts.seed_e2e
@@ -66,10 +66,26 @@ npx playwright install chromium   # 首次
 npm run e2e            # 迴歸套件(無頭;CI 跑的就是這個)
 npm run e2e:headed     # 有頭 + 放慢,可在螢幕上觀看
 npm run e2e:perf       # 60 班壓測(執行久,非迴歸,CI 不跑)
-npm run e2e:manual     # 操作手冊截圖產生器(需另備示範資料測試站,CI 不跑)
+npm run e2e:manual     # 操作手冊截圖產生器(需一套空資料庫的站台,CI 不跑)
 ```
 
+`seed_e2e` 是冪等的,**唯一例外是 `e2e_newuser`**:它每次都被重設回「首次登入待改密」狀態,因為 `change-password.spec.ts` 必然會把這個狀態用掉(那支測試就是去改密碼的)。本機連續重跑 e2e 前記得重新 seed。
+
 CI 的 `e2e` job 會在 runner 上建置三個映像、起全棧、seed 帳號後跑迴歸套件;E2E 未過不會發布映像。
+
+**新增頁面時請一併加 e2e。** 這條不是形式要求:v1.0.0 曾有一整頁(系統管理)因為 setup 擲錯而完全渲染不出來,備份/還原/SMTP 全都點不進去,卻因為沒有任何測試覆蓋而溜過兩個版本。目前 20 個路由全數有 e2e 造訪,請維持這個狀態。
+
+### 操作手冊截圖
+
+`npm run e2e:manual` 會產生 `docs/manual-img/` 的 10 張截圖。它**自備示範資料**(115 學年度、8 位教師、3 班、24 筆配課),所以只要給它一套空的站台即可:
+
+```bash
+# 另起一套獨立的棧(空資料庫),.env 設 ADMIN_PASSWORD=DemoSetup2026!
+docker compose -p manual --env-file <你的.env> up -d
+E2E_BASE_URL=http://localhost:<port> npm run e2e:manual
+```
+
+介面改版(尤其是主題色、版面)後請重跑,別讓手冊停留在舊畫面。
 
 ## 提交與 PR
 
@@ -86,13 +102,13 @@ CI 的 `e2e` job 會在 runner 上建置三個映像、起全棧、seed 帳號�
 
 映像建置與發布已由 CI 自動化(見 [.github/workflows/ci.yml](.github/workflows/ci.yml)):
 
-1. 確認 `main` 綠燈(backend / frontend / migrations 三個 job 通過)。
-2. 更新 `CHANGELOG.md`:把 `[Unreleased]` 內容整理到新版本標題下並註明日期,標註破壞性變更(⚠️)。
+1. 確認 `main` 綠燈——**五個 job 全過**:backend / frontend / migrations / e2e / images。
+2. 更新 `CHANGELOG.md`:把 `[Unreleased]` 內容整理到新版本標題下並註明日期,標註破壞性變更(⚠️)。同步更新 `README.md` 的專案狀態、`docs/deploy/upgrade.md` 的釘選版本範例。
 3. 打標籤並推送:
 
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag -a v1.2.0 -m "v1.2.0(日期):一句話說明"
+   git push origin v1.2.0
    ```
 
 4. `v*` 標籤觸發 CI 的 `images` job,建置並推送**雙架構(amd64 + arm64)**映像到 GHCR:
@@ -100,9 +116,16 @@ CI 的 `e2e` job 會在 runner 上建置三個映像、起全棧、seed 帳號�
    - `ghcr.io/begin0808/course_scheduling_system-worker`
    - `ghcr.io/begin0808/course_scheduling_system-web`
 
-   每個映像會推 `:latest`、`:<版本標籤>`(如 `v1.0.0`,即 `github.ref_name`)與 `:<commit sha>` 三個 tag。`main` push 僅建 amd64;**版本標籤才建雙架構**。
-5. 在 GitHub 建立 Release,關聯該標籤,貼上該版 CHANGELOG 內容。
-6. 使用者升級:`.env` 設 `IMAGE_TAG=v1.0.0` → `docker compose pull && docker compose up -d`(見 [docs/deploy/upgrade.md](docs/deploy/upgrade.md))。`IMAGE_TAG` 即對應此處推送的版本標籤。
+   每個映像會推 `:latest`、`:<版本標籤>`(即 `github.ref_name`)與 `:<commit sha>` 三個 tag。`main` push 僅建 amd64;**版本標籤才建雙架構**(arm64 走模擬,約需 20 分鐘)。
+5. **等映像真的上架再建 Release**——標籤推上去的當下映像還在建,太早公開連結會讓人 `docker compose pull` 撲空。確認方式:
+
+   ```bash
+   docker buildx imagetools inspect ghcr.io/begin0808/course_scheduling_system-api:<版本> | grep Platform
+   ```
+
+6. 在 GitHub 建立 Release,關聯該標籤,貼上該版 CHANGELOG 內容,勾選 **Set as the latest release**。
+7. **發布前最後一道**:在乾淨環境拉**正式映像**跑一次(不是本機建的那份)——CI 驗的是從原始碼建的映像,使用者拉到的是 `images` job 產出的那份,兩者從未同時被驗證過。至少走到:六容器 healthy → 首次登入改密 → 設定精靈 → 系統管理頁 → 立即備份。
+8. 使用者升級:`.env` 設 `IMAGE_TAG=<版本>` → `docker compose pull && docker compose up -d`(見 [docs/deploy/upgrade.md](docs/deploy/upgrade.md))。`IMAGE_TAG` 即對應此處推送的版本標籤。
 
 ## 授權
 

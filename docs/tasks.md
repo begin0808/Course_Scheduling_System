@@ -11,7 +11,7 @@
 
 ```
 Course_Scheduling_System/
-├── docker-compose.yml          # 正式部署用(5 容器:caddy/api/worker/postgres/redis)
+├── docker-compose.yml          # 正式部署用(6 容器:web/api/worker/worker-ops/postgres/redis)
 ├── docker-compose.dev.yml      # 開發用(熱重載)
 ├── .env.example                # 僅需改:管理員密碼、校名、SMTP(選填)
 ├── Caddyfile
