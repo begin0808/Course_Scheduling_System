@@ -52,6 +52,7 @@ cd frontend && npm install && npm run test
 - **資料庫 schema 變更必附 Alembic 遷移**,且能從前一版順向升級。
 - solver 模組(`app/solver/`)不得 import `app.api` / `app.models`(以測試保證純度)。
 - **背景任務分兩條佇列**:`default` 只跑自動排課(可佔住 worker 數分鐘),`ops` 跑匯出/備份/還原/寄信與定時任務。新增背景任務時先問「這會不會跑很久」——會的話走 `default`,否則一律 `ops`,別讓秒級任務排在排課後面。正式環境由 `worker` 與 `worker-ops` 兩個容器分別守著(同一映像,見 `app/workers/worker.py`);開發用 compose 是單一行程同時守兩條(dev 不在乎排課堵住匯出)。
+- **新增後端相依請一併給主版號上限**(`fastapi>=0.115,<1` 這種寫法)。踩過:`redis` 只寫下限,某次重建映像裝到 redis-py 8,阻塞式取結果的行為變了,匯出與備份在新環境全數逾時失敗——而本機因為 pip 快取還是舊版,測不出來。映像每次發行都重新建置,不釘上限等於把使用者的部署交給上游的發版節奏。
 - 架構規格以 [docs/architecture.md](docs/architecture.md) 為準;與任務卡衝突時以架構文件為準並回報矛盾。
 
 ### E2E(Playwright)

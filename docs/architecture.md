@@ -178,7 +178,7 @@ erDiagram
 | `period_table` | 節次表 | 名稱;一學期可有多套(如高中部/國中部各一套) |
 | `period` | 節次定義 | 星期(1–5,可擴至 6)、第幾節、起訖時間、類型(一般課/早自習/午休/導師時間/固定用途) |
 | `teacher` | 教師 | 姓名、任教科目(多)、基本鐘點、行政職稱與減課數、是否外聘/業界師資、在職狀態、聯絡資訊(Email/手機/LINE ID,皆選填)、綁定帳號(`user_id`,nullable FK → users) |
-| `class_unit` | 班級 | 年級、班名、學制標籤(普/綜/技/國中/國小)、群科(技高)、導師、人數 |
+| `class_unit` | 班級 | 年級、班名、學制標籤(普/綜/技/國中/國小)、群科(技高)、導師、人數;**班名同學期唯一**(`uq(semester_id, name)`,遷移 0017)——衝突訊息、課表、匯出全都以班名指稱班級,兩個「301」會讓人根本分不出是哪一班 |
 | `subject` | 科目 | 名稱、領域/群別、需要場地類型、預設連堂規則 |
 | `room` | 場地 | 名稱、類型(普通/專科/實習工場/戶外)、容量、適用科目 |
 | `scheduling_unit` | **排課單位**(關鍵抽象) | 類型:`single`(單一班級)/`group`(跑班群組);跑班群組透過 `scheduling_unit_member` 關聯多個班級 |
@@ -186,7 +186,7 @@ erDiagram
 | `assignment_teacher` | 配課教師 | 支援協同教學(多教師);主教/協同標記 |
 | `block_rule` | 連堂規則 | 連堂長度(2–4)、每週次數(如「每週 6 節,其中 3 連堂×2 次」) |
 | `teacher_time_rule` | 教師時段規則 | 類型:`unavailable`(硬:不可排)/`avoid`(軟:盡量避開)/`prefer`(軟:偏好);對應星期×節次 |
-| `timetable` | 課表版本 | 狀態:`draft` / `published` / `archived`;同學期可多份草稿,僅一份 published |
+| `timetable` | 課表版本 | 狀態:`draft` / `published` / `archived`;同學期可多份草稿,僅一份 published;`unscheduled` JSONB(遷移 0016)存部分排課當時「**為什麼排不下**」的理由——「哪些課沒排」由 `completeness()` 從 DB 重算(唯一真相,手動改過的課表也算得對),solver 的紀錄只補上原因 |
 | `schedule_entry` | 課表格位 | 課表版本、配課、星期、節次、`span`(連堂)、`room_id`(空=沿用配課場地)、`locked` 旗標;**唯一性約束在應用層+求解器驗證**(教師/班級/場地同時段不重複) |
 | `leave_request` | 請假 | 教師、假別(公/事/病/婚/喪/產/進修)、起訖日期時間、事由、登記人 |
 | `affected_period` | 受影響節次 | 請假展開後的每一節課;狀態機見 §5.3 |
@@ -334,6 +334,8 @@ flowchart TD
 #### 部分排課(partial scheduling)
 
 - 每個 lesson 多一個「未排入」變數,`H8 週節數守恆` 因此降級為高權重軟約束;模型永遠有解(最差是整張表空著)。
+- **「永遠有解」必須連「完全排不下的課」都算數**(M6-3):某門課的可排時段被硬條件蓋滿時(例如協同教學的兩位教師不可排時段剛好聯集成整週),建模階段早期是直接 raise,結果**部分排課在最需要它的時候整鍋失敗**。現改為建一個恆為 1 的未排入變數(不建位置變數),把該課列進未排清單並記下原因,其餘照排;一般模式維持 raise。
+- 未排的**節數以排課單位計**,不是逐筆配課:跑班群組是多門選修同時段開,少排一個時段就是少一節課,逐筆記會灌水成數倍。
 - 使用者可另外勾選放寬 `H4` / `H9` / `H10`。**`H1` / `H2` / `H3` 永遠不可放寬**——一位教師不能同時出現在兩間教室、一間教室不能同時容納兩班,那是物理,不是政策;放寬只會產生一張沒有人能照著上課的課表。
 - 懲罰量級刻意拉開:**未排入(10000) ≫ 違反被放寬的約束(1000) ≫ 軟約束(1~8)**。
   這個順序是**正確性前提**,不是調參偏好:軟約束權重因此硬性上限 `MAX_WEIGHT = 100`
@@ -353,7 +355,7 @@ flowchart TD
 |---|---|---|
 | 前端 | **Vue 3 + TypeScript + Vite + Pinia + Naive UI** | 台灣社群 Vue 使用率高、學習曲線平緩,對兼職開源貢獻者友善;Naive UI 元件完整且 TypeScript 原生 |
 | 課表互動 | 自製 CSS Grid 課表 + HTML5 Drag & Drop(封裝為 `TimetableGrid` 元件) | 課表拖拉邏輯高度領域化,通用套件反而綁手腳 |
-| 後端 | **Python 3.12 + FastAPI + SQLAlchemy 2.0 + Alembic + Pydantic v2** | 與 OR-Tools 同語言;FastAPI 自帶 OpenAPI 文件(滿足 E4);型別完整 |
+| 後端 | **Python 3.12 + FastAPI + SQLAlchemy 2.0 + Alembic + Pydantic v2** | 與 OR-Tools 同語言;FastAPI 自帶 OpenAPI 文件(滿足 E4,**正式部署預設關閉**,`.env` 的 `API_DOCS_ENABLED` 可開);型別完整 |
 | 排課引擎 | **OR-Tools CP-SAT**(獨立 `solver/` 模組,與 Web 解耦) | 見 §3.3 |
 | 任務佇列 | **RQ + Redis** | 極簡、純 Python;排課與 Email 寄送皆走佇列 |
 | 資料庫 | **PostgreSQL 16** | 主流、可靠;pg_dump 備份簡單 |
