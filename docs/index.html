@@ -10,12 +10,12 @@
 <body>
 <style>
   :root{
-    --bg:#f5f8f6; --surface:#ffffff; --surface-2:#eef3f1; --surface-3:#e6edea;
-    --text:#15211e; --text-soft:#4b5a56; --text-faint:#7d8c88;
-    --border:#d8e2de; --border-strong:#c2d0cb;
-    --accent:#0e7c6b; --accent-2:#0a5f52; --accent-soft:#e3f1ee; --accent-line:#bfe0d8;
-    --good:#1f8a4c; --warn:#b06a0c; --warn-soft:#fbefd8; --danger:#b23b34; --danger-soft:#f7e3e1;
-    --info:#2f6f9e; --info-soft:#e2eef6;
+    --bg:#faf6f0; --surface:#fffdfa; --surface-2:#f4ece2; --surface-3:#ebe0d3;
+    --text:#241b14; --text-soft:#5c4c3f; --text-faint:#8d7a6a;
+    --border:#e5d8c8; --border-strong:#d3c1ad;
+    --accent:#b4531f; --accent-2:#8a3d13; --accent-soft:#fbeade; --accent-line:#e8bd99;
+    --good:#5a7d2a; --warn:#9c6008; --warn-soft:#fdefd6; --danger:#b1362b; --danger-soft:#fbe3df;
+    --info:#3d6485; --info-soft:#e9eef3;
     --font-sans:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     --font-serif:"Noto Serif TC","Songti TC","Source Han Serif TC",Georgia,serif;
     --font-mono:"SF Mono","Cascadia Code","Consolas","Courier New",monospace;
@@ -23,29 +23,29 @@
   }
   @media (prefers-color-scheme:dark){
     :root{
-      --bg:#0d1514; --surface:#131f1d; --surface-2:#1a2926; --surface-3:#213330;
-      --text:#e7efec; --text-soft:#a2b3ae; --text-faint:#7a8c87;
-      --border:#284039; --border-strong:#345048;
-      --accent:#46c6ad; --accent-2:#6fd7c2; --accent-soft:#15302b; --accent-line:#2b544c;
-      --good:#4cba7a; --warn:#d9962f; --warn-soft:#2e2413; --danger:#e0736b; --danger-soft:#2e1917;
-      --info:#68a6d0; --info-soft:#132631;
+      --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+      --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+      --border:#3b2f25; --border-strong:#4d3e31;
+      --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+      --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+      --info:#86a9cf; --info-soft:#1c242e;
     }
   }
   :root[data-theme="dark"]{
-    --bg:#0d1514; --surface:#131f1d; --surface-2:#1a2926; --surface-3:#213330;
-    --text:#e7efec; --text-soft:#a2b3ae; --text-faint:#7a8c87;
-    --border:#284039; --border-strong:#345048;
-    --accent:#46c6ad; --accent-2:#6fd7c2; --accent-soft:#15302b; --accent-line:#2b544c;
-    --good:#4cba7a; --warn:#d9962f; --warn-soft:#2e2413; --danger:#e0736b; --danger-soft:#2e1917;
-    --info:#68a6d0; --info-soft:#132631;
+    --bg:#16110d; --surface:#1e1813; --surface-2:#29211a; --surface-3:#342a21;
+    --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+    --border:#3b2f25; --border-strong:#4d3e31;
+    --accent:#f0864a; --accent-2:#f7a877; --accent-soft:#37200f; --accent-line:#5c3a20;
+    --good:#8fbf5c; --warn:#e0a53c; --warn-soft:#33260f; --danger:#ef8172; --danger-soft:#351c18;
+    --info:#86a9cf; --info-soft:#1c242e;
   }
   :root[data-theme="light"]{
-    --bg:#f5f8f6; --surface:#ffffff; --surface-2:#eef3f1; --surface-3:#e6edea;
-    --text:#15211e; --text-soft:#4b5a56; --text-faint:#7d8c88;
-    --border:#d8e2de; --border-strong:#c2d0cb;
-    --accent:#0e7c6b; --accent-2:#0a5f52; --accent-soft:#e3f1ee; --accent-line:#bfe0d8;
-    --good:#1f8a4c; --warn:#b06a0c; --warn-soft:#fbefd8; --danger:#b23b34; --danger-soft:#f7e3e1;
-    --info:#2f6f9e; --info-soft:#e2eef6;
+    --bg:#faf6f0; --surface:#fffdfa; --surface-2:#f4ece2; --surface-3:#ebe0d3;
+    --text:#241b14; --text-soft:#5c4c3f; --text-faint:#8d7a6a;
+    --border:#e5d8c8; --border-strong:#d3c1ad;
+    --accent:#b4531f; --accent-2:#8a3d13; --accent-soft:#fbeade; --accent-line:#e8bd99;
+    --good:#5a7d2a; --warn:#9c6008; --warn-soft:#fdefd6; --danger:#b1362b; --danger-soft:#fbe3df;
+    --info:#3d6485; --info-soft:#e9eef3;
   }
 
   *{box-sizing:border-box}
@@ -131,8 +131,8 @@
   ol.steps > li::before{content:counter(s);position:absolute;left:0;top:0;width:30px;height:30px;
     display:grid;place-items:center;border-radius:50%;background:var(--accent);color:#fff;
     font-family:var(--font-mono);font-size:.86rem;font-weight:600}
-  :root[data-theme="dark"] ol.steps > li::before{color:#08201c}
-  @media (prefers-color-scheme:dark){ol.steps > li::before{color:#08201c}}
+  :root[data-theme="dark"] ol.steps > li::before{color:#2a1206}
+  @media (prefers-color-scheme:dark){ol.steps > li::before{color:#2a1206}}
   ol.steps > li .st-t{font-weight:700}
 
   /* callouts */
