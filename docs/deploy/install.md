@@ -2,6 +2,77 @@
 
 從零把系統架起來。整個過程約 15 分鐘(含下載映像)。
 
+**有兩條路,選一條就好:**
+
+| | 適合誰 | 你要做的事 |
+|---|---|---|
+| **[一鍵安裝腳本](#一鍵安裝推薦)** | 絕大多數人 | 裝 Docker → 執行腳本 → 回答三個問題 |
+| [手動安裝](#手動安裝) | 想完全掌握每一步、或環境特殊 | 下面的步驟 0～3 |
+
+兩者做的事完全一樣,腳本只是把手動的步驟 1～3 自動化(含產生金鑰、閃開被占用的埠號)。
+
+---
+
+## 一鍵安裝(推薦)
+
+### 步驟 A:先裝好 Docker
+
+同下方[步驟 0](#步驟-0先裝好-docker),裝完請確認 Docker 已啟動。
+
+### 步驟 B:下載腳本,看過再執行
+
+腳本刻意設計成「先下載、再執行」而不是一行指令直接跑——**這是要進學校主機的東西,你應該能先打開看過內容**。
+
+**Windows(PowerShell)**:
+
+```powershell
+cd $HOME\Downloads
+Invoke-WebRequest https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/install.ps1 -OutFile install.ps1
+notepad install.ps1        # 先看過(可略)
+.\install.ps1
+```
+
+> 若出現「因為這個系統上停用指令碼執行」的訊息,先執行一次:
+> `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
+> (只對這個視窗有效,關掉就恢復原設定。)
+
+**Linux / macOS / NAS**:
+
+```bash
+curl -fLO https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/install.sh
+less install.sh            # 先看過(可略)
+bash install.sh
+```
+
+### 腳本會做什麼
+
+1. 檢查 Docker 裝好沒、引擎有沒有在跑(沒有的話直接告訴你該怎麼辦)
+2. 建立安裝資料夾,下載 `docker-compose.yml`
+3. **問你三件事**:校名、管理員密碼(輸入時不顯示)、對外埠號
+4. 自動產生 `SECRET_KEY`(不需要 openssl)
+5. 寫出 `.env`——你不必開文字編輯器
+6. 下載映像、啟動六個容器、確認系統回應
+7. 印出**校內其他電腦要連的網址**,並開啟瀏覽器
+
+埠號 80 或 443 被其他服務占用時,腳本會自動改用可用的埠並告訴你。
+
+### 常用選項
+
+```bash
+bash install.sh --path /opt/scheduling    # 指定安裝位置(Windows 用 -InstallPath)
+bash install.sh --port 8080               # 指定埠號
+bash install.sh --skip-start              # 只產生設定檔,先不啟動(想自己看過 .env)
+bash install.sh --reconfigure             # 已裝過,要重新設定校名/密碼
+```
+
+裝好之後直接跳到[驗證安裝成功](#驗證安裝成功)。
+
+---
+
+## 手動安裝
+
+以下是腳本背後實際做的事。想自己一步步來、或環境特殊(例如需要走 Proxy)時看這段。
+
 ---
 
 ## 步驟 0:先裝好 Docker
@@ -10,9 +81,19 @@
 
 ### Windows
 
-1. 下載並安裝 [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/)。
-2. 安裝時若提示啟用 WSL 2,照著開啟即可。
-3. 安裝後開啟 Docker Desktop,等左下角變綠燈(Engine running)。
+最快的方式是用 Windows 內建的套件管理員,在 PowerShell 執行一行:
+
+```powershell
+winget install Docker.DockerDesktop
+```
+
+或到 [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/) 下載安裝檔。
+
+接著:
+
+1. 安裝時若提示啟用 WSL 2,照著開啟即可。
+2. **裝完請重新開機**(WSL 2 需要)。
+3. 開啟 Docker Desktop,等左下角變綠燈(Engine running)。
 4. 開「終端機 / PowerShell」,執行 `docker --version` 有版本號即成功。
 
 ### Linux(Ubuntu / Debian,校內伺服器常見)
@@ -165,6 +246,20 @@ HTTP_PORT=8080
 ```
 
 重新 `docker compose up -d`,改用 `http://<主機IP>:8080` 連線。
+
+**另外要注意 443 埠**:系統會**無條件占用 443**,即使你沒有啟用 HTTPS。若主機上已有其他服務(例如另一套網站系統)占著 443,啟動時會出現:
+
+```
+Bind for 0.0.0.0:443 failed: port is already allocated
+```
+
+這個訊息只提 443,很容易誤以為跟自己設的 80 埠有關。解法是在 `.env` 加一行改掉它:
+
+```ini
+HTTPS_PORT=8443
+```
+
+不影響內網以 HTTP 使用;日後真要啟用網域 HTTPS 時再調整即可。(一鍵安裝腳本會自動偵測並閃開。)
 
 ---
 

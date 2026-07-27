@@ -28,6 +28,26 @@
 
 需先安裝 [Docker](https://docs.docker.com/get-docker/)。**完整步驟(含 Windows / Linux / NAS)見 [部署手冊](docs/deploy/README.md)。**
 
+### 一鍵安裝腳本(最簡單)
+
+下載後執行,回答校名、管理員密碼、埠號三個問題即可。金鑰自動產生、埠號衝突自動閃開,不必手改 `.env`。
+
+**Windows(PowerShell)**:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/install.ps1 -OutFile install.ps1
+.\install.ps1
+```
+
+**Linux / macOS / NAS**:
+
+```bash
+curl -fLO https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/install.sh
+bash install.sh
+```
+
+> 刻意設計成「先下載、再執行」而非 `curl | sh`——這是要進學校主機的東西,請先打開看過內容。
+
 ### 拉取官方映像(推薦)
 
 ```bash

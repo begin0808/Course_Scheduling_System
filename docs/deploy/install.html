@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env至少改兩項">步驟 2:修改 .env(至少改兩項)</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一鍵安裝推薦">一鍵安裝(推薦)</a><a class="lv3" href="#步驟-a先裝好-docker">步驟 A:先裝好 Docker</a><a class="lv3" href="#步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</a><a class="lv3" href="#腳本會做什麼">腳本會做什麼</a><a class="lv3" href="#常用選項">常用選項</a><a class="lv2" href="#手動安裝">手動安裝</a><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env至少改兩項">步驟 2:修改 .env(至少改兩項)</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -183,14 +183,85 @@
         <div class="src">原始檔 <code>docs/deploy/install.md</code> · <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/docs/deploy/install.md">在 GitHub 上檢視</a></div>
       </header>
       <p>從零把系統架起來。整個過程約 15 分鐘(含下載映像)。</p>
+      <p><strong>有兩條路,選一條就好:</strong></p>
+      <div class="tw"><table>
+      <thead>
+      <tr>
+      <th></th>
+      <th>適合誰</th>
+      <th>你要做的事</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><strong><a href="#一鍵安裝推薦">一鍵安裝腳本</a></strong></td>
+      <td>絕大多數人</td>
+      <td>裝 Docker → 執行腳本 → 回答三個問題</td>
+      </tr>
+      <tr>
+      <td><a href="#手動安裝">手動安裝</a></td>
+      <td>想完全掌握每一步、或環境特殊</td>
+      <td>下面的步驟 0～3</td>
+      </tr>
+      </tbody>
+      </table></div>
+      <p>兩者做的事完全一樣,腳本只是把手動的步驟 1～3 自動化(含產生金鑰、閃開被占用的埠號)。</p>
+      <hr />
+      <h2 id="一鍵安裝推薦">一鍵安裝(推薦)</h2>
+      <h3 id="步驟-a先裝好-docker">步驟 A:先裝好 Docker</h3>
+      <p>同下方<a href="#步驟-0先裝好-docker">步驟 0</a>,裝完請確認 Docker 已啟動。</p>
+      <h3 id="步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</h3>
+      <p>腳本刻意設計成「先下載、再執行」而不是一行指令直接跑——<strong>這是要進學校主機的東西,你應該能先打開看過內容</strong>。</p>
+      <p><strong>Windows(PowerShell)</strong>:</p>
+      <pre><code class="language-powershell">cd $HOME\Downloads
+      Invoke-WebRequest https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/install.ps1 -OutFile install.ps1
+      notepad install.ps1        # 先看過(可略)
+      .\install.ps1
+      </code></pre>
+      <blockquote>
+      <p>若出現「因為這個系統上停用指令碼執行」的訊息,先執行一次:
+      <code>Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass</code>
+      (只對這個視窗有效,關掉就恢復原設定。)</p>
+      </blockquote>
+      <p><strong>Linux / macOS / NAS</strong>:</p>
+      <pre><code class="language-bash">curl -fLO https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/install.sh
+      less install.sh            # 先看過(可略)
+      bash install.sh
+      </code></pre>
+      <h3 id="腳本會做什麼">腳本會做什麼</h3>
+      <ol>
+      <li>檢查 Docker 裝好沒、引擎有沒有在跑(沒有的話直接告訴你該怎麼辦)</li>
+      <li>建立安裝資料夾,下載 <code>docker-compose.yml</code></li>
+      <li><strong>問你三件事</strong>:校名、管理員密碼(輸入時不顯示)、對外埠號</li>
+      <li>自動產生 <code>SECRET_KEY</code>(不需要 openssl)</li>
+      <li>寫出 <code>.env</code>——你不必開文字編輯器</li>
+      <li>下載映像、啟動六個容器、確認系統回應</li>
+      <li>印出<strong>校內其他電腦要連的網址</strong>,並開啟瀏覽器</li>
+      </ol>
+      <p>埠號 80 或 443 被其他服務占用時,腳本會自動改用可用的埠並告訴你。</p>
+      <h3 id="常用選項">常用選項</h3>
+      <pre><code class="language-bash">bash install.sh --path /opt/scheduling    # 指定安裝位置(Windows 用 -InstallPath)
+      bash install.sh --port 8080               # 指定埠號
+      bash install.sh --skip-start              # 只產生設定檔,先不啟動(想自己看過 .env)
+      bash install.sh --reconfigure             # 已裝過,要重新設定校名/密碼
+      </code></pre>
+      <p>裝好之後直接跳到<a href="#驗證安裝成功">驗證安裝成功</a>。</p>
+      <hr />
+      <h2 id="手動安裝">手動安裝</h2>
+      <p>以下是腳本背後實際做的事。想自己一步步來、或環境特殊(例如需要走 Proxy)時看這段。</p>
       <hr />
       <h2 id="步驟-0先裝好-docker">步驟 0:先裝好 Docker</h2>
       <p>系統以 Docker Compose 運行,主機只需要裝 <strong>Docker</strong>(含 Docker Compose,現代版本已內建)。</p>
       <h3 id="windows">Windows</h3>
+      <p>最快的方式是用 Windows 內建的套件管理員,在 PowerShell 執行一行:</p>
+      <pre><code class="language-powershell">winget install Docker.DockerDesktop
+      </code></pre>
+      <p>或到 <a href="https://docs.docker.com/desktop/install/windows-install/">Docker Desktop for Windows</a> 下載安裝檔。</p>
+      <p>接著:</p>
       <ol>
-      <li>下載並安裝 <a href="https://docs.docker.com/desktop/install/windows-install/">Docker Desktop for Windows</a>。</li>
       <li>安裝時若提示啟用 WSL 2,照著開啟即可。</li>
-      <li>安裝後開啟 Docker Desktop,等左下角變綠燈(Engine running)。</li>
+      <li><strong>裝完請重新開機</strong>(WSL 2 需要)。</li>
+      <li>開啟 Docker Desktop,等左下角變綠燈(Engine running)。</li>
       <li>開「終端機 / PowerShell」,執行 <code>docker --version</code> 有版本號即成功。</li>
       </ol>
       <h3 id="linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</h3>
@@ -319,6 +390,13 @@
       <pre><code class="language-ini">HTTP_PORT=8080
       </code></pre>
       <p>重新 <code>docker compose up -d</code>,改用 <code>http://&lt;主機IP&gt;:8080</code> 連線。</p>
+      <p><strong>另外要注意 443 埠</strong>:系統會<strong>無條件占用 443</strong>,即使你沒有啟用 HTTPS。若主機上已有其他服務(例如另一套網站系統)占著 443,啟動時會出現:</p>
+      <pre><code>Bind for 0.0.0.0:443 failed: port is already allocated
+      </code></pre>
+      <p>這個訊息只提 443,很容易誤以為跟自己設的 80 埠有關。解法是在 <code>.env</code> 加一行改掉它:</p>
+      <pre><code class="language-ini">HTTPS_PORT=8443
+      </code></pre>
+      <p>不影響內網以 HTTP 使用;日後真要啟用網域 HTTPS 時再調整即可。(一鍵安裝腳本會自動偵測並閃開。)</p>
       <hr />
       <p>下一步:設定<a href="backup.html">每日自動備份與異地備援</a>;若要讓校外也能連,見<a href="https.html">網域與 HTTPS</a>。遇到問題見 <a href="faq.html">FAQ</a>。</p>
       <div class="foot">
