@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一鍵安裝推薦">一鍵安裝(推薦)</a><a class="lv3" href="#步驟-a先裝好-docker">步驟 A:先裝好 Docker</a><a class="lv3" href="#步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</a><a class="lv3" href="#腳本會做什麼">腳本會做什麼</a><a class="lv3" href="#常用選項">常用選項</a><a class="lv2" href="#手動安裝">手動安裝</a><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env至少改兩項">步驟 2:修改 .env(至少改兩項)</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一鍵安裝推薦">一鍵安裝(推薦)</a><a class="lv3" href="#步驟-a先裝好-docker">步驟 A:先裝好 Docker</a><a class="lv3" href="#步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</a><a class="lv3" href="#腳本會做什麼">腳本會做什麼</a><a class="lv3" href="#常用選項">常用選項</a><a class="lv3" href="#想在同一台主機再裝一套測試環境">想在同一台主機再裝一套(測試環境)</a><a class="lv2" href="#手動安裝">手動安裝</a><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env至少改兩項">步驟 2:修改 .env(至少改兩項)</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -246,6 +246,20 @@
       bash install.sh --reconfigure             # 已裝過,要重新設定校名/密碼
       </code></pre>
       <p>裝好之後直接跳到<a href="#驗證安裝成功">驗證安裝成功</a>。</p>
+      <h3 id="想在同一台主機再裝一套測試環境">想在同一台主機再裝一套(測試環境)</h3>
+      <p><strong>這件事有陷阱,務必看一下。</strong> Docker 用「專案名稱」決定哪些容器與資料屬於同一套,本系統固定叫 <code>scheduling</code>。所以在同一台主機的另一個資料夾重跑安裝,<strong>不會產生第二套,而是會接管既有那一套</strong>——連資料庫也是同一份。</p>
+      <p>腳本會偵測到這個情況並擋下來,提示你改用不同的專案名稱:</p>
+      <pre><code class="language-bash"># Linux / macOS / NAS
+      bash install.sh --project-name scheduling-test --path ~/scheduling-test --port 8090
+      
+      # Windows PowerShell
+      .\install.ps1 -ProjectName scheduling-test -InstallPath D:\scheduling-test -Port 8090
+      </code></pre>
+      <p>這樣兩套會完全獨立:容器、資料庫、備份各走各的,可以同時執行(埠號要不同)。專案名稱會記在該資料夾的 <code>.env</code> 裡,之後在該目錄下 <code>docker compose</code> 各項指令都會自動沿用,不必每次加參數。</p>
+      <blockquote>
+      <p>要移除測試環境:<code>cd</code> 到它的資料夾執行 <code>docker compose down -v</code>(<code>-v</code> 會一併刪掉資料)。
+      <strong>執行前務必確認自己在測試環境的資料夾</strong>,在正式環境的資料夾下這條指令會刪光你的排課資料。</p>
+      </blockquote>
       <hr />
       <h2 id="手動安裝">手動安裝</h2>
       <p>以下是腳本背後實際做的事。想自己一步步來、或環境特殊(例如需要走 Proxy)時看這段。</p>

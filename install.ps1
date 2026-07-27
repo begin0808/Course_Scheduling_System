@@ -34,6 +34,9 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Port,
     [string]$TimeZone = 'Asia/Taipei',
+    # Docker compose 專案名稱。同名就是同一套部署——想在同一台主機上再裝一套
+    # (例如與正式環境並存的測試環境)必須指定不同的名稱,否則會接管既有那一套。
+    [string]$ProjectName,
     # 要拉哪一版設定檔與映像。預設 main(最新);正式部署可釘 v1.1.2
     [string]$Ref = 'main',
     [string]$ImageTag = 'latest',
@@ -145,6 +148,84 @@ function Get-InstallDir {
         Write-Ok "使用既有目錄 $InstallPath"
     }
     return (Resolve-Path $InstallPath).Path
+}
+
+# compose 的專案名稱決定「哪些容器與 volume 屬於同一套」。預設寫死在
+# docker-compose.yml 的 name: scheduling,可由 .env 的 COMPOSE_PROJECT_NAME 蓋過。
+function Resolve-ProjectName([string]$Dir) {
+    if ($ProjectName) {
+        if ($ProjectName -notmatch '^[a-z0-9][a-z0-9_-]*$') {
+            Stop-WithHelp "專案名稱「$ProjectName」不合法。" @(
+                'Docker 要求:只能用小寫英數字、底線與連字號,且開頭須為英數字。'
+                '例如:scheduling-test'
+            )
+        }
+        return $ProjectName
+    }
+    $envFile = Join-Path $Dir '.env'
+    if (Test-Path $envFile) {
+        foreach ($l in [System.IO.File]::ReadAllLines($envFile)) {
+            if ($l -match '^COMPOSE_PROJECT_NAME="?([^"\s]+)"?') { return $Matches[1] }
+        }
+    }
+    return 'scheduling'   # 與 docker-compose.yml 的 name: 一致
+}
+
+# 同名專案若指向別的目錄,docker compose up 會直接接管那一套——包含它的資料庫 volume。
+# 這是本腳本唯一可能毀掉既有資料的路徑,所以擋在啟動之前。
+function Assert-NoProjectConflict([string]$Dir, [string]$Project) {
+    # 千萬別用 --format '{{.Label "…"}}':PowerShell 5.1 傳給原生程式時會把內層引號
+    # 吃掉,docker 收到殘缺的 template 直接報錯,於是這道檢查會「靜默失效」——
+    # 看起來一切正常,實際上完全沒在擋。踩過一次,改用不含引號的 compose ls。
+    $r = Invoke-Native docker @('compose', 'ls', '--all', '--format', 'json')
+    if (-not $r.Ok -or -not $r.Output) {
+        Write-Attn '無法列出既有的 docker compose 專案,略過重複安裝檢查。'
+        return
+    }
+    # 這裡的寫法有講究:PS 5.1 的 ConvertFrom-Json 會把整個 JSON 陣列當成「一個」
+    # 管線項目送出,所以 @($x | ConvertFrom-Json) 得到的是 1 個元素(內含全部專案),
+    # 後續逐一比對永遠不相等——這道檢查就靜默失效了。必須先指派再 @() 展開。
+    try {
+        $parsed = $r.Output | ConvertFrom-Json
+        $projects = @($parsed)
+    }
+    catch {
+        Write-Attn '無法解析 docker compose 專案清單,略過重複安裝檢查。'
+        return
+    }
+
+    $mine = Join-Path $Dir 'docker-compose.yml'
+    $others = @()
+    foreach ($p in $projects) {
+        if ($p.Name -ne $Project) { continue }
+        if ($p.PSObject.Properties.Name -notcontains 'ConfigFiles') { continue }
+        foreach ($cfg in ([string]$p.ConfigFiles -split ',')) {
+            $c = $cfg.Trim()
+            # PowerShell 的 -ne 對字串預設不分大小寫,正好符合 Windows 路徑語意
+            if ($c -and ($c -ne $mine)) { $others += $c }
+        }
+    }
+    $others = @($others | Select-Object -Unique)
+    if ($others.Count -eq 0) { return }
+
+    Write-Host ''
+    Write-Attn "這台主機上已經有一套名為「$Project」的部署,但它在別的資料夾:"
+    foreach ($o in $others) { Write-Note "  $o" }
+    Write-Host ''
+    Write-Attn '繼續下去會「接管」那一套,而不是另外裝一套新的——'
+    Write-Attn '它的容器會被依這裡的設定重建,資料庫 volume 也是同一份。'
+    Write-Host ''
+    Write-Note '若你要的是「再裝一套獨立的測試環境」,請改用不同的專案名稱重跑,例如:'
+    Write-Note '  .\install.ps1 -ProjectName scheduling-test -InstallPath D:\scheduling-test'
+    Write-Host ''
+
+    if ($Yes) {
+        Stop-WithHelp '為避免誤覆蓋既有部署,-Yes 模式下不接管別的目錄。' @(
+            '請加上 -ProjectName 指定新名稱,或移除 -Yes 以互動方式確認。'
+        )
+    }
+    $a = Read-Host '  確定要接管既有的那一套嗎?(輸入 yes 繼續,其他任意鍵取消)'
+    if ($a -ne 'yes') { Write-Host ''; Write-Host '  已取消。' -ForegroundColor Yellow; exit 0 }
 }
 
 function Save-RemoteFile {
@@ -355,6 +436,8 @@ Write-Host '  資料全部留在這台主機,不會上傳到任何地方。' -Fo
 
 Test-DockerReady
 $dir = Get-InstallDir
+$project = Resolve-ProjectName $dir
+Assert-NoProjectConflict -Dir $dir -Project $project
 
 Write-Head '[3/5] 取得設定檔'
 Save-RemoteFile "$RawBase/docker-compose.yml" (Join-Path $dir 'docker-compose.yml')
@@ -390,7 +473,7 @@ if ($needConfig) {
 
     $chosenPort = Resolve-Port
 
-    Write-EnvFile -Dir $dir -Values @{
+    $values = @{
         ADMIN_USERNAME = 'admin'
         ADMIN_PASSWORD = $pw
         SCHOOL_NAME    = $school
@@ -400,7 +483,12 @@ if ($needConfig) {
         HTTPS_PORT     = (Resolve-HttpsPort)
         IMAGE_TAG      = $ImageTag
     }
+    # 只在非預設時寫入:留白的話就沿用 docker-compose.yml 裡的 name: scheduling
+    if ($project -ne 'scheduling') { $values['COMPOSE_PROJECT_NAME'] = $project }
+
+    Write-EnvFile -Dir $dir -Values $values
     Write-Ok "已寫入 $envPath(含自動產生的 SECRET_KEY)"
+    if ($project -ne 'scheduling') { Write-Note "此部署的專案名稱為 $project(記在 .env,後續指令會自動沿用)" }
     Write-Note '這個檔案含有密碼,請勿上傳到雲端硬碟或 GitHub。'
 }
 

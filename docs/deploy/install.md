@@ -67,6 +67,25 @@ bash install.sh --reconfigure             # 已裝過,要重新設定校名/密�
 
 裝好之後直接跳到[驗證安裝成功](#驗證安裝成功)。
 
+### 想在同一台主機再裝一套(測試環境)
+
+**這件事有陷阱,務必看一下。** Docker 用「專案名稱」決定哪些容器與資料屬於同一套,本系統固定叫 `scheduling`。所以在同一台主機的另一個資料夾重跑安裝,**不會產生第二套,而是會接管既有那一套**——連資料庫也是同一份。
+
+腳本會偵測到這個情況並擋下來,提示你改用不同的專案名稱:
+
+```bash
+# Linux / macOS / NAS
+bash install.sh --project-name scheduling-test --path ~/scheduling-test --port 8090
+
+# Windows PowerShell
+.\install.ps1 -ProjectName scheduling-test -InstallPath D:\scheduling-test -Port 8090
+```
+
+這樣兩套會完全獨立:容器、資料庫、備份各走各的,可以同時執行(埠號要不同)。專案名稱會記在該資料夾的 `.env` 裡,之後在該目錄下 `docker compose` 各項指令都會自動沿用,不必每次加參數。
+
+> 要移除測試環境:`cd` 到它的資料夾執行 `docker compose down -v`(`-v` 會一併刪掉資料)。
+> **執行前務必確認自己在測試環境的資料夾**,在正式環境的資料夾下這條指令會刪光你的排課資料。
+
 ---
 
 ## 手動安裝

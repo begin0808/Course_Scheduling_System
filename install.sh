@@ -16,6 +16,8 @@
 #   --school-name <名稱> 校名
 #   --admin-password <密碼>
 #   --port <埠號>        對外埠號(預設 80,被占用時自動改建議值)
+#   --project-name <名稱> compose 專案名稱(預設 scheduling)。同名 = 同一套部署,
+#                        要在同一台主機再裝一套(如測試環境)必須指定不同名稱
 #   --timezone <時區>    預設 Asia/Taipei
 #   --ref <分支或標籤>   要拉哪一版設定檔(預設 main)
 #   --image-tag <標籤>   映像版本(預設 latest)
@@ -31,6 +33,7 @@ INSTALL_PATH="${HOME}/scheduling"
 SCHOOL_NAME=""
 ADMIN_PASSWORD=""
 PORT=""
+PROJECT_NAME=""
 TIMEZONE="Asia/Taipei"
 IMAGE_TAG="latest"
 SKIP_START=0
@@ -43,13 +46,14 @@ while [ $# -gt 0 ]; do
     --school-name)    SCHOOL_NAME="$2"; shift 2 ;;
     --admin-password) ADMIN_PASSWORD="$2"; shift 2 ;;
     --port)           PORT="$2"; shift 2 ;;
+    --project-name)   PROJECT_NAME="$2"; shift 2 ;;
     --timezone)       TIMEZONE="$2"; shift 2 ;;
     --ref)            REF="$2"; shift 2 ;;
     --image-tag)      IMAGE_TAG="$2"; shift 2 ;;
     --skip-start)     SKIP_START=1; shift ;;
     --reconfigure)    RECONFIGURE=1; shift ;;
     --yes|-y)         ASSUME_YES=1; shift ;;
-    -h|--help)        sed -n '2,27p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,29p' "$0"; exit 0 ;;
     *) echo "未知的選項:$1(用 --help 看說明)" >&2; exit 1 ;;
   esac
 done
@@ -120,6 +124,60 @@ mkdir -p "$INSTALL_PATH"
 INSTALL_PATH="$(cd "$INSTALL_PATH" && pwd)"
 ok_ "使用目錄 $INSTALL_PATH"
 
+# compose 的專案名稱決定「哪些容器與 volume 屬於同一套」。預設寫死在
+# docker-compose.yml 的 name: scheduling,可由 .env 的 COMPOSE_PROJECT_NAME 蓋過。
+resolve_project_() {
+  if [ -n "$PROJECT_NAME" ]; then
+    case "$PROJECT_NAME" in
+      [a-z0-9]*) ;;
+      *) die_ "專案名稱「${PROJECT_NAME}」不合法。" \
+           'Docker 要求:只能用小寫英數字、底線與連字號,且開頭須為英數字。' \
+           '例如:scheduling-test' ;;
+    esac
+    if printf '%s' "$PROJECT_NAME" | grep -q '[^a-z0-9_-]'; then
+      die_ "專案名稱「${PROJECT_NAME}」不合法。" \
+        'Docker 要求:只能用小寫英數字、底線與連字號,且開頭須為英數字。'
+    fi
+    printf '%s' "$PROJECT_NAME"; return
+  fi
+  if [ -f "${INSTALL_PATH}/.env" ]; then
+    local found
+    found="$(sed -n 's/^COMPOSE_PROJECT_NAME="\?\([^"[:space:]]\+\)"\?.*/\1/p' \
+             "${INSTALL_PATH}/.env" | tail -1)"
+    if [ -n "$found" ]; then printf '%s' "$found"; return; fi
+  fi
+  printf 'scheduling'   # 與 docker-compose.yml 的 name: 一致
+}
+
+# 同名專案若指向別的目錄,docker compose up 會直接接管那一套——包含它的資料庫 volume。
+# 這是本腳本唯一可能毀掉既有資料的路徑,所以擋在啟動之前。
+assert_no_conflict_() {
+  local project="$1" mine others answer
+  mine="${INSTALL_PATH}/docker-compose.yml"
+  others="$(docker ps -a --filter "label=com.docker.compose.project=${project}" \
+            --format '{{.Label "com.docker.compose.project.config_files"}}' 2>/dev/null \
+            | grep -v '^$' | sort -u | grep -vxF "$mine" || true)"
+  [ -n "$others" ] || return 0
+
+  printf '\n'
+  attn_ "這台主機上已經有一套名為「${project}」的部署,但它在別的資料夾:"
+  printf '%s\n' "$others" | while IFS= read -r o; do note_ "  $o"; done
+  printf '\n'
+  attn_ '繼續下去會「接管」那一套,而不是另外裝一套新的——'
+  attn_ '它的容器會被依這裡的設定重建,資料庫 volume 也是同一份。'
+  printf '\n'
+  note_ '若你要的是「再裝一套獨立的測試環境」,請改用不同的專案名稱重跑,例如:'
+  note_ '  bash install.sh --project-name scheduling-test --path ~/scheduling-test'
+  printf '\n'
+
+  if [ "$ASSUME_YES" = "1" ]; then
+    die_ '為避免誤覆蓋既有部署,--yes 模式下不接管別的目錄。' \
+      '請加上 --project-name 指定新名稱,或移除 --yes 以互動方式確認。'
+  fi
+  read -r -p '  確定要接管既有的那一套嗎?(輸入 yes 繼續,其他任意鍵取消) ' answer </dev/tty || answer=""
+  if [ "$answer" != "yes" ]; then printf '\n  已取消。\n\n'; exit 0; fi
+}
+
 fetch_() {
   # NAS 上常常只有 wget 沒有 curl,兩個都試
   local url="$1" dest="$2"
@@ -137,6 +195,9 @@ fetch_() {
     "  ${RAW_BASE}/docker-compose.yml" \
     "  ${RAW_BASE}/.env.example"
 }
+
+PROJECT="$(resolve_project_)"
+assert_no_conflict_ "$PROJECT"
 
 head_ '[3/5] 取得設定檔'
 fetch_ "${RAW_BASE}/docker-compose.yml" "${INSTALL_PATH}/docker-compose.yml"
@@ -200,6 +261,7 @@ write_env_() {
   ENV_HTTP_PORT="$5" \
   ENV_IMAGE_TAG="$6" \
   ENV_HTTPS_PORT="$7" \
+  ENV_COMPOSE_PROJECT_NAME="$8" \
   awk '
     function emit(k, v) {
       # docker compose 會對 .env 的值做變數展開,值裡的 $ 必須寫成 $$。
@@ -211,7 +273,7 @@ write_env_() {
     }
     BEGIN {
       n = split("ADMIN_USERNAME ADMIN_PASSWORD SCHOOL_NAME TZ SECRET_KEY " \
-                "HTTP_PORT HTTPS_PORT IMAGE_TAG", wanted, " ")
+                "HTTP_PORT HTTPS_PORT IMAGE_TAG COMPOSE_PROJECT_NAME", wanted, " ")
     }
     /^[A-Z_][A-Z0-9_]*=/ {
       key = substr($0, 1, index($0, "=") - 1)
@@ -289,9 +351,14 @@ if [ "$NEED_CONFIG" = "1" ]; then
     attn_ "埠號 443 已被占用,HTTPS 埠改用 ${HTTPS_PORT}(目前走 HTTP,不影響使用)。"
   fi
 
+  # 只在非預設時寫入:留白的話就沿用 docker-compose.yml 裡的 name: scheduling
+  WRITE_PROJECT=""
+  [ "$PROJECT" = "scheduling" ] || WRITE_PROJECT="$PROJECT"
+
   write_env_ "$ADMIN_PASSWORD" "$SCHOOL_NAME" "$TIMEZONE" "$(gen_secret_)" \
-             "$PORT" "$IMAGE_TAG" "$HTTPS_PORT"
+             "$PORT" "$IMAGE_TAG" "$HTTPS_PORT" "$WRITE_PROJECT"
   ok_ "已寫入 ${INSTALL_PATH}/.env(含自動產生的 SECRET_KEY,權限 600)"
+  [ -z "$WRITE_PROJECT" ] || note_ "此部署的專案名稱為 ${PROJECT}(記在 .env,後續指令會自動沿用)"
   note_ '這個檔案含有密碼,請勿上傳到雲端硬碟或 GitHub。'
 fi
 
