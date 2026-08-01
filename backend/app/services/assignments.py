@@ -12,6 +12,7 @@ from app.models.assignment import (
 )
 from app.models.basedata import ClassUnit, Teacher
 from app.services import period_tables as pt_service
+from app.services import settings as settings_service
 
 
 class DomainError(Exception):
@@ -97,16 +98,49 @@ def teacher_loads(db: Session, semester_id: int) -> list[dict]:
     teachers = db.scalars(
         select(Teacher).where(Teacher.semester_id == semester_id).order_by(Teacher.name)
     )
+    limit = settings_service.max_overtime(db)
     out: list[dict] = []
     for t in teachers:
         target = max(t.base_periods - t.admin_reduction, 0)
         assigned = assigned_by.get(t.id, 0)
+        delta = assigned - target
         out.append({
             "teacher_id": t.id, "name": t.name,
             "base_periods": t.base_periods, "admin_reduction": t.admin_reduction,
-            "target": target, "assigned": assigned, "delta": assigned - target,
+            "target": target, "assigned": assigned, "delta": delta,
+            "max_overtime": limit,
+            # 兩種情況不算違規:
+            #   limit=0  → 學校未設上限
+            #   base=0   → 這位教師沒填基本鐘點。「應授 0 節」不是真的不用上課,
+            #              而是資料還沒建;此時談超鐘點沒有意義,硬擋會讓沒有
+            #              維護基鐘的學校連一般配課都做不了。
+            "over_limit": limit > 0 and t.base_periods > 0 and delta > limit,
         })
     return out
+
+
+def assert_within_overtime_limit(
+    db: Session, semester_id: int, teacher_ids: set[int]
+) -> None:
+    """配課異動後,檢查受影響的教師有沒有超出超鐘點上限。
+
+    只檢查這次動到的教師:既有資料可能是在上限調低之前建立的,
+    全面檢查會讓使用者連「把某人的課調少」都做不到。
+    """
+    if not teacher_ids:
+        return
+    limit = settings_service.max_overtime(db)
+    if limit <= 0:
+        return
+    for row in teacher_loads(db, semester_id):
+        if row["teacher_id"] not in teacher_ids or not row["over_limit"]:
+            continue
+        raise DomainError(
+            f"{row['name']} 應授 {row['target']} 節,配課後為 {row['assigned']} 節,"
+            f"超出 {row['delta']} 節,已超過上限 {limit} 節。"
+            "請調整配課,或於「系統管理」修改超鐘點上限。",
+            status_code=409,
+        )
 
 
 def _unit_slot_consumption(db: Session, semester_id: int) -> dict[int, int]:

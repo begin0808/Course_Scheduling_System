@@ -7,6 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.models.app_setting import AppSetting
 
+# 超鐘點上限:一位教師每週配課節數,最多可超出其「應授節數」幾節。
+# 依各縣市/各校規定自訂(臺南市實務約 8 節)。0 = 不限制。
+#
+# 為什麼是「應授 + N」而不是固定值:應授本身就因身分而異——以臺南市為例,
+# 國文科專任 16 節、兼任導師 11 節、兼任主任 6 節,固定上限對誰都不合適。
+MAX_OVERTIME = "max_overtime_periods"
+DEFAULT_MAX_OVERTIME = 8
+
 # SMTP 設定的 key
 SMTP_HOST = "smtp_host"
 SMTP_PORT = "smtp_port"
@@ -46,6 +54,21 @@ def set_value(db: Session, key: str, value: str) -> None:
 
 def all_settings(db: Session) -> dict[str, str]:
     return {row.key: row.value for row in db.scalars(select(AppSetting))}
+
+
+def max_overtime(db: Session) -> int:
+    """超鐘點上限(節)。未設定或值毀損時回預設值,不讓設定問題擋住配課作業。"""
+    raw = get(db, MAX_OVERTIME)
+    if not raw:
+        return DEFAULT_MAX_OVERTIME
+    try:
+        return max(int(raw), 0)
+    except ValueError:
+        return DEFAULT_MAX_OVERTIME
+
+
+def save_max_overtime(db: Session, value: int) -> None:
+    set_value(db, MAX_OVERTIME, str(max(value, 0)))
 
 
 def smtp_config(db: Session) -> SmtpConfig:

@@ -258,8 +258,10 @@ def test_preflight_errors_block_start(sched):
     c = client.post(f"/api/class-units?semester_id={sid}",
                     json={"grade": 3, "name": "301", "track": "junior_high"}).json()
     s = client.post(f"/api/subjects?semester_id={sid}", json={"name": "國文"}).json()
+    # base_periods=0(學校未維護基鐘)才建得起這筆刻意超載的配課:
+    # 有填基鐘的教師會先被超鐘點上限擋在配課階段。
     t = client.post(f"/api/teachers?semester_id={sid}",
-                    json={"name": "王師", "base_periods": 20}).json()
+                    json={"name": "王師", "base_periods": 0}).json()
     client.post(f"/api/assignments?semester_id={sid}", json={  # 40 節 > 35 可排節次
         "class_id": c["id"], "subject_id": s["id"], "periods_per_week": 40,
         "teachers": [{"teacher_id": t["id"]}], "block_rules": [],

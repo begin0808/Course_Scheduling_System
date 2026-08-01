@@ -176,6 +176,21 @@ def _apply(db: Session, assignment: CourseAssignment, body: AssignmentIn) -> Non
         )
 
 
+def _check_overtime(db: Session, semester_id: int, body: AssignmentIn) -> None:
+    """超鐘點上限檢核。只看這次配到的教師——被移除的教師節數只會變少,不可能新違規。
+
+    必須在 commit 之前呼叫,且要先 flush,統計才看得到這筆尚未提交的配課。
+    """
+    db.flush()
+    try:
+        svc.assert_within_overtime_limit(
+            db, semester_id, {t.teacher_id for t in body.teachers}
+        )
+    except svc.DomainError as exc:
+        db.rollback()
+        raise _domain(exc) from exc
+
+
 @router.post("/assignments", response_model=AssignmentOut, status_code=status.HTTP_201_CREATED)
 def create_assignment(
     body: AssignmentIn,
@@ -193,6 +208,7 @@ def create_assignment(
     db.add(assignment)
     db.flush()
     _apply(db, assignment, body)
+    _check_overtime(db, semester_id, body)
     db.commit()
     db.refresh(assignment)
     return svc.serialize_assignment(assignment)
@@ -222,6 +238,7 @@ def update_assignment(
     unit = _resolve_unit(db, a.semester_id, body)
     a.scheduling_unit_id = unit.id
     _apply(db, a, body)
+    _check_overtime(db, a.semester_id, body)
     db.commit()
     db.refresh(a)
     return svc.serialize_assignment(a)

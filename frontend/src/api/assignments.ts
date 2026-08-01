@@ -1,6 +1,6 @@
 // 配課(排課單位 / 配課 / 鐘點統計)API 型別與呼叫封裝。
 
-import { apiGet, apiPost, request } from '@/api/client'
+import { apiGet, apiPost, apiPut, request } from '@/api/client'
 import type { RoomType } from '@/api/basedata'
 
 export interface ClassBrief {
@@ -45,6 +45,8 @@ export interface TeacherLoad {
   target: number
   assigned: number
   delta: number
+  max_overtime: number // 超鐘點上限(節);0 = 學校未設限
+  over_limit: boolean  // delta 已超過上限
 }
 export interface ClassLoad {
   class_id: number
@@ -88,3 +90,13 @@ export const teacherLoad = (semesterId: number) =>
   apiGet<TeacherLoad[]>(`/assignments/teacher-load?semester_id=${semesterId}`)
 export const classLoad = (semesterId: number) =>
   apiGet<ClassLoad[]>(`/assignments/class-load?semester_id=${semesterId}`)
+
+// ── 排課相關的校務設定(管理員)──
+export interface SchedulingSettings {
+  /** 超鐘點上限(節):教師配課最多可超出應授節數幾節。0 = 不限制 */
+  max_overtime: number
+}
+export const getSchedulingSettings = () =>
+  apiGet<SchedulingSettings>('/settings/scheduling')
+export const saveSchedulingSettings = (body: SchedulingSettings) =>
+  apiPut<SchedulingSettings>('/settings/scheduling', body)

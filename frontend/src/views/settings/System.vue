@@ -11,6 +11,7 @@ import {
   createBackup, deleteBackup, downloadBackup, listBackups, restoreBackup, restoreUpload,
 } from '@/api/backups'
 import type { Backup, RestoreResult } from '@/api/backups'
+import { getSchedulingSettings, saveSchedulingSettings } from '@/api/assignments'
 import { getSmtp, saveSmtp } from '@/api/notifications'
 import { resetWizard } from '@/api/wizard'
 import { useAuthStore } from '@/stores/auth'
@@ -117,14 +118,31 @@ const configured = ref(false)
 const hasPassword = ref(false)
 const savingSmtp = ref(false)
 
+const maxOvertime = ref(8)
+const savingScheduling = ref(false)
+
 onMounted(async () => {
   if (!isAdmin()) return
   const s = await getSmtp()
   smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender, use_tls: s.use_tls }
   configured.value = s.configured
   hasPassword.value = s.has_password
+  maxOvertime.value = (await getSchedulingSettings()).max_overtime
   await reloadBackups()
 })
+
+async function onSaveScheduling() {
+  savingScheduling.value = true
+  try {
+    const s = await saveSchedulingSettings({ max_overtime: maxOvertime.value })
+    maxOvertime.value = s.max_overtime
+    message.success('已儲存排課設定')
+  } catch (e) {
+    message.error((e as ApiError).message || '儲存失敗')
+  } finally {
+    savingScheduling.value = false
+  }
+}
 
 async function onSaveSmtp() {
   savingSmtp.value = true
@@ -152,6 +170,35 @@ async function onResetWizard() {
 <template>
   <n-space vertical size="large">
     <h1 style="margin: 0">系統管理</h1>
+
+    <n-card v-if="isAdmin()" title="排課設定" data-testid="scheduling-card">
+      <n-space vertical>
+        <n-text depth="3">
+          超鐘點上限依各縣市/各校規定自訂。上限是「應授節數 + N」——應授本身因身分而異
+          (例:臺南市國文科專任 16 節、兼任導師 11 節、兼任主任 6 節),固定值對誰都不合適。
+        </n-text>
+        <n-space align="center">
+          <span>超鐘點上限</span>
+          <n-input-number
+            v-model:value="maxOvertime" :min="0" :max="20" style="width: 120px"
+            data-testid="max-overtime"
+          />
+          <n-text depth="3">節(0 = 不限制)</n-text>
+        </n-space>
+        <n-text depth="3" style="font-size: 12px">
+          超過上限的配課會被擋下。未填「基本鐘點」的教師不受此限——那代表資料尚未建立,
+          而非真的不用上課。
+        </n-text>
+        <div>
+          <n-button
+            type="primary" :loading="savingScheduling" data-testid="scheduling-save"
+            @click="onSaveScheduling"
+          >
+            儲存排課設定
+          </n-button>
+        </div>
+      </n-space>
+    </n-card>
 
     <n-card v-if="isAdmin()" title="通知信件(SMTP)" data-testid="smtp-card">
       <n-space vertical>

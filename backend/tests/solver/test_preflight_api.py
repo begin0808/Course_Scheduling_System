@@ -11,14 +11,14 @@ def _login(client, db, username="s", roles=(Role.scheduler,)):
     client.post("/api/auth/login", json={"username": username, "password": PW})
 
 
-def _setup(client, sid, *, periods):
+def _setup(client, sid, *, periods, base_periods=20):
     c = client.post(
         f"/api/class-units?semester_id={sid}",
         json={"grade": 3, "name": "301", "track": "junior_high"},
     ).json()
     s = client.post(f"/api/subjects?semester_id={sid}", json={"name": "國文"}).json()
     t = client.post(
-        f"/api/teachers?semester_id={sid}", json={"name": "王師", "base_periods": 20}
+        f"/api/teachers?semester_id={sid}", json={"name": "王師", "base_periods": base_periods}
     ).json()
     client.post(f"/api/assignments?semester_id={sid}", json={
         "class_id": c["id"], "subject_id": s["id"], "periods_per_week": periods,
@@ -51,7 +51,10 @@ def test_preflight_reports_class_overload(env):
     sid = client.post(
         "/api/semesters", json={"academic_year": 115, "term": 1, "template_key": "junior_high"}
     ).json()["id"]
-    _setup(client, sid, periods=40)  # 40 > 35 可排節次,且超出王師應授鐘點
+    # 40 > 35 可排節次(物理性超載)。base_periods=0 代表學校未維護基鐘,
+    # 這類教師不受超鐘點上限管制——否則這筆配課在建立階段就會被擋下,
+    # 也就測不到 pre-flight 的超載偵測了。
+    _setup(client, sid, periods=40, base_periods=0)
 
     body = client.get(f"/api/solver/preflight?semester_id={sid}").json()
     assert body["ok"] is False

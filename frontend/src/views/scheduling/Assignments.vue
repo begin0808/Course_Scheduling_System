@@ -60,10 +60,22 @@ onMounted(async () => {
 })
 
 const overCapacity = computed(() => classLoads.value.filter((c) => c.over_capacity))
-function loadTagType(d: number): 'success' | 'error' | 'warning' {
-  if (d > 0) return 'error'
-  if (d < 0) return 'warning'
+// 超鐘點本身是合法的(超出的節數另計鐘點費),只有超過上限才是問題。
+// 舊版把任何 delta>0 都標紅,會讓正常配課看起來像出錯。
+function loadTagType(l: TeacherLoad): 'success' | 'error' | 'warning' | 'info' {
+  if (l.over_limit) return 'error'
+  if (l.delta > 0) return 'warning'
+  if (l.delta < 0) return 'info'
   return 'success'
+}
+
+function loadTagText(l: TeacherLoad): string {
+  if (l.delta > 0) {
+    return l.over_limit
+      ? `+${l.delta} 超過上限 ${l.max_overtime}`
+      : `+${l.delta} 超鐘點`
+  }
+  return l.delta < 0 ? `${l.delta} 不足` : '剛好'
 }
 
 // ── 配課 modal ──
@@ -286,8 +298,8 @@ function blockLabel(a: Assignment): string {
                 <td>{{ l.name }}</td>
                 <td>{{ l.assigned }} / {{ l.target }}</td>
                 <td>
-                  <n-tag size="tiny" :type="loadTagType(l.delta)">
-                    {{ l.delta > 0 ? `+${l.delta} 超鐘點` : l.delta < 0 ? `${l.delta} 不足` : '剛好' }}
+                  <n-tag size="tiny" :type="loadTagType(l)">
+                    {{ loadTagText(l) }}
                   </n-tag>
                 </td>
               </tr>

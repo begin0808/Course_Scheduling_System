@@ -331,3 +331,161 @@ def test_import_assignments_unknown_class_zero_write(env2):
     assert body["imported"] == 0
     assert any("班級" in e for e in body["errors"])
     assert client.get(f"/api/assignments?semester_id={sid}").json() == []
+
+
+# ── 超鐘點上限(Phase 1)────────────────────────────────
+# 上限的語意是「應授 + N」而非固定節數:應授本身因身分而異
+# (臺南市:國文專任 16、兼任導師 11、兼任主任 6),固定值對誰都不合適。
+
+
+def _set_limit(client, db, n):
+    """上限是校務政策,端點限管理員;測試裡暫時切換身分再切回教學組長。"""
+    make_user(db, "adm", PW, roles=[Role.admin])
+    client.post("/api/auth/login", json={"username": "adm", "password": PW})
+    r = client.put("/api/settings/scheduling", json={"max_overtime": n})
+    assert r.status_code == 200
+    client.post("/api/auth/login", json={"username": "s", "password": PW})
+    return r
+
+
+def test_overtime_limit_defaults_to_8(env2):
+    client, sid = env2
+    _teacher(client, sid, "王師", base=11)
+    loads = client.get(f"/api/assignments/teacher-load?semester_id={sid}").json()
+    assert loads[0]["max_overtime"] == 8
+    assert loads[0]["over_limit"] is False
+
+
+def test_assignment_within_limit_is_accepted(env2):
+    """國文導師應授 11,配到 19 節(剛好 +8)應該過——上限是「可以到」不是「不能到」。"""
+    client, sid = env2
+    _class(client, sid, 1, "101")
+    subj = _subject(client, sid, "國文")
+    t = _teacher(client, sid, "王師", base=11)
+    r = _create_assignment(
+        client, sid, class_id=_class(client, sid, 1, "102")["id"],
+        subject_id=subj["id"], periods_per_week=19,
+        teachers=[{"teacher_id": t["id"], "is_lead": True}],
+    )
+    assert r.status_code == 201
+    load = client.get(f"/api/assignments/teacher-load?semester_id={sid}").json()[0]
+    assert load["assigned"] == 19 and load["delta"] == 8
+    assert load["over_limit"] is False
+
+
+def test_assignment_over_limit_is_rejected_and_not_written(env2):
+    client, sid = env2
+    cu = _class(client, sid, 1, "101")
+    subj = _subject(client, sid, "國文")
+    t = _teacher(client, sid, "王師", base=11)
+    r = _create_assignment(
+        client, sid, class_id=cu["id"], subject_id=subj["id"], periods_per_week=20,
+        teachers=[{"teacher_id": t["id"], "is_lead": True}],
+    )
+    assert r.status_code == 409
+    assert "王師" in r.json()["detail"] and "上限 8 節" in r.json()["detail"]
+    # 被擋下時不可留下半筆資料
+    assert client.get(f"/api/assignments?semester_id={sid}").json() == []
+
+
+def test_overtime_limit_accumulates_across_assignments(env2):
+    """單筆都不超標,但加起來超標——檢核看的是教師的總量,不是單筆。"""
+    client, sid = env2
+    subj = _subject(client, sid, "國文")
+    t = _teacher(client, sid, "王師", base=11)
+    # 11+10=21(+10)才超標;19 節(+8)是允許的上界
+    for name, periods, expected in [("101", 10, 201), ("102", 10, 409)]:
+        cu = _class(client, sid, 1, name)
+        r = _create_assignment(
+            client, sid, class_id=cu["id"], subject_id=subj["id"],
+            periods_per_week=periods,
+            teachers=[{"teacher_id": t["id"], "is_lead": True}],
+        )
+        assert r.status_code == expected
+
+
+def test_admin_reduction_lowers_the_ceiling(env2):
+    """兼任主任應授 6(18−12),上限即 6+8=14 節。"""
+    client, sid = env2
+    cu = _class(client, sid, 1, "101")
+    subj = _subject(client, sid, "國文")
+    t = client.post(
+        f"/api/teachers?semester_id={sid}",
+        json={"name": "陳主任", "base_periods": 18, "admin_reduction": 12},
+    ).json()
+    ok = _create_assignment(
+        client, sid, class_id=cu["id"], subject_id=subj["id"], periods_per_week=14,
+        teachers=[{"teacher_id": t["id"], "is_lead": True}],
+    )
+    assert ok.status_code == 201
+    over = _create_assignment(
+        client, sid, class_id=_class(client, sid, 1, "102")["id"],
+        subject_id=subj["id"], periods_per_week=1,
+        teachers=[{"teacher_id": t["id"], "is_lead": True}],
+    )
+    assert over.status_code == 409
+
+
+def test_limit_zero_disables_the_check(env, env2):
+    client, db = env
+    _, sid = env2
+    _set_limit(client, db, 0)
+    cu = _class(client, sid, 1, "101")
+    subj = _subject(client, sid, "國文")
+    t = _teacher(client, sid, "王師", base=11)
+    r = _create_assignment(
+        client, sid, class_id=cu["id"], subject_id=subj["id"], periods_per_week=30,
+        teachers=[{"teacher_id": t["id"], "is_lead": True}],
+    )
+    assert r.status_code == 201
+    assert client.get(
+        f"/api/assignments/teacher-load?semester_id={sid}"
+    ).json()[0]["over_limit"] is False
+
+
+def test_configured_limit_is_honoured(env, env2):
+    client, db = env
+    _, sid = env2
+    _set_limit(client, db, 2)
+    cu = _class(client, sid, 1, "101")
+    subj = _subject(client, sid, "國文")
+    t = _teacher(client, sid, "王師", base=11)
+    r = _create_assignment(
+        client, sid, class_id=cu["id"], subject_id=subj["id"], periods_per_week=14,
+        teachers=[{"teacher_id": t["id"], "is_lead": True}],
+    )
+    assert r.status_code == 409 and "上限 2 節" in r.json()["detail"]
+
+
+def test_teacher_without_base_periods_is_not_capped(env2):
+    """沒填基本鐘點(預設 0)的教師不受管制。
+
+    很多學校不維護基鐘欄位。若把「應授 0」當真,這些學校一升級就會發現
+    所有超過 8 節的配課全被擋下——等於系統壞掉。
+    """
+    client, sid = env2
+    cu = _class(client, sid, 1, "101")
+    subj = _subject(client, sid, "國文")
+    t = _teacher(client, sid, "王師")  # base_periods 未填 → 0
+    r = _create_assignment(
+        client, sid, class_id=cu["id"], subject_id=subj["id"], periods_per_week=30,
+        teachers=[{"teacher_id": t["id"], "is_lead": True}],
+    )
+    assert r.status_code == 201
+    load = client.get(f"/api/assignments/teacher-load?semester_id={sid}").json()[0]
+    assert load["delta"] == 30 and load["over_limit"] is False
+
+
+def test_import_over_limit_writes_nothing(env2):
+    """匯入是一次幾百筆的操作,超標時整批不進,不可留下一半。"""
+    client, sid = env2
+    _class(client, sid, 1, "101")
+    _subject(client, sid, "國文")
+    _teacher(client, sid, "王師", base=11)
+    body = client.post(
+        f"/api/import/assignments?semester_id={sid}",
+        files={"file": ("a.xlsx", _xlsx([["101", "國文", "王師", 20, "", "", ""]]), XLSX_MIME)},
+    ).json()
+    assert body["imported"] == 0
+    assert any("上限 8 節" in e for e in body["errors"])
+    assert client.get(f"/api/assignments?semester_id={sid}").json() == []

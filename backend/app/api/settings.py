@@ -1,6 +1,7 @@
-"""全域系統設定:SMTP 寄信(M4-3)。管理員專用。"""
+"""全域系統設定:SMTP 寄信(M4-3)、排課相關規則。管理員專用。"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
@@ -14,6 +15,13 @@ from app.services import settings as app_settings
 router = APIRouter(tags=["settings"])
 
 admin_only = require_roles(Role.admin)
+
+
+class SchedulingSettings(BaseModel):
+    max_overtime: int = Field(
+        ge=0, le=20,
+        description="超鐘點上限(節):教師配課最多可超出應授節數幾節。0 = 不限制",
+    )
 
 
 def _smtp_out(db: Session) -> SmtpSettingsOut:
@@ -45,6 +53,25 @@ def put_smtp(
     ))
     db.commit()
     return _smtp_out(db)
+
+
+@router.get("/settings/scheduling", response_model=SchedulingSettings)
+def get_scheduling(db: Session = Depends(get_db), _: User = Depends(admin_only)):
+    return SchedulingSettings(max_overtime=app_settings.max_overtime(db))
+
+
+@router.put("/settings/scheduling", response_model=SchedulingSettings)
+def put_scheduling(
+    body: SchedulingSettings, db: Session = Depends(get_db), user: User = Depends(admin_only)
+):
+    app_settings.save_max_overtime(db, body.max_overtime)
+    db.add(AuditLog(
+        user_id=user.id, username=user.username, action="update_scheduling_settings",
+        target_type="app_setting", target_id=None,
+        detail=f"超鐘點上限設為 {body.max_overtime} 節",
+    ))
+    db.commit()
+    return SchedulingSettings(max_overtime=app_settings.max_overtime(db))
 
 
 @router.post("/settings/smtp/test", status_code=status.HTTP_200_OK)
