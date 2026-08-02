@@ -7,6 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.models.app_setting import AppSetting
 
+# 校名。顯示於介面、匯出的課表(Excel/PDF/PNG)、代課通知信與 A4 公告單。
+#
+# 先前只能在安裝時以 .env 的 SCHOOL_NAME 指定,要改就得編輯檔案並重啟容器——
+# 對只會用網頁的教學組長來說形同改不了。現在存在資料庫,可隨時於系統管理修改;
+# 未設定時沿用 .env 的值,既有部署升級後行為不變。
+SCHOOL_NAME = "school_name"
+
 # 超鐘點上限:一位教師每週配課節數,最多可超出其「應授節數」幾節。
 # 依各縣市/各校規定自訂(臺南市實務約 8 節)。0 = 不限制。
 #
@@ -54,6 +61,17 @@ def set_value(db: Session, key: str, value: str) -> None:
 
 def all_settings(db: Session) -> dict[str, str]:
     return {row.key: row.value for row in db.scalars(select(AppSetting))}
+
+
+def school_name(db: Session) -> str:
+    """校名。系統設定優先,未設定時沿用安裝時 .env 的 SCHOOL_NAME。"""
+    from app.core.config import settings as env_settings
+
+    return get(db, SCHOOL_NAME).strip() or env_settings.school_name
+
+
+def save_school_name(db: Session, value: str) -> None:
+    set_value(db, SCHOOL_NAME, value.strip())
 
 
 def max_overtime(db: Session) -> int:

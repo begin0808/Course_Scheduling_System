@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.basedata import ClassTrack, ClassUnit, Room, Subject, Teacher
 from app.models.semester import Semester
+from app.services import settings as settings_service
 from app.services import templates as template_service
 from app.services.assignments import get_or_create_single_unit
 
@@ -162,6 +163,9 @@ def generate(db: Session, spec: dict | None = None) -> DemoSummary:
     spec = spec or load_spec()
     classes = _class_names(spec)
     class_names = [name for _, name in classes]
+
+    # 校名一併設好。先前只能改 .env 再重啟,示範資料的校名對不上很突兀。
+    settings_service.save_school_name(db, spec["school_name"])
 
     # ── 學期與節次表(沿用既有的學制範本,示範資料不另造一套)──
     semester = template_service.create_semester_from_template(

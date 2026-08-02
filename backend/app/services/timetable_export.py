@@ -16,12 +16,12 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models.basedata import ClassUnit, Room, Teacher
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.services import period_tables as pt_service
+from app.services import settings as app_settings
 
 _WEEKDAYS = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
 
@@ -112,7 +112,7 @@ class _Published:
     def meta(self) -> Meta:
         from app.core import clock
         return Meta(
-            school_name=settings.school_name,
+            school_name=app_settings.school_name(self.db),
             semester_label=self.semester.label,
             timetable_name=self.timetable.name,
             printed_on=clock.school_today(),

@@ -106,8 +106,6 @@ export interface DemoDataStatus {
   available: boolean
   reason: string
   school_name: string
-  /** .env 的 SCHOOL_NAME。示範資料改不了它,兩者不同時要提醒使用者 */
-  env_school_name: string
 }
 export interface DemoDataResult {
   semester_id: number
@@ -123,3 +121,12 @@ export interface DemoDataResult {
 }
 export const demoDataStatus = () => apiGet<DemoDataStatus>('/demo-data')
 export const loadDemoData = () => apiPost<DemoDataResult>('/demo-data')
+
+// ── 學校資訊(管理員)──
+export interface SchoolSettings {
+  /** 校名。顯示於介面、匯出課表、通知信與 A4 公告單 */
+  school_name: string
+}
+export const getSchoolSettings = () => apiGet<SchoolSettings>('/settings/school')
+export const saveSchoolSettings = (body: SchoolSettings) =>
+  apiPut<SchoolSettings>('/settings/school', body)

@@ -17,6 +17,10 @@ router = APIRouter(tags=["settings"])
 admin_only = require_roles(Role.admin)
 
 
+class SchoolSettings(BaseModel):
+    school_name: str = Field(min_length=1, max_length=64)
+
+
 class SchedulingSettings(BaseModel):
     max_overtime: int = Field(
         ge=0, le=20,
@@ -53,6 +57,26 @@ def put_smtp(
     ))
     db.commit()
     return _smtp_out(db)
+
+
+@router.get("/settings/school", response_model=SchoolSettings)
+def get_school(db: Session = Depends(get_db), _: User = Depends(admin_only)):
+    return SchoolSettings(school_name=app_settings.school_name(db))
+
+
+@router.put("/settings/school", response_model=SchoolSettings)
+def put_school(
+    body: SchoolSettings, db: Session = Depends(get_db), user: User = Depends(admin_only)
+):
+    """校名會即時反映在介面、匯出課表與通知信,不需重啟容器。"""
+    app_settings.save_school_name(db, body.school_name)
+    db.add(AuditLog(
+        user_id=user.id, username=user.username, action="update_school_name",
+        target_type="app_setting", target_id=None,
+        detail=f"校名改為「{body.school_name}」"[:500],
+    ))
+    db.commit()
+    return SchoolSettings(school_name=app_settings.school_name(db))
 
 
 @router.get("/settings/scheduling", response_model=SchedulingSettings)

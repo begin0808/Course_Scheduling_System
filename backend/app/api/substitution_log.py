@@ -9,11 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
-from app.core.config import settings
 from app.core.db import get_db
 from app.models.semester import Semester
 from app.models.user import Role, User
 from app.schemas.substitution_log import DailyBoardOut, LogEntryOut
+from app.services import settings as app_settings
 from app.services import substitution_log as log_service
 
 router = APIRouter(tags=["substitution-log"])
@@ -46,7 +46,7 @@ def daily_board(
     return DailyBoardOut(
         date=day,
         weekday=day.isoweekday(),
-        school_name=settings.school_name,
+        school_name=app_settings.school_name(db),
         semester_label=sem.label,
         entries=[_entry_out(e) for e in entries],
     )

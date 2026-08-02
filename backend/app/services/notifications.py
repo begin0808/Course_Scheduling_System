@@ -61,7 +61,7 @@ class EmailChannel:
         outbox = db.info.setdefault(_OUTBOX_KEY, [])
         outbox.append(_Email(
             to=teacher.email,
-            subject=f"[{notification_subject_prefix()}] {notification.title}",
+            subject=f"[{notification_subject_prefix(db)}] {notification.title}",
             body=notification.body or notification.title,
         ))
 
@@ -69,10 +69,10 @@ class EmailChannel:
 CHANNELS: list[NotificationChannel] = [InAppChannel(), EmailChannel()]
 
 
-def notification_subject_prefix() -> str:
-    from app.core.config import settings
+def notification_subject_prefix(db: Session) -> str:
+    from app.services import settings as app_settings
 
-    return settings.school_name
+    return app_settings.school_name(db)
 
 
 # ── 寫入 ────────────────────────────────────────────────────

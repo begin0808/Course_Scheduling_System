@@ -13,7 +13,8 @@ import {
 } from '@/api/backups'
 import type { Backup, RestoreResult } from '@/api/backups'
 import {
-  demoDataStatus, getSchedulingSettings, loadDemoData, saveSchedulingSettings,
+  demoDataStatus, getSchedulingSettings, getSchoolSettings, loadDemoData,
+  saveSchedulingSettings, saveSchoolSettings,
 } from '@/api/assignments'
 import { getSmtp, saveSmtp } from '@/api/notifications'
 import { resetWizard } from '@/api/wizard'
@@ -124,6 +125,22 @@ const savingSmtp = ref(false)
 const maxOvertime = ref(8)
 const savingScheduling = ref(false)
 
+const schoolName = ref('')
+const savingSchool = ref(false)
+
+async function onSaveSchool() {
+  if (!schoolName.value.trim()) { message.warning('請輸入校名'); return }
+  savingSchool.value = true
+  try {
+    schoolName.value = (await saveSchoolSettings({ school_name: schoolName.value })).school_name
+    message.success('已更新校名')
+  } catch (e) {
+    message.error((e as ApiError).message || '儲存失敗')
+  } finally {
+    savingSchool.value = false
+  }
+}
+
 onMounted(async () => {
   if (!isAdmin()) return
   const s = await getSmtp()
@@ -131,11 +148,11 @@ onMounted(async () => {
   configured.value = s.configured
   hasPassword.value = s.has_password
   maxOvertime.value = (await getSchedulingSettings()).max_overtime
+  schoolName.value = (await getSchoolSettings()).school_name
   const demo = await demoDataStatus()
   demoAvailable.value = demo.available
   demoReason.value = demo.reason
   demoSchool.value = demo.school_name
-  envSchool.value = demo.env_school_name
   await reloadBackups()
 })
 
@@ -143,13 +160,13 @@ onMounted(async () => {
 const demoAvailable = ref(false)
 const demoReason = ref('')
 const demoSchool = ref('')
-const envSchool = ref('')
 const loadingDemo = ref(false)
 
 async function onLoadDemo() {
   loadingDemo.value = true
   try {
     const r = await loadDemoData()
+    schoolName.value = r.school_name
     demoAvailable.value = false
     demoReason.value = '示範資料已載入。'
     message.success(
@@ -204,6 +221,28 @@ async function onResetWizard() {
   <n-space vertical size="large">
     <h1 style="margin: 0">系統管理</h1>
 
+    <n-card v-if="isAdmin()" title="學校資訊" data-testid="school-card">
+      <n-space vertical>
+        <n-text depth="3">
+          校名會顯示在介面、匯出的課表(Excel / PDF / PNG)、代課通知信與 A4 公告單上。
+          改完立即生效,不需重新啟動。
+        </n-text>
+        <n-space align="center">
+          <n-text style="width: 72px">校名</n-text>
+          <n-input
+            v-model:value="schoolName" placeholder="如:臺南市市立敦品國中"
+            style="width: 280px" data-testid="school-name"
+          />
+          <n-button
+            type="primary" :loading="savingSchool" data-testid="school-save"
+            @click="onSaveSchool"
+          >
+            儲存
+          </n-button>
+        </n-space>
+      </n-space>
+    </n-card>
+
     <n-card v-if="isAdmin() && demoAvailable" title="示範資料" data-testid="demo-card">
       <n-space vertical>
         <n-text depth="3">
@@ -212,14 +251,6 @@ async function onResetWizard() {
           48 位教師(含導師、兼行政、外聘)、24 個分科科目、384 筆配課,
           以及專科教室與場地。建好後可直接到「自動排課」試跑。
         </n-text>
-        <n-alert
-          v-if="envSchool && demoSchool && envSchool !== demoSchool"
-          type="default" :show-icon="false"
-        >
-          介面與匯出課表上顯示的校名目前是「{{ envSchool }}」,來自 <code>.env</code> 的
-          <code>SCHOOL_NAME</code>,示範資料改不了它。想讓校名也一致,
-          請把該項改成「{{ demoSchool }}」後重啟容器。
-        </n-alert>
         <n-alert type="warning" :show-icon="false">
           僅限「全新、尚未建立任何學期」的系統。示範資料是虛構的,
           <strong>請勿在正式使用的系統上載入</strong>。
