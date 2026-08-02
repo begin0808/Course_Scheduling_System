@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
-  NButton, NCard, NCheckbox, NInput, NInputNumber, NPopconfirm, NSpace, NTag, NText, NUpload,
+  NAlert, NButton, NCard, NCheckbox, NInput, NInputNumber, NPopconfirm, NSpace, NTag, NText,
+  NUpload,
   useDialog, useMessage,
 } from 'naive-ui'
 import type { UploadCustomRequestOptions } from 'naive-ui'
@@ -11,7 +12,9 @@ import {
   createBackup, deleteBackup, downloadBackup, listBackups, restoreBackup, restoreUpload,
 } from '@/api/backups'
 import type { Backup, RestoreResult } from '@/api/backups'
-import { getSchedulingSettings, saveSchedulingSettings } from '@/api/assignments'
+import {
+  demoDataStatus, getSchedulingSettings, loadDemoData, saveSchedulingSettings,
+} from '@/api/assignments'
 import { getSmtp, saveSmtp } from '@/api/notifications'
 import { resetWizard } from '@/api/wizard'
 import { useAuthStore } from '@/stores/auth'
@@ -128,8 +131,34 @@ onMounted(async () => {
   configured.value = s.configured
   hasPassword.value = s.has_password
   maxOvertime.value = (await getSchedulingSettings()).max_overtime
+  const demo = await demoDataStatus()
+  demoAvailable.value = demo.available
+  demoReason.value = demo.reason
   await reloadBackups()
 })
+
+// ── 示範資料 ──
+const demoAvailable = ref(false)
+const demoReason = ref('')
+const loadingDemo = ref(false)
+
+async function onLoadDemo() {
+  loadingDemo.value = true
+  try {
+    const r = await loadDemoData()
+    demoAvailable.value = false
+    demoReason.value = '示範資料已載入。'
+    message.success(
+      `已建立 ${r.classes} 班、${r.teachers} 位教師、${r.assignments} 筆配課`
+      + `(共 ${r.total_periods} 節)。可以到「自動排課」試跑了。`,
+      { duration: 8000 },
+    )
+  } catch (e) {
+    message.error((e as ApiError).message || '載入失敗')
+  } finally {
+    loadingDemo.value = false
+  }
+}
 
 async function onSaveScheduling() {
   savingScheduling.value = true
@@ -170,6 +199,31 @@ async function onResetWizard() {
 <template>
   <n-space vertical size="large">
     <h1 style="margin: 0">系統管理</h1>
+
+    <n-card v-if="isAdmin()" title="示範資料" data-testid="demo-card">
+      <n-space vertical>
+        <n-text depth="3">
+          一鍵建立一所完整的示範國中,讓你不必先手 key 資料就能試用全部功能:
+          三個年級共 18 班、48 位教師(含導師、兼行政、外聘)、24 個分科科目、
+          384 筆配課,以及專科教室與場地。建好後可直接到「自動排課」試跑。
+        </n-text>
+        <n-alert v-if="!demoAvailable" type="info" :show-icon="false">
+          {{ demoReason || '目前無法載入示範資料。' }}
+        </n-alert>
+        <n-alert v-else type="warning" :show-icon="false">
+          僅限「全新、尚未建立任何學期」的系統。示範資料是虛構的,
+          <strong>請勿在正式使用的系統上載入</strong>。
+        </n-alert>
+        <div>
+          <n-button
+            type="primary" :disabled="!demoAvailable" :loading="loadingDemo"
+            data-testid="demo-load" @click="onLoadDemo"
+          >
+            載入示範資料
+          </n-button>
+        </div>
+      </n-space>
+    </n-card>
 
     <n-card v-if="isAdmin()" title="排課設定" data-testid="scheduling-card">
       <n-space vertical>

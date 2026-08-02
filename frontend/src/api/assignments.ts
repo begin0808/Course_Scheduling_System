@@ -100,3 +100,19 @@ export const getSchedulingSettings = () =>
   apiGet<SchedulingSettings>('/settings/scheduling')
 export const saveSchedulingSettings = (body: SchedulingSettings) =>
   apiPut<SchedulingSettings>('/settings/scheduling', body)
+
+// ── 示範資料(管理員,僅限全新系統)──
+export interface DemoDataStatus { available: boolean; reason: string }
+export interface DemoDataResult {
+  semester_id: number
+  classes: number
+  teachers: number
+  subjects: number
+  rooms: number
+  assignments: number
+  total_periods: number
+  max_overtime_used: number
+  under_target: number
+}
+export const demoDataStatus = () => apiGet<DemoDataStatus>('/demo-data')
+export const loadDemoData = () => apiPost<DemoDataResult>('/demo-data')
