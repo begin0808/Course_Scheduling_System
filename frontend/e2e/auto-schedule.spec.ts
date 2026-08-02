@@ -110,8 +110,10 @@ test('自動排課:資料未通過前置檢查時擋下,並列出待修正項目
   const c = await post(page, `/api/class-units?semester_id=${sem.id}`,
     { grade: 3, name: '301', track: 'junior_high' })
   const s = await post(page, `/api/subjects?semester_id=${sem.id}`, { name: '國文X' })
+  // base_periods 留 0(代表學校未維護基鐘)才建得起這筆刻意超載的配課:
+  // 有填基鐘的教師會先被「超鐘點上限」擋在配課階段,pre-flight 就沒東西可檢查了。
   const t = await post(page, `/api/teachers?semester_id=${sem.id}`,
-    { name: '王師', base_periods: 20 })
+    { name: '王師', base_periods: 0 })
   await post(page, `/api/assignments?semester_id=${sem.id}`, { // 40 節 > 35 可排節次
     class_id: c.id, subject_id: s.id, periods_per_week: 40,
     teachers: [{ teacher_id: t.id }], block_rules: [],
