@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.basedata import ClassTrack, ClassUnit, Room, Subject, Teacher
 from app.models.semester import Semester
+from app.models.wizard import SINGLETON_ID, TOTAL_STEPS, WizardState
 from app.services import settings as settings_service
 from app.services import templates as template_service
 from app.services.assignments import get_or_create_single_unit
@@ -299,6 +300,17 @@ def generate(db: Session, spec: dict | None = None) -> DemoSummary:
         teacher.assigned += periods
         assignment_count += 1
         total_periods += periods
+    db.flush()
+
+    # 標記設定精靈已完成。否則載完示範資料回到首頁,路由守衛會因為
+    # 「精靈未完成」把使用者彈回設定精靈——資料明明都建好了,卻被要求重建一次。
+    wizard = db.get(WizardState, SINGLETON_ID)
+    if wizard is None:
+        wizard = WizardState(id=SINGLETON_ID)
+        db.add(wizard)
+    wizard.completed = True
+    wizard.current_step = TOTAL_STEPS - 1
+    wizard.semester_id = sid
     db.flush()
 
     overs = [-p.headroom for p in plans if p.headroom < 0]

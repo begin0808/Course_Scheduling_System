@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import {
-  NButton, NCard, NGrid, NGridItem, NInputNumber, NResult, NSelect, NSpace, NStatistic,
-  NStep, NSteps, NText, useMessage,
+  NAlert, NButton, NCard, NGrid, NGridItem, NInputNumber, NResult, NSelect, NSpace,
+  NStatistic, NStep, NSteps, NText, useMessage,
 } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
+import { demoDataStatus, loadDemoData } from '@/api/assignments'
 import { createSemester, getSemester, listTemplates } from '@/api/semesters'
 import { PRIMARY } from '@/theme'
 import type { Semester, Template } from '@/api/semesters'
@@ -40,6 +41,14 @@ onMounted(async () => {
     step.value = wizard.state.current_step
     semesterId.value = wizard.state.semester_id
     if (semesterId.value) await loadSemester(semesterId.value)
+  }
+  // 示範資料僅管理員可載;其他角色查詢會 403,靜靜略過即可
+  try {
+    const demo = await demoDataStatus()
+    demoAvailable.value = demo.available
+    demoSchool.value = demo.school_name
+  } catch {
+    demoAvailable.value = false
   }
 })
 
@@ -90,6 +99,30 @@ async function finish() {
   router.push({ name: 'basedata' })
 }
 
+// 示範資料入口。放在精靈裡是因為:路由守衛會把「精靈未完成」的使用者一律導來這頁,
+// 所以第一次登入的人根本到不了系統管理——那顆按鈕擺在那裡等於沒人看得到。
+const demoAvailable = ref(false)
+const demoSchool = ref('')
+const loadingDemo = ref(false)
+
+async function onLoadDemo() {
+  loadingDemo.value = true
+  try {
+    const r = await loadDemoData()
+    await wizard.fetch()
+    message.success(
+      `已建立 ${r.classes} 班、${r.teachers} 位教師、${r.assignments} 筆配課。`
+      + '可以直接去「自動排課」試跑了。',
+      { duration: 8000 },
+    )
+    router.push({ name: 'dashboard' })
+  } catch (e) {
+    message.error((e as ApiError).message || '載入失敗')
+  } finally {
+    loadingDemo.value = false
+  }
+}
+
 async function skip() {
   await wizard.patch({ completed: true })
   router.push({ name: 'dashboard' })
@@ -120,6 +153,30 @@ function openPeriodEditor() {
       <n-card>
         <!-- Step 0:學制範本 -->
         <template v-if="step === 0">
+          <n-alert
+            v-if="demoAvailable" type="info" title="只是想先試看看這套系統?"
+            style="margin-bottom: 18px"
+          >
+            <n-space vertical size="small">
+              <n-text>
+                可以先載入一所完整的示範國中「{{ demoSchool }}」——18 班、48 位教師、
+                384 筆配課全部建好,不必輸入任何資料就能直接跑自動排課,
+                把排課、調代課、匯出、備份整套流程玩過一遍。
+              </n-text>
+              <n-text depth="3" style="font-size: 12px">
+                之後要正式使用時,重新安裝一套乾淨的系統即可;
+                示範資料只能在「尚未建立任何學期」的系統上載入。
+              </n-text>
+              <div>
+                <n-button
+                  type="primary" size="small" :loading="loadingDemo"
+                  data-testid="wizard-demo-load" @click="onLoadDemo"
+                >
+                  載入示範資料
+                </n-button>
+              </div>
+            </n-space>
+          </n-alert>
           <n-text>請選擇貴校的學制,系統將自動帶入對應的節次表與科目清單。</n-text>
           <n-grid :cols="2" :x-gap="12" :y-gap="12" style="margin-top: 16px">
             <n-grid-item v-for="t in templates" :key="t.key">

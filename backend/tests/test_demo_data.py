@@ -97,7 +97,7 @@ def test_class_names_use_grade_plus_serial(admin_client):
 
 
 def test_school_name_is_reported(admin_client):
-    """校名在 .env 的 SCHOOL_NAME,示範資料改不了;至少要把規格上的校名回報給前端提示。"""
+    """校名回報給前端,供精靈與系統管理頁顯示「會建出哪一所學校」。"""
     client, _ = admin_client
     status = client.get("/api/demo-data").json()
     assert status["school_name"] == "臺南市市立敦品國中"
@@ -244,3 +244,16 @@ def test_demo_data_is_actually_solvable(admin_client):
     assert not validate(problem, result.entries), "解答違反硬約束"
     # H8 週節數守恆:排入的節數必須等於配課總節數
     assert len(result.entries) == 33 * 18
+
+
+def test_demo_data_marks_the_setup_wizard_complete(admin_client):
+    """否則載完示範資料回首頁,路由守衛會因「精靈未完成」把人彈回設定精靈——
+    資料明明都建好了,卻被要求再建一次。"""
+    from app.models.wizard import SINGLETON_ID, WizardState
+
+    client, db = admin_client
+    body = client.post("/api/demo-data").json()
+    state = db.get(WizardState, SINGLETON_ID)
+    assert state is not None and state.completed is True
+    assert state.semester_id == body["semester_id"]
+    assert client.get("/api/wizard/state").json()["completed"] is True
