@@ -84,6 +84,26 @@ def test_generate_builds_a_complete_school(admin_client):
     assert body["rooms"] >= 18
 
 
+def test_class_names_use_grade_plus_serial(admin_client):
+    """十二年國教後多數國中改用 701~706 這種編號,不再用忠孝仁愛。"""
+    client, db = admin_client
+    client.post("/api/demo-data")
+    names = sorted(cu.name for cu in db.query(ClassUnit).all())
+    assert names == [
+        "701", "702", "703", "704", "705", "706",
+        "801", "802", "803", "804", "805", "806",
+        "901", "902", "903", "904", "905", "906",
+    ]
+
+
+def test_school_name_is_reported(admin_client):
+    """校名在 .env 的 SCHOOL_NAME,示範資料改不了;至少要把規格上的校名回報給前端提示。"""
+    client, _ = admin_client
+    status = client.get("/api/demo-data").json()
+    assert status["school_name"] == "臺南市市立敦品國中"
+    assert client.post("/api/demo-data").json()["school_name"] == "臺南市市立敦品國中"
+
+
 def test_every_class_has_a_homeroom_teacher(admin_client):
     client, db = admin_client
     client.post("/api/demo-data")

@@ -70,6 +70,7 @@ class DemoSummary:
     """產生結果,供 API 回報與測試斷言。"""
 
     semester_id: int
+    school_name: str
     classes: int
     teachers: int
     subjects: int
@@ -126,12 +127,14 @@ def _plan_teachers(spec: dict, class_names: list[str]) -> list[_TeacherPlan]:
 
 
 def _class_names(spec: dict) -> list[tuple[int, str]]:
+    """班名。十二年國教後多數國中改用年級+序號(701~706),不再用忠孝仁愛。"""
     cfg = spec["classes"]
-    out: list[tuple[int, str]] = []
-    for grade in cfg["grades"]:
-        for suffix in cfg["suffixes"][: cfg["per_grade"]]:
-            out.append((grade, f"{grade}年{suffix}班"))
-    return out
+    fmt = cfg.get("name_format", "{grade}{index:02d}")
+    return [
+        (grade, fmt.format(grade=grade, index=i))
+        for grade in cfg["grades"]
+        for i in range(1, cfg["per_grade"] + 1)
+    ]
 
 
 def _demand(spec: dict, classes: list[tuple[int, str]]) -> list[tuple[str, str, int]]:
@@ -145,7 +148,7 @@ def _demand(spec: dict, classes: list[tuple[int, str]]) -> list[tuple[str, str, 
     return rows
 
 
-def _pick_teacher(pool: list[_TeacherPlan], periods: int) -> _TeacherPlan:
+def _pick_teacher(pool: list[_TeacherPlan]) -> _TeacherPlan:
     """挑「剩餘容量最多」的老師。
 
     這樣自然會把課平均分散,而不是把前幾位塞滿、後幾位沒課。
@@ -273,7 +276,7 @@ def generate(db: Session, spec: dict | None = None) -> DemoSummary:
         if hr is not None and hr.dept == dept_of[sname] and hr.headroom >= periods:
             teacher = hr
         else:
-            teacher = _pick_teacher(pool, periods)
+            teacher = _pick_teacher(pool)
 
         assert teacher.model is not None
         unit = get_or_create_single_unit(db, class_models[cname])
@@ -297,6 +300,7 @@ def generate(db: Session, spec: dict | None = None) -> DemoSummary:
     overs = [-p.headroom for p in plans if p.headroom < 0]
     return DemoSummary(
         semester_id=sid,
+        school_name=spec["school_name"],
         classes=len(classes),
         teachers=len(plans),
         subjects=len(subjects),

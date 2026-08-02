@@ -12,7 +12,7 @@
     "18-26 班規模的兼任主任 6 節、兼任組長 8 節。各縣市不同,改這裡即可。"
   ],
 
-  "school_name": "示範國民中學",
+  "school_name": "臺南市市立敦品國中",
   "template_key": "junior_high",
   "academic_year": 115,
   "term": 1,
@@ -20,8 +20,9 @@
   "classes": {
     "grades": [7, 8, 9],
     "per_grade": 6,
-    "suffixes": ["忠", "孝", "仁", "愛", "信", "義"],
-    "student_count": 28
+    "student_count": 28,
+    "_name_format_readme": "十二年國教後多數國中改用年級+序號(701~706、801~806、901~906),不再用忠孝仁愛",
+    "name_format": "{grade}{index:02d}"
   },
 
   "base_periods": {

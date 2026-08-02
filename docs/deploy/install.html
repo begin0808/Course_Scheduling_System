@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一鍵安裝推薦">一鍵安裝(推薦)</a><a class="lv3" href="#步驟-a先裝好-docker">步驟 A:先裝好 Docker</a><a class="lv3" href="#步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</a><a class="lv3" href="#腳本會做什麼">腳本會做什麼</a><a class="lv3" href="#常用選項">常用選項</a><a class="lv3" href="#想在同一台主機再裝一套測試環境">想在同一台主機再裝一套(測試環境)</a><a class="lv2" href="#手動安裝">手動安裝</a><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env至少改兩項">步驟 2:修改 .env(至少改兩項)</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一鍵安裝推薦">一鍵安裝(推薦)</a><a class="lv3" href="#步驟-a先裝好-docker">步驟 A:先裝好 Docker</a><a class="lv3" href="#步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</a><a class="lv3" href="#腳本會做什麼">腳本會做什麼</a><a class="lv3" href="#常用選項">常用選項</a><a class="lv3" href="#想在同一台主機再裝一套測試環境">想在同一台主機再裝一套(測試環境)</a><a class="lv2" href="#手動安裝">手動安裝</a><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env至少改兩項">步驟 2:修改 .env(至少改兩項)</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv3" href="#想先試看看再決定載入示範資料">想先試看看再決定?載入示範資料</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -364,6 +364,9 @@
       <li>校內其他電腦:<code>http://&lt;主機的區網IP&gt;</code>(例如 <code>http://192.168.1.50</code>,IP 用 <code>ipconfig</code> / <code>ip a</code> 查)</li>
       </ul>
       <p>以 <code>.env</code> 設定的 <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code> 登入,系統會要求你<strong>首次改密碼</strong>,接著進入<strong>設定精靈</strong>,依畫面五步驟建立學期、教師、班級、科目即可開始使用。</p>
+      <h3 id="想先試看看再決定載入示範資料">想先試看看再決定?載入示範資料</h3>
+      <p>還沒建任何學期時,到「系統管理 → 示範資料」按一下,系統會建出一所完整的虛構國中(臺南市市立敦品國中:18 班、48 位教師、384 筆配課),十幾秒就能跑出一張全校課表。適合評估階段先把整套流程走過一遍,不必先手 key 幾百筆資料。</p>
+      <p><strong>只有在系統完全沒有學期時才能載入</strong>,以免蓋掉正式資料。試用完要正式啟用時,建議重新安裝一套乾淨的系統,不要把示範資料與真實資料混在一起。</p>
       <hr />
       <h2 id="硬體最低需求">硬體最低需求</h2>
       <div class="tw"><table>

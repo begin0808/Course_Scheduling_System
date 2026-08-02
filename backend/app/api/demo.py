@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
+from app.core.config import settings
 from app.core.db import get_db
 from app.models.audit import AuditLog
 from app.models.user import Role, User
@@ -24,6 +25,7 @@ admin_only = require_roles(Role.admin)
 
 class DemoDataOut(BaseModel):
     semester_id: int
+    school_name: str
     classes: int
     teachers: int
     subjects: int
@@ -37,17 +39,26 @@ class DemoDataOut(BaseModel):
 class DemoDataStatus(BaseModel):
     available: bool
     reason: str = ""
+    school_name: str = ""
+    # 系統顯示的校名來自 .env 的 SCHOOL_NAME(會印在匯出課表與 A4 公告單上),
+    # 示範資料改不了它。前端據此提示使用者要不要一併改 .env。
+    env_school_name: str = ""
 
 
 @router.get("/demo-data", response_model=DemoDataStatus)
 def demo_status(db: Session = Depends(get_db), _: User = Depends(admin_only)):
     """能不能載入示範資料。前端用它決定按鈕要不要 disable。"""
+    spec_name = demo_data.load_spec()["school_name"]
     if demo_data.any_semester_exists(db):
         return DemoDataStatus(
             available=False,
             reason="系統已有學期資料。示範資料只能建在全新的系統上,以免覆蓋你的正式資料。",
+            school_name=spec_name,
+            env_school_name=settings.school_name,
         )
-    return DemoDataStatus(available=True)
+    return DemoDataStatus(
+        available=True, school_name=spec_name, env_school_name=settings.school_name
+    )
 
 
 @router.post("/demo-data", response_model=DemoDataOut, status_code=status.HTTP_201_CREATED)

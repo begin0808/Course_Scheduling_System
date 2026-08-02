@@ -134,12 +134,16 @@ onMounted(async () => {
   const demo = await demoDataStatus()
   demoAvailable.value = demo.available
   demoReason.value = demo.reason
+  demoSchool.value = demo.school_name
+  envSchool.value = demo.env_school_name
   await reloadBackups()
 })
 
 // ── 示範資料 ──
 const demoAvailable = ref(false)
 const demoReason = ref('')
+const demoSchool = ref('')
+const envSchool = ref('')
 const loadingDemo = ref(false)
 
 async function onLoadDemo() {
@@ -200,55 +204,32 @@ async function onResetWizard() {
   <n-space vertical size="large">
     <h1 style="margin: 0">系統管理</h1>
 
-    <n-card v-if="isAdmin()" title="示範資料" data-testid="demo-card">
+    <n-card v-if="isAdmin() && demoAvailable" title="示範資料" data-testid="demo-card">
       <n-space vertical>
         <n-text depth="3">
-          一鍵建立一所完整的示範國中,讓你不必先手 key 資料就能試用全部功能:
-          三個年級共 18 班、48 位教師(含導師、兼行政、外聘)、24 個分科科目、
-          384 筆配課,以及專科教室與場地。建好後可直接到「自動排課」試跑。
+          一鍵建立一所完整的示範國中「{{ demoSchool || '示範國中' }}」,讓你不必先手 key
+          資料就能試用全部功能:三個年級共 18 班(701~706、801~806、901~906)、
+          48 位教師(含導師、兼行政、外聘)、24 個分科科目、384 筆配課,
+          以及專科教室與場地。建好後可直接到「自動排課」試跑。
         </n-text>
-        <n-alert v-if="!demoAvailable" type="info" :show-icon="false">
-          {{ demoReason || '目前無法載入示範資料。' }}
+        <n-alert
+          v-if="envSchool && demoSchool && envSchool !== demoSchool"
+          type="default" :show-icon="false"
+        >
+          介面與匯出課表上顯示的校名目前是「{{ envSchool }}」,來自 <code>.env</code> 的
+          <code>SCHOOL_NAME</code>,示範資料改不了它。想讓校名也一致,
+          請把該項改成「{{ demoSchool }}」後重啟容器。
         </n-alert>
-        <n-alert v-else type="warning" :show-icon="false">
+        <n-alert type="warning" :show-icon="false">
           僅限「全新、尚未建立任何學期」的系統。示範資料是虛構的,
           <strong>請勿在正式使用的系統上載入</strong>。
         </n-alert>
         <div>
           <n-button
-            type="primary" :disabled="!demoAvailable" :loading="loadingDemo"
+            type="primary" :loading="loadingDemo"
             data-testid="demo-load" @click="onLoadDemo"
           >
             載入示範資料
-          </n-button>
-        </div>
-      </n-space>
-    </n-card>
-
-    <n-card v-if="isAdmin()" title="排課設定" data-testid="scheduling-card">
-      <n-space vertical>
-        <n-text depth="3">
-          超鐘點上限依各縣市/各校規定自訂。上限是「應授節數 + N」——應授本身因身分而異
-          (例:臺南市國文科專任 16 節、兼任導師 11 節、兼任主任 6 節),固定值對誰都不合適。
-        </n-text>
-        <n-space align="center">
-          <span>超鐘點上限</span>
-          <n-input-number
-            v-model:value="maxOvertime" :min="0" :max="20" style="width: 120px"
-            data-testid="max-overtime"
-          />
-          <n-text depth="3">節(0 = 不限制)</n-text>
-        </n-space>
-        <n-text depth="3" style="font-size: 12px">
-          超過上限的配課會被擋下。未填「基本鐘點」的教師不受此限——那代表資料尚未建立,
-          而非真的不用上課。
-        </n-text>
-        <div>
-          <n-button
-            type="primary" :loading="savingScheduling" data-testid="scheduling-save"
-            @click="onSaveScheduling"
-          >
-            儲存排課設定
           </n-button>
         </div>
       </n-space>
@@ -352,6 +333,35 @@ async function onResetWizard() {
             </tr>
           </tbody>
         </table>
+      </n-space>
+    </n-card>
+
+    <n-card v-if="isAdmin()" title="排課設定" data-testid="scheduling-card">
+      <n-space vertical>
+        <n-text depth="3">
+          超鐘點上限依各縣市/各校規定自訂。上限是「應授節數 + N」——應授本身因身分而異
+          (例:臺南市國文科專任 16 節、兼任導師 11 節、兼任主任 6 節),固定值對誰都不合適。
+        </n-text>
+        <n-space align="center">
+          <span>超鐘點上限</span>
+          <n-input-number
+            v-model:value="maxOvertime" :min="0" :max="20" style="width: 120px"
+            data-testid="max-overtime"
+          />
+          <n-text depth="3">節(0 = 不限制)</n-text>
+        </n-space>
+        <n-text depth="3" style="font-size: 12px">
+          超過上限的配課會被擋下。未填「基本鐘點」的教師不受此限——那代表資料尚未建立,
+          而非真的不用上課。
+        </n-text>
+        <div>
+          <n-button
+            type="primary" :loading="savingScheduling" data-testid="scheduling-save"
+            @click="onSaveScheduling"
+          >
+            儲存排課設定
+          </n-button>
+        </div>
       </n-space>
     </n-card>
 

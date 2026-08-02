@@ -102,9 +102,16 @@ export const saveSchedulingSettings = (body: SchedulingSettings) =>
   apiPut<SchedulingSettings>('/settings/scheduling', body)
 
 // ── 示範資料(管理員,僅限全新系統)──
-export interface DemoDataStatus { available: boolean; reason: string }
+export interface DemoDataStatus {
+  available: boolean
+  reason: string
+  school_name: string
+  /** .env 的 SCHOOL_NAME。示範資料改不了它,兩者不同時要提醒使用者 */
+  env_school_name: string
+}
 export interface DemoDataResult {
   semester_id: number
+  school_name: string
   classes: number
   teachers: number
   subjects: number
