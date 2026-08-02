@@ -201,7 +201,7 @@
       #    https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
       
       # 3) 選擇版本:編輯 .env
-      #    釘選版本(可控):IMAGE_TAG=v1.1.2
+      #    釘選版本(可控):IMAGE_TAG=v1.2.0
       #    永遠最新:        IMAGE_TAG=latest
       
       # 4) 拉新映像並重啟
@@ -221,7 +221,7 @@
       <hr />
       <h2 id="關於版本釘選">關於版本釘選</h2>
       <ul>
-      <li><strong>正式環境建議 <code>IMAGE_TAG=v1.1.2</code> 這樣釘住特定版本</strong>,你才能決定何時升級、升到哪一版,而不是每次 <code>pull</code> 都可能變動。</li>
+      <li><strong>正式環境建議 <code>IMAGE_TAG=v1.2.0</code> 這樣釘住特定版本</strong>,你才能決定何時升級、升到哪一版,而不是每次 <code>pull</code> 都可能變動。</li>
       <li>想升級時,把 <code>IMAGE_TAG</code> 改成新版本號,再 <code>docker compose pull &amp;&amp; up -d</code>。</li>
       <li>各版本的變更內容見專案根目錄的 <a href="../../CHANGELOG.html">CHANGELOG.md</a>;破壞性變更(若有)會在該版本明確標註 ⚠️ 與對應處置。</li>
       </ul>

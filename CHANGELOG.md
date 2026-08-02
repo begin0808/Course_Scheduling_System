@@ -4,9 +4,16 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.1.2**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.1.1 是開發過程中的里程碑版本,未對外推廣;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.0**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.1.2 是先前版本;以下條目保留作為變更紀錄。
 
-## [未發行]
+## [1.2.0] — 2026-08-02
+
+**降低「試用門檻」的一版。** 先前要評估這套系統,得先手 key 十八個班級、四十幾位教師、
+幾百筆配課才看得到自動排課做了什麼——連本專案作者自己想完整走一遍都卡在「手邊沒有資料」。
+本版一鍵建出一所完整的示範國中,裝好後兩分鐘內就能看到一張排好的全校課表。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.0`
 
 ### 新增
 - **校名改為可在系統內設定**(「系統管理 → 學校資訊」):先前只能在安裝時以 `.env` 的 `SCHOOL_NAME` 指定,要改就得編輯檔案並重啟容器——對只會用網頁的教學組長來說形同改不了。現在存進資料庫,改完立即反映在介面、匯出課表(Excel / PDF / PNG)、代課通知信與 A4 公告單。
@@ -134,7 +141,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.0.0...v1.1.0
