@@ -1,9 +1,16 @@
 # 正式部署的 web 容器:第一階段用 Node 建置 Vue 前端,
 # 第二階段用 Caddy 服務靜態檔並反向代理 /api 至後端(維持 5 容器架構,不另開 Node 容器)。
-FROM node:22-alpine AS build
+#
+# --platform=$BUILDPLATFORM 是必要的:前端產出是靜態 HTML/JS/CSS,與 CPU 架構無關,
+# 沒有理由為每個目標架構各編譯一次。不加這行,建雙架構映像時 arm64 那份會在
+# QEMU 模擬下跑 npm 與 vite——v1.2.0 首次發版就是這樣跑了 6 小時、
+# 撞上 GitHub Actions 的上限被取消,api/worker 都推上去了只有 web 沒推成。
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
-COPY frontend/package.json ./
-RUN npm install
+# 連同 lock 檔一起複製並改用 npm ci:正式映像的相依必須與 CI 驗證過的完全一致。
+# 先前只複製 package.json 再 npm install,等於每次建置都可能裝到不同的版本。
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
