@@ -453,6 +453,29 @@ def test_swap_option_from_list_is_accepted_and_both_teachers_notified(env2):
     assert "原訂調課已取消" in _notif_titles(w, "陳師")
 
 
+def test_swap_search_range_can_widen_to_four_weeks(env2):
+    """預設兩週;組長可放寬到四週(本週與隔三週對調),超過四週拒絕。"""
+    from datetime import timedelta
+
+    w = env2
+    affected_id = _swap_world(w)
+    thursdays = lambda body: [o["date"] for o in body["partners"][0]["options"]  # noqa: E731
+                              if o["class_names"] == "701"]
+
+    two = _options(w, affected_id)
+    assert two["date_to"] == (WED + timedelta(days=11)).isoformat()  # 下週日
+    assert len(thursdays(two)) == 2
+
+    r = w.client.get(f"/api/affected-periods/{affected_id}/swap-options?weeks=4")
+    four = r.json()
+    assert four["date_to"] == (WED + timedelta(days=25)).isoformat()  # 隔三週的週日
+    assert thursdays(four)[-1] == (THU + timedelta(days=21)).isoformat()
+    assert len(thursdays(four)) == 4
+
+    assert w.client.get(
+        f"/api/affected-periods/{affected_id}/swap-options?weeks=5").status_code == 422
+
+
 def test_swap_options_for_a_named_teacher_outside_the_class(env2):
     """組長指定一位不教這班的老師,照樣列出他換得成的節次。"""
     w = env2

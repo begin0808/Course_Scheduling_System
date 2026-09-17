@@ -33,6 +33,13 @@ const swapOpen = ref(false)
 const swap = ref<SwapOptions | null>(null)
 const loadingSwap = ref(false)
 const swapTeacherId = ref<number | null>(null)
+// 找幾週:換節次、換假單都沿用組長上次選的(常和隔三週調的學校,每次都要重選很煩)
+const swapWeeks = ref(2)
+const SWAP_WEEK_OPTIONS = [
+  { label: '本週與下週', value: 2 },
+  { label: '往後共 3 週', value: 3 },
+  { label: '往後共 4 週', value: 4 },
+]
 // 一位老師兩週內可換的節次常有二、三十個;先只列同班的,其他班收起來(展開過的老師記在這裡)
 const swapExpanded = ref<Set<number>>(new Set())
 
@@ -136,7 +143,7 @@ function swapTeacherOptions(l: LeaveRequest) {
 async function loadSwap(p: AffectedPeriod) {
   loadingSwap.value = true
   try {
-    swap.value = await getSwapOptions(p.id, swapTeacherId.value)
+    swap.value = await getSwapOptions(p.id, swapTeacherId.value, swapWeeks.value)
   } finally {
     loadingSwap.value = false
   }
@@ -149,6 +156,11 @@ async function toggleSwap(p: AffectedPeriod) {
 
 async function onSwapTeacherChange(p: AffectedPeriod, id: number | null) {
   swapTeacherId.value = id
+  await loadSwap(p)
+}
+
+async function onSwapWeeksChange(p: AffectedPeriod, weeks: number) {
+  swapWeeks.value = weeks
   await loadSwap(p)
 }
 
@@ -302,7 +314,7 @@ function candidateTagType(c: Candidate): string {
                   </n-button>
                 </n-space>
 
-                <!-- 調課:乙來上這一節,甲在本週或下週補回乙的一節 -->
+                <!-- 調課:乙來上這一節,甲在往後幾週內補回乙的一節 -->
                 <div v-if="swapOpen" class="swap" data-testid="sub-swap-panel">
                   <n-text depth="3" class="swap-intro">
                     調課 = 請另一位老師來上這一節,{{ l.teacher_name }}再找一天補回對方的一節(不計代課鐘點)。
@@ -319,6 +331,12 @@ function candidateTagType(c: Candidate): string {
                       @update:value="(v: number | null) => onSwapTeacherChange(p, v)"
                     />
                     <n-text depth="3">也可以指定其他老師</n-text>
+                    <n-text depth="3" style="margin-left: 12px">範圍</n-text>
+                    <n-select
+                      :value="swapWeeks" :options="SWAP_WEEK_OPTIONS" size="small"
+                      style="width: 140px" data-testid="sub-swap-weeks"
+                      @update:value="(v: number) => onSwapWeeksChange(p, v)"
+                    />
                   </n-space>
 
                   <n-text v-if="loadingSwap" depth="3">尋找可對調的節次…</n-text>
@@ -345,7 +363,7 @@ function candidateTagType(c: Candidate): string {
                         無法對調:{{ partner.blocked_reason }}
                       </n-text>
                       <n-text v-else-if="!partner.options.length" depth="3" class="swap-note">
-                        這兩週找不到雙方都有空的節次
+                        這段期間找不到雙方都有空的節次,可試著放寬週數
                       </n-text>
                       <n-space v-else size="small" class="swap-note">
                         <n-button

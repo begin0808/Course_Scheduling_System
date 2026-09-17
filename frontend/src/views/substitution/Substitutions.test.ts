@@ -92,6 +92,18 @@ describe('調代課處理:調課', () => {
     expect(first().find('[data-testid="sub-swap-more"]').exists()).toBe(false)
   })
 
+  it('預設找兩週,放寬週數後重新查詢', async () => {
+    const { wrapper, calls } = await openSwap()
+    const swapCalls = () => calls.filter((c) => c.url.includes('/swap-options'))
+    expect(swapCalls()[0].url).toContain('weeks=2')
+
+    const Swap = wrapper.findComponent(Substitutions)
+    await (Swap.vm as unknown as { onSwapWeeksChange: (p: unknown, w: number) => Promise<void> })
+      .onSwapWeeksChange({ id: 11 }, 4)
+    await flushPromises()
+    expect(swapCalls().at(-1)?.url).toContain('weeks=4')
+  })
+
   it('點選節次送出調課:對調老師、那一節、補課日期', async () => {
     const { wrapper, calls } = await openSwap()
     await wrapper.find('[data-testid="sub-swap-option"]').trigger('click')
