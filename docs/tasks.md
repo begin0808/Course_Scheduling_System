@@ -362,7 +362,7 @@ Course_Scheduling_System/
 
 **補遺(實作後)**
 - **NotificationChannel 分層**:`notifications.notify()` 建立站內通知列(永遠送達)後,逐一經 `CHANNELS`(`InAppChannel` no-op + `EmailChannel`)派送;v2 加 webhook/LINE 只需再實作一個 channel 並 append。
-- **Email 的交易語意**:EmailChannel 不直接 enqueue,而是把信放進 `session.info` 的寄件匣;SQLAlchemy 的 `after_commit` 事件才排入 RQ,`after_rollback` 則丟棄——交易回滾就不會寄出一封對應到不存在通知的信(雙寫問題的正解)。已測 rollback 不寄、commit 才寄。
+- **Email 的交易語意**:EmailChannel 不直接 enqueue,而是把信放進 `session.info` 的寄件匣;SQLAlchemy 的 `after_commit` 事件才排入 RQ,`after_rollback` 則丟棄——交易回復(rollback)就不會寄出一封對應到不存在通知的信(雙寫問題的正解)。已測交易回復不寄、commit 才寄。
 - **站內永遠可用,Email 是加分**:SMTP 未設定時 `email.send` 回 False、`email_job` 只記 log,整個調代課流程照常。這是驗收③,實機在 mailhog 上驗過雙通道。
 - **SMTP 設定存 `app_settings`**(全域 key/value,非學期範圍);密碼留空 = 不變更,回傳不含明文。管理員專屬。`POST /settings/smtp/test` 當場寄測試信回報結果(不走 RQ)。
 - **確認收到 = 通知層已讀確認**,不影響課務(指派即生效,2026-07-09 定案)。教師鈴鐺(輪詢 20s + 未讀數 badge)、組長看板(確認狀態 + 對未確認者「再次提醒」重發,已確認則 409)。
@@ -472,7 +472,7 @@ Course_Scheduling_System/
 - **同一份 compose,兩種部署**:為讓驗收②的 `docker compose pull` 有意義,`docker-compose.yml` 的 web/api/worker 三服務同時掛 `image:`(GHCR)與 `build:`——clone 原始碼者 `up -d` 仍在本機建置(行為不變),只需檔案者 `pull && up -d` 拉官方映像。映像版本由 `.env` 的 `IMAGE_TAG`(預設 latest,建議正式部署釘選版本號)決定。
 - **CI 補版本標籤**:原 `images` job 只推 `:latest` 與 `:sha`,`IMAGE_TAG=v1.0.0` 會拉不到映像。三個映像各補推 `:${github.ref_name}`(main push=`main`、版本標籤=`v1.0.0`),版本釘選才真的成立;版本標籤仍為唯一觸發雙架構(amd64+arm64)的條件。
 - **HTTPS 選配做成一個設定**:Caddyfile 站台位址寫死 `:80` 且烘進映像,拉映像的學校改不到。改為 `{$SITE_ADDRESS::80}` 環境變數(預設 `:80` 內網 HTTP;於 `.env` 設 `SITE_ADDRESS=網域名` 即自動申請/續期 Let's Encrypt 憑證)。compose 補 443 埠映射與 `caddydata` volume(憑證持久化,避免重啟觸發速率限制)。**實測**:預設(無網域)重建 web 後 `/api/health` 與首頁皆 200、web healthy,內網 HTTP 部署未受影響;`docker compose config` 在有/無 `SITE_ADDRESS` 兩路徑皆正確解析。
-- **文件產出**:`docs/deploy/`(index/install/upgrade/backup/https/faq 六篇中文,含 Win/Linux/Synology/QNAP 安裝、異地備援、回滾與 schema 變更提醒、VPS 對外埠與資安)、改寫 `README.md`(英文摘要+功能總覽+雙部署快速開始+文件索引)、新增 `CHANGELOG.md`(Keep a Changelog,彙整 M0–M5)、`CONTRIBUTING.md`(開發環境/品質門檻/任務卡制/發布新版本流程)。`LICENSE`(MIT)M0 已具備。
+- **文件產出**:`docs/deploy/`(index/install/upgrade/backup/https/faq 六篇中文,含 Win/Linux/Synology/QNAP 安裝、異地備援、退回舊版與資料表結構變更提醒、VPS 對外埠與資安)、改寫 `README.md`(英文摘要+功能總覽+雙部署快速開始+文件索引)、新增 `CHANGELOG.md`(Keep a Changelog,彙整 M0–M5)、`CONTRIBUTING.md`(開發環境/品質門檻/任務卡制/發布新版本流程)。`LICENSE`(MIT)M0 已具備。
 - **驗收①「乾淨 VM 實測」的界線**:compose 解析、web 重建與預設 HTTP 服務已在本機 Docker 驗過;真正的「全新 VM 從零 pull 安裝」需待版本標籤推上 GHCR 後才可端到端跑(目前尚無 release tag),此步驟留給實際發布時(或使用者)在乾淨環境驗收並記錄於 PR。
 
 ### [x] M5-4 E2E 總驗收與效能

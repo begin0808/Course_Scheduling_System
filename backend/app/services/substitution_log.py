@@ -2,7 +2,8 @@
 
 這一層把「特定日期的受影響節次 + 其處置」攤平成一列列可讀的紀錄,供兩個出口共用:
 
-1. **今日看板**:某一天全校的異動——誰請假、哪一節、由誰接手、教室在哪。
+1. **今日看板**:某一天全校的異動——誰請假、哪一節、由誰接手、教室在哪;
+   以及當天因調課而回來補課的節次(見 `_makeup_rows`)。
 2. **歷史日誌**:依教師/日期/假別篩選的查詢。
 
 資料真相仍在 `affected_period`(受影響節次快照)與 `substitution`(處置決定);這裡只做
@@ -17,6 +18,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core import clock
+from app.models.basedata import Room
 from app.models.leave import (
     AFFECTED_STATUS_CN,
     LEAVE_TYPE_CN,
@@ -25,12 +27,18 @@ from app.models.leave import (
     LeaveRequest,
     LeaveStatus,
 )
-from app.models.substitution import SUBSTITUTION_TYPE_CN, Substitution
+from app.models.substitution import SUBSTITUTION_TYPE_CN, Substitution, SubstitutionType
+from app.models.timetable import ScheduleEntry
 from app.services import leaves
+from app.services.availability import Availability
 
 # 欄位名 date/start_time 會遮蔽同名型別,故以別名標註型別
 _Date = date
 _Time = time
+
+# 列的種類:請假展開的節次,或調課補課那天被換來的節次
+ROW_LEAVE = "leave"
+ROW_SWAP_MAKEUP = "swap_makeup"
 
 # 歷史查詢的保護性上限(M6-5):一整年不篩選地查會是數千筆。取最新 N 筆,
 # 要看更早的請縮小日期區間;完整分頁 UI 留 v1.2。
@@ -68,6 +76,9 @@ class LogEntry:
     swap_class_names: str
     swap_subject_name: str
     note: str
+    # leave:請假的那一節。swap_makeup:調課補課日的那一節——「原任教師」是對調的乙,
+    # 「接手」是回來補課的甲,swap_* 反過來記請假那一節(兩列互相指向對方)。
+    row_kind: str = ROW_LEAVE
 
 
 def school_today() -> date:
@@ -125,11 +136,84 @@ def _build(ap: AffectedPeriod, sub: Substitution | None) -> LogEntry:
     )
 
 
+def _makeup_rows(db: Session, semester_id: int, on: date) -> list[LogEntry]:
+    """調課補課日當天被換來的節次。
+
+    調課成立後那天有兩處異動:請假日由乙代甲,補課日由甲上乙原本那節。後者在
+    `affected_period` 裡沒有一列(乙沒請假),只記在 `substitution.swap_*`——
+    不另外列出,補課那天的看板與公告單就會漏掉,那一班會看到「課表上是乙、來的是甲」。
+    """
+    subs = db.scalars(
+        select(Substitution)
+        .join(AffectedPeriod, Substitution.affected_period_id == AffectedPeriod.id)
+        .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
+        .where(
+            Substitution.semester_id == semester_id,
+            Substitution.type == SubstitutionType.swap.value,
+            Substitution.swap_date == on,
+            LeaveRequest.status == LeaveStatus.registered.value,
+            AffectedPeriod.status != AffectedStatus.cancelled.value,
+        )
+    ).all()
+    if not subs:
+        return []
+
+    av = Availability(db, semester_id)
+    out: list[LogEntry] = []
+    for sub in subs:
+        ap = db.get(AffectedPeriod, sub.affected_period_id)
+        if ap is None:
+            continue
+        leave = ap.leave_request
+        entry = db.get(ScheduleEntry, sub.swap_entry_id) if sub.swap_entry_id else None
+        period = av.entry_period(entry, sub.swap_period_no) if entry else None
+        start = period.start_time if period else None
+        end = period.end_time if period else None
+        room_name = ""
+        if entry is not None:
+            room_id = entry.room_id if entry.room_id is not None else entry.assignment.room_id
+            room = db.get(Room, room_id) if room_id else None
+            room_name = room.name if room else ""
+        status = leaves.effective_status(ap.status, on, end)
+        out.append(LogEntry(
+            affected_period_id=ap.id,
+            date=on,
+            weekday=on.isoweekday(),
+            period_no=sub.swap_period_no or 0,
+            period_name=sub.swap_period_name,
+            start_time=start,
+            end_time=end,
+            class_names=sub.swap_class_names,
+            subject_name=sub.swap_subject_name,
+            room_name=room_name,
+            absent_teacher_id=sub.handler_teacher_id or 0,
+            absent_teacher_name=sub.handler.name if sub.handler else "(已移除)",
+            leave_type="",
+            leave_type_label="調課補課",
+            status=status,
+            status_label=AFFECTED_STATUS_CN.get(status, status),
+            disposed=True,
+            sub_type=sub.type,
+            sub_type_label=SUBSTITUTION_TYPE_CN.get(sub.type),
+            handler_teacher_id=leave.teacher_id,
+            handler_name=leave.teacher.name if leave.teacher else "(已移除)",
+            counts_toward_hours=sub.counts_toward_hours,
+            swap_date=ap.date,
+            swap_period_name=ap.period_name,
+            swap_class_names=ap.class_names,
+            swap_subject_name=ap.subject_name,
+            note="",
+            row_kind=ROW_SWAP_MAKEUP,
+        ))
+    return out
+
+
 def daily_board(db: Session, semester_id: int, on: date) -> list[LogEntry]:
     """某一天全校的調代課異動,依節次、班級排序。
 
     只看仍有效(未銷假)的假單;已因銷假取消的節次不列(那天沒有異動)。
-    包含尚未處置(待處理)的節次,好讓組長一眼看出還有幾節沒排代課。
+    包含尚未處置(待處理)的節次,好讓組長一眼看出還有幾節沒排代課;
+    也包含當天因調課回來補課的節次。
     """
     rows = db.scalars(
         select(AffectedPeriod)
@@ -143,7 +227,8 @@ def daily_board(db: Session, semester_id: int, on: date) -> list[LogEntry]:
         .order_by(AffectedPeriod.period_no, AffectedPeriod.class_names)
     ).unique().all()
     subs = _subs_map(db, [r.id for r in rows])
-    return [_build(r, subs.get(r.id)) for r in rows]
+    entries = [_build(r, subs.get(r.id)) for r in rows] + _makeup_rows(db, semester_id, on)
+    return sorted(entries, key=lambda e: (e.period_no, e.class_names))
 
 
 def query(

@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#回滾升級後想退回舊版">回滾(升級後想退回舊版)</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -226,14 +226,14 @@
       <li>各版本的變更內容見專案根目錄的 <a href="../../CHANGELOG.html">CHANGELOG.md</a>;破壞性變更(若有)會在該版本明確標註 ⚠️ 與對應處置。</li>
       </ul>
       <hr />
-      <h2 id="回滾升級後想退回舊版">回滾(升級後想退回舊版)</h2>
-      <p>因為資料與映像分離,回滾映像很單純:</p>
+      <h2 id="退回舊版升級後發現問題">退回舊版(升級後發現問題)</h2>
+      <p>因為資料與映像分離,換回舊版映像很單純:</p>
       <pre><code class="language-bash"># .env 改回舊版本號,例如 IMAGE_TAG=v1.1.0
       docker compose pull
       docker compose up -d
       </code></pre>
       <blockquote>
-      <p>⚠️ <strong>注意資料庫遷移方向</strong>:若新版本引入了資料表結構變更,退回舊映像後其程式可能不認得新結構。<strong>最保險的回滾是:退回舊映像 + 還原「升級前那份備份」</strong>(見<a href="backup.html">備份指南</a>的還原流程)。若該次升級的 CHANGELOG 未標註 schema 變更,則單純換映像即可。</p>
+      <p>⚠️ <strong>注意資料庫遷移方向</strong>:若新版本引入了資料表結構變更,退回舊映像後其程式可能不認得新結構。<strong>最保險的退回方式是:退回舊映像 + 還原「升級前那份備份」</strong>(見<a href="backup.html">備份指南</a>的還原流程)。若該次升級的 CHANGELOG 未標註 schema 變更,則單純換映像即可。</p>
       </blockquote>
       <hr />
       <h2 id="升級檢查清單">升級檢查清單</h2>

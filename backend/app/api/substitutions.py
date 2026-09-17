@@ -3,7 +3,9 @@
 處置是行政決定,一律限教學組長/教務主任。教師端不在這裡處理(只在通知端「確認收到」)。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from dataclasses import asdict
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -18,9 +20,11 @@ from app.schemas.substitution import (
     CandidateOut,
     RecommendationOut,
     SubstitutionOut,
+    SwapOptionsOut,
 )
 from app.services import substitution_recommender as recommender
 from app.services import substitutions as sub_service
+from app.services import swap_options
 
 router = APIRouter(tags=["substitutions"])
 
@@ -68,6 +72,19 @@ def get_recommendations(
     )
 
 
+@router.get("/affected-periods/{affected_id}/swap-options", response_model=SwapOptionsOut)
+def get_swap_options(
+    affected_id: int,
+    teacher_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: User = Depends(editor),
+):
+    """調課:列出本週與下週可對調的節次。未指定教師時只找也教這個班的老師。"""
+    affected = _get_affected(db, affected_id)
+    return SwapOptionsOut.model_validate(
+        asdict(swap_options.search(db, affected, teacher_id=teacher_id)))
+
+
 @router.put("/affected-periods/{affected_id}/substitution", response_model=SubstitutionOut)
 def assign_substitution(
     affected_id: int,
@@ -83,6 +100,7 @@ def assign_substitution(
             sub_type=body.type, handler_teacher_id=body.handler_teacher_id,
             counts_toward_hours=body.counts_toward_hours, funding_source=body.funding_source,
             swap_entry_id=body.swap_entry_id, swap_date=body.swap_date,
+            swap_period_no=body.swap_period_no,
             created_by_user_id=user.id, created_by_name=user.username,
         )
     except sub_service.SubstitutionError as exc:

@@ -78,7 +78,7 @@ CI 的 `e2e` job 會在 runner 上建置三個映像、起全棧、seed 帳號�
 
 ### 操作手冊截圖
 
-`npm run e2e:manual` 會產生 `docs/manual-img/` 的 10 張截圖。它**自備示範資料**(115 學年度、8 位教師、3 班、24 筆配課),所以只要給它一套空的站台即可:
+`npm run e2e:manual` 會產生 `docs/manual-img/` 的 11 張截圖。它**自備示範資料**(115 學年度、8 位教師、3 班、24 筆配課),所以只要給它一套空的站台即可:
 
 ```bash
 # 另起一套獨立的棧(空資料庫),.env 設 ADMIN_PASSWORD=DemoSetup2026!

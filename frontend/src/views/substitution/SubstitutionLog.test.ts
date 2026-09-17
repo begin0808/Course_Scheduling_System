@@ -11,7 +11,7 @@ const entry = (id: number) => ({
   absent_teacher_id: 1, absent_teacher_name: '王師', leave_type: 'sick', leave_type_label: '病假',
   status: 'pending', status_label: '待處理', disposed: false, sub_type: null, sub_type_label: null,
   handler_teacher_id: null, handler_name: null, counts_toward_hours: null, swap_date: null,
-  swap_period_name: '', swap_class_names: '', swap_subject_name: '', note: '',
+  swap_period_name: '', swap_class_names: '', swap_subject_name: '', note: '', row_kind: 'leave',
 })
 
 function stubFetch(rows: number) {

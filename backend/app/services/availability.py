@@ -198,6 +198,25 @@ class Availability:
         return Interval(affected.weekday, affected.period_no,
                         affected.start_time, affected.end_time)
 
+    def entry_period(self, entry: ScheduleEntry, period_no: int | None = None) -> Period | None:
+        """課表格位的某一節在其班級節次表裡的那一節(取名稱、類型與起訖時間用)。
+
+        `period_no` 為空取起始節次;連堂格位可指定其中任一節。
+        """
+        table_id = self._table_of_assignment(entry.course_assignment_id)
+        no = entry.period_no if period_no is None else period_no
+        return self._period(table_id, entry.weekday, no) if table_id else None
+
+    def entry_slot(self, entry: ScheduleEntry, period_no: int | None = None) -> Interval:
+        """課表格位某一節的牆鐘區間;節次表查不到時退化為節次號。"""
+        no = entry.period_no if period_no is None else period_no
+        p = self.entry_period(entry, no)
+        return Interval(entry.weekday, no,
+                        p.start_time if p else None, p.end_time if p else None)
+
+    def is_on_leave(self, teacher_id: int, when: date, slot: Interval) -> bool:
+        return self._on_leave(teacher_id, when, slot)
+
     def teaching_at(self, teacher_id: int, slot: Interval) -> Interval | None:
         for iv in self._teaching_map().get(teacher_id, []):
             if iv.overlaps(slot):

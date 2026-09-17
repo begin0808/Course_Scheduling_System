@@ -30,6 +30,9 @@ export interface LogEntry {
   swap_class_names: string
   swap_subject_name: string
   note: string
+  // leave:請假的那一節。swap_makeup:調課補課日被換來的那一節——原任教師是對調的老師、
+  // 接手是回來補課的請假教師,swap_* 反過來指回請假那一節
+  row_kind: 'leave' | 'swap_makeup'
 }
 
 export interface DailyBoard {
