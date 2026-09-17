@@ -125,7 +125,7 @@ E2E_BASE_URL=http://localhost:<port> npm run e2e:manual
    ```
 
 6. 在 GitHub 建立 Release,關聯該標籤,貼上該版 CHANGELOG 內容,勾選 **Set as the latest release**。
-7. **發布前最後一道**:在乾淨環境拉**正式映像**跑一次(不是本機建的那份)——CI 驗的是從原始碼建的映像,使用者拉到的是 `images` job 產出的那份,兩者從未同時被驗證過。至少走到:六容器 healthy → 首次登入改密 → 設定精靈 → 系統管理頁 → 立即備份。
+7. **發布前最後一道**:在乾淨環境拉**正式映像**跑一次(不是本機建的那份)——CI 驗的是從原始碼建的映像,使用者拉到的是 `images` job 產出的那份,兩者從未同時被驗證過。至少走到:六容器 healthy → 首次登入改密 → 設定精靈 → 系統管理頁(**「系統版本」顯示的目前版本須等於本次標籤**,確認 `APP_VERSION` 有注入)→ 立即備份。
 8. 使用者升級:`.env` 設 `IMAGE_TAG=<版本>` → `docker compose pull && docker compose up -d`(見 [docs/deploy/upgrade.md](docs/deploy/upgrade.md))。`IMAGE_TAG` 即對應此處推送的版本標籤。
 
 ## 授權

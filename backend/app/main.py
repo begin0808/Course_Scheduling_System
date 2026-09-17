@@ -24,6 +24,7 @@ from app.api import (
     substitution_log,
     substitution_stats,
     substitutions,
+    system,
     timetables,
     wizard,
 )
@@ -74,7 +75,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="開源免費的排課與調代課系統 API",
-    version="0.1.0",
+    version=settings.app_version,
     # 正式部署預設關閉(見 settings.api_docs_enabled);None = 該路由不存在,回 404
     docs_url="/api/docs" if settings.api_docs_enabled else None,
     openapi_url="/api/openapi.json" if settings.api_docs_enabled else None,
@@ -91,6 +92,7 @@ app.add_middleware(
 
 # 所有 API 掛在 /api 前綴之下(Caddy 依此前綴分流)
 app.include_router(health.router, prefix="/api")
+app.include_router(system.router, prefix="/api")
 app.include_router(auth.router, prefix="/api/auth")
 app.include_router(semesters.router, prefix="/api")
 app.include_router(basedata.router, prefix="/api")

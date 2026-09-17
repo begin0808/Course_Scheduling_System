@@ -292,6 +292,8 @@ test('調代課處理:調課列出可對調節次,點選後成立並上看板', 
   await expect(slips.getByTestId('slip-teacher').nth(1).getByTestId('slip-cell')).toHaveText(
     new RegExp(`${THU}\\s*國文\\s*王師\\s*\\[調${mmdd(WED)}_31\\]`))
   await expect(slips.getByTestId('slip-class').getByTestId('slip-cell')).toHaveCount(2)
+  // 表頭斜線畫在內容裡(SVG),列印不會像背景一樣被瀏覽器略過
+  await expect(slips.locator('th.corner svg line')).toHaveCount(3)
   await slips.screenshot({ path: `${SHOTS}/sub-8-swap-slips.png`, fullPage: true })
   await slips.close()
 

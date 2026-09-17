@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { NButton, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NMenu, NSpace, NTag, NText } from 'naive-ui'
-import { computed, h, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import NotificationBell from '@/components/NotificationBell.vue'
+import { getUpdateStatus, getVersion } from '@/api/system'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -75,6 +76,22 @@ const menuOptions = computed(() => {
 
 const activeKey = computed(() => route.name as string)
 
+// 版本號:回報問題時要知道對方是哪一版;升級後也靠它確認升級成功
+const version = ref('')
+// 有新版本時只提醒管理員(升級是管理員的事,別讓教師看了緊張)
+const newVersion = ref('')
+onMounted(async () => {
+  try {
+    version.value = (await getVersion()).version
+    if (auth.hasRole('admin')) {
+      const st = await getUpdateStatus()
+      if (st.update_available) newVersion.value = st.latest
+    }
+  } catch {
+    // 版本資訊只是輔助,取不到不影響任何功能
+  }
+})
+
 async function onLogout() {
   await auth.logout()
   router.push({ name: 'login' })
@@ -103,11 +120,20 @@ async function onLogout() {
         :options="menuOptions"
         :default-expanded-keys="['basedata-group', 'scheduling-group']"
       />
+      <div v-if="version && !collapsed" class="version" data-testid="app-version">
+        版本 {{ version }}
+      </div>
     </n-layout-sider>
 
     <n-layout>
       <n-layout-header bordered style="padding: 12px 24px">
         <n-space justify="end" align="center">
+          <router-link
+            v-if="newVersion" :to="{ name: 'system' }" class="update-link"
+            data-testid="update-badge"
+          >
+            <n-tag type="warning" size="small" round>有新版本 {{ newVersion }}</n-tag>
+          </router-link>
           <notification-bell />
           <n-text v-if="auth.user">{{ auth.user.display_name }}</n-text>
           <n-tag v-for="label in roleLabels" :key="label" type="info" size="small">
@@ -123,3 +149,8 @@ async function onLogout() {
     </n-layout>
   </n-layout>
 </template>
+
+<style scoped>
+.version { padding: 12px 20px; font-size: 12px; opacity: 0.6; }
+.update-link { text-decoration: none; }
+</style>

@@ -24,6 +24,14 @@ test('系統管理:三張卡片渲染、可立即備份並刪除備份', async (
   await expect(page.getByTestId('smtp-status')).toBeVisible()
   await expect(page.getByTestId('backup-card')).toBeVisible()
   await expect(page.getByText('重新啟動設定精靈')).toBeVisible()
+
+  // 系統版本(v1.2.3):目前版本一定要有;是否有新版取決於 GitHub 與建置版號,這裡不假設結果,
+  // 只要求「查到了」或「明講查不到」其中之一——絕不能卡在讀取中或整張卡片壞掉
+  const versionCard = page.getByTestId('version-card')
+  await expect(versionCard.getByTestId('version-current')).not.toHaveText('讀取中…', { timeout: 20_000 })
+  await expect(page.getByTestId('app-version')).toContainText('版本')
+  await expect(versionCard.getByTestId('version-check')).toBeVisible()
+  await expect(versionCard.getByText(/上次檢查/)).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/system-1-page.png` })
 
   // 立即備份 → 清單多一列(這條路徑會打到 worker-ops 的 pg_dump)

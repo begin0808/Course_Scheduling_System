@@ -91,7 +91,11 @@ onMounted(async () => {
         </colgroup>
         <thead>
           <tr>
-            <th colspan="2" class="corner" />
+            <th colspan="2" class="corner">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <line x1="0" y1="0" x2="100" y2="100" vector-effect="non-scaling-stroke" />
+              </svg>
+            </th>
             <th v-for="(day, d) in week.days" :key="day">
               {{ DAY_NAMES[d] }}<br><span class="date">{{ day }}</span>
             </th>
@@ -149,9 +153,10 @@ onMounted(async () => {
 .grid th, .grid td { border: 1px solid #000; text-align: center; vertical-align: middle; }
 .grid th { font-weight: normal; font-size: 14px; height: 72px; border-bottom-width: 2px; }
 .grid .date { font-size: 13px; }
-.corner {
-  background: linear-gradient(to top right, transparent calc(50% - 1px), #000 50%, transparent calc(50% + 1px));
-}
+/* 斜線用 SVG 畫在格子內容裡:用背景畫的話,瀏覽器列印預設不印背景,紙本上會變空白格 */
+.corner { position: relative; padding: 0; }
+.corner svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.corner line { stroke: #000; stroke-width: 1; }
 .grid td { height: 70px; font-size: 13px; line-height: 1.35; }
 .grid td.ordinal { font-size: 20px; }
 .grid td.time { font-size: 11px; line-height: 1.2; }

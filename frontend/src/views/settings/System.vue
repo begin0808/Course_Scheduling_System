@@ -17,6 +17,8 @@ import {
   saveSchedulingSettings, saveSchoolSettings,
 } from '@/api/assignments'
 import { getSmtp, saveSmtp } from '@/api/notifications'
+import { RELEASES_URL, UPGRADE_GUIDE_URL, getUpdateStatus } from '@/api/system'
+import type { UpdateStatus } from '@/api/system'
 import { resetWizard } from '@/api/wizard'
 import { useAuthStore } from '@/stores/auth'
 import { useWizardStore } from '@/stores/wizard'
@@ -28,6 +30,31 @@ const wizard = useWizardStore()
 const auth = useAuthStore()
 
 const isAdmin = () => auth.hasRole('admin')
+
+// ── 系統版本與新版本提醒 ──
+const update = ref<UpdateStatus | null>(null)
+const checkingUpdate = ref(false)
+
+function twTime(iso: string): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('zh-TW', { hour12: false })
+}
+
+async function loadUpdate(refresh = false) {
+  checkingUpdate.value = true
+  try {
+    update.value = await getUpdateStatus(refresh)
+    if (refresh && update.value.error) message.warning(update.value.error)
+    else if (refresh) {
+      message.success(update.value.update_available
+        ? `有新版本 ${update.value.latest}` : '目前已是最新版本')
+    }
+  } catch (e) {
+    message.error((e as ApiError).message || '無法取得版本資訊')
+  } finally {
+    checkingUpdate.value = false
+  }
+}
 
 // ── 備份與還原 ──
 const backups = ref<Backup[]>([])
@@ -143,6 +170,8 @@ async function onSaveSchool() {
 
 onMounted(async () => {
   if (!isAdmin()) return
+  // 查新版本可能要連外等幾秒,不擋住其他設定載入
+  void loadUpdate()
   const s = await getSmtp()
   smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender, use_tls: s.use_tls }
   configured.value = s.configured
@@ -220,6 +249,65 @@ async function onResetWizard() {
 <template>
   <n-space vertical size="large">
     <h1 style="margin: 0">系統管理</h1>
+
+    <n-card v-if="isAdmin()" title="系統版本" data-testid="version-card">
+      <n-space vertical>
+        <n-space align="center">
+          <n-text style="width: 72px">目前版本</n-text>
+          <n-tag :type="update?.update_available ? 'warning' : 'success'" data-testid="version-current">
+            {{ update?.current ?? '讀取中…' }}
+          </n-tag>
+          <template v-if="update?.enabled && update.latest">
+            <n-text depth="3" style="margin-left: 12px">最新正式版</n-text>
+            <n-tag data-testid="version-latest">{{ update.latest }}</n-tag>
+          </template>
+        </n-space>
+
+        <n-alert
+          v-if="update?.update_available" type="warning" :bordered="false"
+          data-testid="version-update"
+        >
+          有新版本 <b>{{ update.latest }}</b> 可以升級。升級前請先「立即備份」,
+          再照升級指南把 <code>.env</code> 的 <code>IMAGE_TAG</code> 改成 {{ update.latest }},
+          執行 <code>docker compose pull</code> 與 <code>docker compose up -d</code>。
+          系統不會自動升級。
+          <div style="margin-top: 6px">
+            <a :href="update.latest_url || RELEASES_URL" target="_blank" rel="noopener">這一版更新了什麼</a>
+            ・
+            <a :href="UPGRADE_GUIDE_URL" target="_blank" rel="noopener">升級指南</a>
+          </div>
+        </n-alert>
+        <n-alert
+          v-else-if="update?.enabled && update.latest && update.current !== 'dev'
+            && !update.current.startsWith('main')"
+          type="success" :bordered="false" data-testid="version-uptodate"
+        >
+          目前已是最新版本。
+        </n-alert>
+        <n-alert
+          v-if="update?.enabled && update.error" type="info" :bordered="false"
+          data-testid="version-error"
+        >
+          {{ update.error }}。不影響系統任何功能;可到
+          <a :href="RELEASES_URL" target="_blank" rel="noopener">GitHub Releases</a> 自行查看最新版本。
+        </n-alert>
+        <n-text v-if="update && !update.enabled" depth="3" data-testid="version-disabled">
+          新版本檢查已關閉(<code>.env</code> 設定 <code>UPDATE_CHECK_ENABLED=false</code>)。
+        </n-text>
+
+        <n-space v-if="update?.enabled" align="center">
+          <n-button
+            size="small" :loading="checkingUpdate" data-testid="version-check"
+            @click="loadUpdate(true)"
+          >
+            立即檢查
+          </n-button>
+          <n-text v-if="update.checked_at" depth="3" style="font-size: 13px">
+            上次檢查:{{ twTime(update.checked_at) }}(每天自動檢查一次,只讀取 GitHub 公開的版本資訊,不會傳出學校資料)
+          </n-text>
+        </n-space>
+      </n-space>
+    </n-card>
 
     <n-card v-if="isAdmin()" title="學校資訊" data-testid="school-card">
       <n-space vertical>
