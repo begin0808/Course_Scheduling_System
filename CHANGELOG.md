@@ -4,14 +4,19 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.0**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.1.2 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.1**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.0 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.1] — 2026-09-17
 
 **補上「調課」的操作畫面。** 一位已上線使用的國中教學組長回饋:設定、排課、配課、代課都順,但請假的節次「只能代課、找不到調課」。
 調課的後端(資料表、四項衝突檢查、看板顯示)在 v1.0.0 就已完成,只是「調代課處理」頁一直沒有調課按鈕,組長從介面上根本用不到。
 
 **本版沒有資料表結構變更**,升級只需換映像;若要退回 v1.2.0,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.1`
 
 ### 新增
 - **調課**:「調代課處理」展開節次後,「或改採」多了「調課」。系統列出請假那週起**兩週內**(可放寬到三週、四週)雙方都有空的每一個可對調節次——「當週互調」「跟下週調」「本週與隔三週調」都能在清單裡找到,點一下即成立。
@@ -168,7 +173,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.0...v1.1.1
