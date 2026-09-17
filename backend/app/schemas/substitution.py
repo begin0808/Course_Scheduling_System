@@ -70,7 +70,7 @@ class SwapPartnerOut(BaseModel):
 
 
 class SwapOptionsOut(BaseModel):
-    """可對調節次:請假那週的週一到下週日,乙能來、甲能補的每一個組合。"""
+    """可對調節次:請假那週起數週內,乙能來、甲能補的每一個組合。"""
 
     affected_period_id: int
     date_from: date

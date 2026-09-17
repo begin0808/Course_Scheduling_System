@@ -2,7 +2,7 @@
 
 調課的語意見 `models/substitution.py`:甲請假那節由乙來上,甲之後補乙的一節。
 後端 M4-2 只會「驗」組長選好的組合;但組長不會自己去翻乙哪一節、哪一天能換——
-這裡替他列出**本週與下週**所有真的換得成的組合。
+這裡替他列出請假那週起**數週內**(預設兩週,最多四週)所有真的換得成的組合。
 
 **列出的與送出時驗的必須是同一套規則**,否則清單上點得到、按下去卻被拒絕。
 所以逐項檢查集中在 `SwapChecker`,`substitutions._validate_swap` 也呼叫它。
@@ -143,10 +143,19 @@ class SwapSearch:
     partners: list[SwapPartner] = field(default_factory=list)
 
 
-def search_window(on: date) -> tuple[date, date]:
-    """請假那天所在週的週一,到下週日。組長實務上是「當週互調,或和下週調」。"""
+DEFAULT_WEEKS = 2
+MAX_WEEKS = 4
+
+
+def search_window(on: date, weeks: int = DEFAULT_WEEKS) -> tuple[date, date]:
+    """請假那天所在週的週一,往後共 `weeks` 週(到最後一週的週日)。
+
+    預設兩週(當週互調或和下週調);使用學校實務上常有隔週、甚至「本週與隔三週」對調,
+    故最多開到四週。範圍再大,清單會長到組長找不到要的那一節。
+    """
+    weeks = max(1, min(weeks, MAX_WEEKS))
     monday = on - timedelta(days=on.isoweekday() - 1)
-    return monday, monday + timedelta(days=13)
+    return monday, monday + timedelta(days=7 * weeks - 1)
 
 
 def _class_ids_of(db: Session, assignment_id: int | None) -> set[int]:
@@ -181,6 +190,7 @@ def search(
     affected: AffectedPeriod,
     *,
     teacher_id: int | None = None,
+    weeks: int = DEFAULT_WEEKS,
     availability: Availability | None = None,
 ) -> SwapSearch:
     """列出可對調的節次。
@@ -189,7 +199,7 @@ def search(
     指定時只看那一位(組長心裡已經有人選)。
     """
     av = availability or Availability(db, affected.semester_id)
-    date_from, date_to = search_window(affected.date)
+    date_from, date_to = search_window(affected.date, weeks)
     result = SwapSearch(affected_period_id=affected.id, date_from=date_from, date_to=date_to)
     if av.timetable is None:
         return result

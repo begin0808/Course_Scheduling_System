@@ -76,13 +76,14 @@ def get_recommendations(
 def get_swap_options(
     affected_id: int,
     teacher_id: int | None = Query(default=None),
+    weeks: int = Query(default=swap_options.DEFAULT_WEEKS, ge=1, le=swap_options.MAX_WEEKS),
     db: Session = Depends(get_db),
     _: User = Depends(editor),
 ):
-    """調課:列出本週與下週可對調的節次。未指定教師時只找也教這個班的老師。"""
+    """調課:列出請假那週起 `weeks` 週內可對調的節次。未指定教師時只找也教這個班的老師。"""
     affected = _get_affected(db, affected_id)
     return SwapOptionsOut.model_validate(
-        asdict(swap_options.search(db, affected, teacher_id=teacher_id)))
+        asdict(swap_options.search(db, affected, teacher_id=teacher_id, weeks=weeks)))
 
 
 @router.put("/affected-periods/{affected_id}/substitution", response_model=SubstitutionOut)

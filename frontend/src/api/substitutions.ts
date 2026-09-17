@@ -83,6 +83,11 @@ export const assignSubstitution = (affectedId: number, body: AssignBody): Promis
 export const clearSubstitution = (affectedId: number): Promise<{ status: string }> =>
   apiDelete(`/affected-periods/${affectedId}/substitution`)
 
-/** 未指定教師時,只找也教這個班的老師 */
-export const getSwapOptions = (affectedId: number, teacherId?: number | null): Promise<SwapOptions> =>
-  apiGet(`/affected-periods/${affectedId}/swap-options${teacherId ? `?teacher_id=${teacherId}` : ''}`)
+/** 未指定教師時,只找也教這個班的老師;weeks = 從請假那週起找幾週(1–4) */
+export const getSwapOptions = (
+  affectedId: number, teacherId?: number | null, weeks = 2,
+): Promise<SwapOptions> => {
+  const q = new URLSearchParams({ weeks: String(weeks) })
+  if (teacherId) q.set('teacher_id', String(teacherId))
+  return apiGet(`/affected-periods/${affectedId}/swap-options?${q}`)
+}

@@ -261,6 +261,15 @@ test('調代課處理:調課列出可對調節次,點選後成立並上看板', 
   await expect(swapPanel).not.toContainText(short(WED)) // 請假當天不能補
   await page.screenshot({ path: `${SHOTS}/sub-4-swap-options.png` })
 
+  // 放寬到 4 週:「本週與隔三週」的週四出現
+  const [ty, tm, td] = THU.split('-').map(Number)
+  const thu3 = new Date(ty, tm - 1, td + 21)
+  const thu3Label = `${thu3.getMonth() + 1}/${thu3.getDate()}(週四)`
+  await expect(swapPanel).not.toContainText(thu3Label)
+  await swapPanel.getByTestId('sub-swap-weeks').click()
+  await page.locator('.n-base-select-option', { hasText: '往後共 4 週' }).click()
+  await expect(swapPanel).toContainText(thu3Label)
+
   await options.first().click()
   await expect(page.getByText('已和 陳師 調課')).toBeVisible()
   const period = page.getByTestId('sub-period').first()
