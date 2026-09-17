@@ -4,9 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.3**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.2 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.4**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.3 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.4] — 2026-09-17
+
+**調代課處理一眼看出「怎麼處置的」。** 使用學校開始同時用代課與調課後,清單上只寫「→ 陳師」分不出是哪一種,調課也看不到請假的老師哪天要回來補課。
+
+**本版沒有資料表結構變更**,升級只需換映像;若要退回,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.4`
 
 ### 改善
 - **「調代課處理」寫出處置方式**:已處置的節次原本只顯示「→ 陳師」,分不出是代課還是調課。現在寫成「代課 → 陳師」「調課 → 陳師(王師 10/8(週四) 第二節補課)」;自習、不處理也會標示。請假清單 API 每一節多了 `swap_date`、`swap_period_name`。
@@ -226,7 +235,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.0...v1.2.1
