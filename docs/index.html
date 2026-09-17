@@ -580,6 +580,10 @@
         <div class="ch-head"><span class="ch-num">10</span><h2>系統管理</h2></div>
         <p><span class="path"><b>系統管理</b></span>(限<span class="rb admin">系統管理員</span>)</p>
 
+        <h3>系統版本與新版本提醒</h3>
+        <p>頁面最上方的<strong>系統版本</strong>卡片會顯示<strong>目前版本</strong>與 GitHub 上的<strong>最新正式版</strong>。有新版本時,卡片會提示並附上「這一版更新了什麼」與「升級指南」的連結,右上角也會出現「有新版本」的標籤(只有系統管理員看得到)。左側選單最下方則隨時顯示目前版本,回報問題時很方便。</p>
+        <div class="cal note"><div class="lab">📌 只提醒,不會自動升級</div><p>升級一定由學校自己決定:先「立即備份」,再照升級指南修改 <code>.env</code> 的 <code>IMAGE_TAG</code>、執行 <code>docker compose pull</code> 與 <code>docker compose up -d</code>。系統每天最多查一次 GitHub 公開的版本資訊,不會傳出學校資料;主機不能連外時只會顯示「無法連線」,不影響任何功能。不想讓主機連外,可在 <code>.env</code> 設 <code>UPDATE_CHECK_ENABLED=false</code> 關閉。</p></div>
+
         <h3>學校資訊</h3>
         <p><strong>校名</strong>——顯示在介面、匯出的課表(Excel / PDF / PNG)、代課通知信與 A4 公告單上。改完立即生效,不需重新啟動系統。</p>
         <div class="cal note"><div class="lab">📌 注意</div><p>安裝時 <code>.env</code> 的 <code>SCHOOL_NAME</code> 只是<strong>初始值</strong>;之後一律以這裡設定的為準。舊系統升級後若沒改過,仍沿用原本的值,不會突然變掉。</p></div>

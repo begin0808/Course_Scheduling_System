@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     # 開發用 compose 會顯式打開(M6-5)。
     api_docs_enabled: bool = False
 
+    # 系統版本:建置映像時由 CI 以 build-arg 注入(如 v1.2.3);自行從原始碼建置未帶時為 dev
+    app_version: str = "dev"
+    # 新版本提醒:管理員在「系統管理」看到有新版時的提示。最多一天向 GitHub 查一次公開的
+    # Release 資訊,不送出任何學校資料;不想讓主機連外可設 false(v1.2.3)。
+    update_check_enabled: bool = True
+    update_check_url: str = (
+        "https://api.github.com/repos/begin0808/Course_Scheduling_System/releases/latest"
+    )
+
     @model_validator(mode="after")
     def _harden(self) -> "Settings":
         # A:SECRET_KEY 仍為預設/範例值 → 換隨機金鑰,避免以公開金鑰簽署 session

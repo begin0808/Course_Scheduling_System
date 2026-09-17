@@ -255,6 +255,12 @@ jobs:
             echo "value=linux/amd64" >> "$GITHUB_OUTPUT"
             echo "channel=main" >> "$GITHUB_OUTPUT"
           fi
+          # 注入映像的系統版本:版本標籤即版號(v1.2.3);main 為 main-<短 sha>(不參與新版比較)
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "app_version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "app_version=main-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: 登入 GHCR
@@ -269,6 +275,7 @@ jobs:
           context: ./backend
           target: base
           platforms: ${{ steps.platforms.outputs.value }}
+          build-args: APP_VERSION=${{ steps.platforms.outputs.app_version }}
           push: true
           # ref_name:main push 為 "main";版本標籤推送則為 "v1.0.0"(供 .env 的 IMAGE_TAG 釘選)
           tags: |
@@ -283,6 +290,7 @@ jobs:
           context: ./backend
           target: worker
           platforms: ${{ steps.platforms.outputs.value }}
+          build-args: APP_VERSION=${{ steps.platforms.outputs.app_version }}
           push: true
           tags: |
             ${{ env.IMAGE_BASE }}-worker:${{ steps.platforms.outputs.channel }}

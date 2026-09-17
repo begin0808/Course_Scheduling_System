@@ -25,6 +25,11 @@ COPY app ./app
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
+# 系統版本(v1.2.3):CI 打版本標籤時以 --build-arg APP_VERSION=v1.2.3 注入,
+# 系統管理頁據此顯示目前版本並判斷是否有新版。放在最後,改版號不會讓前面的層失效。
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 EXPOSE 8000
 
 ENTRYPOINT ["./entrypoint.sh"]
