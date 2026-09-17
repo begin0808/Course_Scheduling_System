@@ -108,7 +108,7 @@ test('調代課處理:推薦同科優先、過濾有課者,指派後標記已確
   await expect(page.getByText('已指派 陳師 代課')).toBeVisible()
   const period = page.getByTestId('sub-period').first()
   await expect(period).toContainText('已確認')
-  await expect(period.getByTestId('sub-handler')).toContainText('陳師')
+  await expect(period.getByTestId('sub-handler')).toContainText('代課 → 陳師')
   await page.screenshot({ path: `${SHOTS}/sub-2-assigned.png` })
 
   // 撤回 → 退回待處理
@@ -274,7 +274,8 @@ test('調代課處理:調課列出可對調節次,點選後成立並上看板', 
   await expect(page.getByText('已和 陳師 調課')).toBeVisible()
   const period = page.getByTestId('sub-period').first()
   await expect(period).toContainText('已確認')
-  await expect(period.getByTestId('sub-handler')).toContainText('陳師')
+  // 清單寫出處置方式與補課時間,分得出是調課不是代課
+  await expect(period.getByTestId('sub-handler')).toContainText(`調課 → 陳師(王師 ${short(THU)} 第二節補課)`)
 
   // 調課通知單:陳師、王師各一張教師單 + 701 班級單;格子寫「日期/科目/老師/[調MM-DD_星期節次]」
   const [slips] = await Promise.all([

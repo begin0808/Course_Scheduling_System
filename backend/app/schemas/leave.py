@@ -4,6 +4,9 @@ from datetime import date, datetime, time
 
 from pydantic import BaseModel, Field
 
+# 欄位名 date 會遮蔽同名型別(mypy 判為變數),其後的欄位以別名標註
+_Date = date
+
 
 class AffectedPeriodOut(BaseModel):
     id: int
@@ -20,6 +23,9 @@ class AffectedPeriodOut(BaseModel):
     handler_teacher_id: int | None = None
     handler_name: str | None = None
     sub_type: str | None = None  # 已處置時的處置方式(substitute/swap/…),未處置為空
+    # 調課才有:請假教師回來補課的那一節(讓清單直接寫出「王師 10/8 第二節補課」)
+    swap_date: _Date | None = None
+    swap_period_name: str = ""
 
     model_config = {"from_attributes": True}
 

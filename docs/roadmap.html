@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="v1.1 路線圖(Fable 5 定案,2026-07-13) — 排課與調代課系統開發文件">
-<title>v1.1 路線圖(Fable 5 定案,2026-07-13) · 排課與調代課系統</title>
+<meta name="description" content="路線圖(2026-09-17 更新) — 排課與調代課系統開發文件">
+<title>路線圖(2026-09-17 更新) · 排課與調代課系統</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🛠</text></svg>">
 <!-- 本檔由 scripts/build_docs.py 從 docs/roadmap.md 自動產生,請勿直接編輯。 -->
 <style>
@@ -172,159 +172,141 @@
 <a class="doc here" href="roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#已在-2026-07-13-出貨不列入-v11">已在 2026-07-13 出貨(不列入 v1.1)</a><a class="lv2" href="#v11-範圍依實作順序">v1.1 範圍(依實作順序)</a><a class="lv3" href="#1-e2e-硬編日期到期修復-s有死線2026-11-前">1. E2E 硬編日期到期修復 —— S,有死線:2026-11 前</a><a class="lv3" href="#2-背景任務佇列拆分default-ops-mlv11-旗艦項">2. 背景任務佇列拆分(default / ops)—— M/L,v1.1 旗艦項</a><a class="lv3" href="#3-部分排課三合一排不下的課不再炸整鍋-m">3. 部分排課三合一(排不下的課不再炸整鍋)—— M</a><a class="lv3" href="#4-開新學期複製補全-s兩項一起">4. 開新學期複製補全 —— S(兩項一起)</a><a class="lv3" href="#5-小型加固批次-全部-s湊一批出貨">5. 小型加固批次 —— 全部 S,湊一批出貨</a><a class="lv2" href="#v12明確延後不是忘記">v1.2+(明確延後,不是忘記)</a><a class="lv2" href="#v2需要外部條件">v2(需要外部條件)</a><a class="lv2" href="#刻意不做除非出現真實個案">刻意不做(除非出現真實個案)</a><a class="lv2" href="#依賴與順序總覽">依賴與順序總覽</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#已出貨">已出貨</a><a class="lv2" href="#v13-範圍依實作順序">v1.3 範圍(依實作順序)</a><a class="lv3" href="#1-api-映像拆掉-ortools-m">1. api 映像拆掉 ortools —— M</a><a class="lv3" href="#2-前端改按需匯入-naive-ui-m">2. 前端改按需匯入 Naive UI —— M</a><a class="lv3" href="#3-科目匯入支援主科欄-s">3. 科目匯入支援「主科」欄 —— S</a><a class="lv3" href="#4-配課-api-直接擋群組節數不一致-s">4. 配課 API 直接擋群組節數不一致 —— S</a><a class="lv3" href="#5-還原上傳改串流落地-s">5. 還原上傳改串流落地 —— S</a><a class="lv3" href="#6-cors-設定文件化與格式驗證-s">6. CORS 設定文件化與格式驗證 —— S</a><a class="lv3" href="#7-工程衛生-s">7. 工程衛生 —— S</a><a class="lv2" href="#等使用學校回饋再決定">等使用學校回饋再決定</a><a class="lv2" href="#v13-之後明確延後不是忘記">v1.3 之後(明確延後,不是忘記)</a><a class="lv2" href="#v2需要外部條件">v2(需要外部條件)</a><a class="lv2" href="#刻意不做除非出現真實個案">刻意不做(除非出現真實個案)</a><a class="lv2" href="#工作流程每項照做">工作流程(每項照做)</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
     <div class="wrap">
       <header class="head">
         <div class="eyebrow">DEVELOPER DOCS</div>
-        <h1>v1.1 路線圖(Fable 5 定案,2026-07-13)</h1>
+        <h1>路線圖(2026-09-17 更新)</h1>
         <div class="src">原始檔 <code>docs/roadmap.md</code> · <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/docs/roadmap.md">在 GitHub 上檢視</a></div>
       </header>
-      <p>v1.0.0 已於 2026-07-12 發行。本文件把 <code>tasks.md</code> 末尾的 Backlog(31 項)收斂成<strong>可執行的 v1.1 範圍</strong>,
-      並明確劃出「v1.2+ 再說」與「刻意不做」的界線。每項都回頭讀過實際程式碼確認現況;
-      與 Backlog 敘述不符者已註明。後續任何人(或模型)接手,以本文件為邊界。</p>
-      <p><strong>v1.1 的收錄標準</strong>:真實學校在一個學期內會實際踩到,或開源後會傷到採用信任。
-      <strong>目標時程</strong>:2026 年 8 月排課季前發布——ops 佇列與部分排課兩項正是排課季的痛點。</p>
+      <p>本文件是接手者(人或模型)的邊界:<strong>已完成什麼、下一步做什麼、刻意不做什麼</strong>。
+      每一項的「現況」都在 2026-09-17 回頭查過程式碼,不是照抄舊 Backlog。</p>
+      <p>上一版路線圖(v1.1 範圍,2026-07-13 定案)已全部出貨,原文見 git 歷史。</p>
+      <p><strong>收錄標準不變</strong>:真實學校在一個學期內會實際踩到,或開源後會傷到採用信任。
+      <strong>新增的判斷依據</strong>:已有學校實際上線使用(國中,每週都有研習調課),他們的回饋優先於推測性的需求。</p>
       <hr />
-      <h2 id="已在-2026-07-13-出貨不列入-v11">已在 2026-07-13 出貨(不列入 v1.1)</h2>
-      <ul>
-      <li><strong>E2E 迴歸套件納入 CI</strong>(原 Backlog「M0-3 E2E job」):CI 起全棧 + seed + Playwright 30 tests,
-        E2E 紅燈不發映像。同時涵蓋了「compose 煙霧測試」一項。</li>
-      <li><strong><code>npm ci</code> + lock 檔</strong>:Backlog 說「未提交 package-lock.json」——<strong>已過時</strong>,lock 檔早已入庫,
-        CI 已改用 <code>npm ci</code>。</li>
-      </ul>
-      <hr />
-      <h2 id="v11-範圍依實作順序">v1.1 範圍(依實作順序)</h2>
-      <h3 id="1-e2e-硬編日期到期修復-s有死線2026-11-前">1. E2E 硬編日期到期修復 —— S,<strong>有死線:2026-11 前</strong></h3>
-      <ul>
-      <li><strong>問題</strong>:多支 e2e spec 硬編未來日期(<code>2026-11-11</code>、學期 2026-09..2027-01);真實日期越過後
-        <code>clock.is_past_slot</code> 會拒絕代課指派,<strong>CI 將無聲轉紅</strong>。</li>
-      <li><strong>影響誰</strong>:所有貢獻者——CI 一紅,其他迴歸都看不見了。</li>
-      <li><strong>做法</strong>:以「今天起算的下一個週三」動態產生請假日,學期起訖跟著今天推算。</li>
-      <li><strong>不做的後果</strong>:2026-11-11 起 CI 全紅,E2E 防護網等於拆掉。</li>
-      </ul>
-      <h3 id="2-背景任務佇列拆分default-ops-mlv11-旗艦項">2. 背景任務佇列拆分(default / ops)—— M/L,v1.1 旗艦項</h3>
-      <ul>
-      <li><strong>問題</strong>(M5 複審 A 正解):單一 RQ worker 循序執行;60 班自動排課跑數分鐘期間,
-        組長按「匯出課表」「立即備份」會排隊到逾時失敗。資料安全洞已用 cancel-on-timeout +
-        還原前 409 封死,但<strong>體驗洞還在</strong>——排課季正是匯出最頻繁的時候。</li>
-      <li><strong>影響誰</strong>:排課季的教學組長,幾乎必踩。</li>
-      <li><strong>做法方向</strong>:<code>ops</code> 佇列(匯出/備份/還原)+ 第二個 worker 容器(同一 worker 映像、
-        <code>command: worker --queue ops</code>)。排課永遠只走 <code>default</code>,故 ops worker 不會載入 ortools 的
-        求解路徑,記憶體預算約 +512MB(<code>docker-compose.limits.yml</code> 同步調整)。
-        需更新:compose(5→6 容器)、<code>solver_busy()</code> 的佇列範圍、部署/升級文件、備份還原的 409 判定。</li>
-      <li><strong>先做的理由</strong>:牽動容器架構與記憶體預算,後面所有項目的文件與 E2E 都疊在定案後的架構上。</li>
-      <li><strong>不做的後果</strong>:每個排課季都有組長回報「匯出壞掉」,對信任的傷害最大。</li>
-      </ul>
-      <h3 id="3-部分排課三合一排不下的課不再炸整鍋-m">3. 部分排課三合一(排不下的課不再炸整鍋)—— M</h3>
-      <p>三項同一子系統,一次做完:</p>
-      <ul>
-      <li><strong>3a. 候選為空先 raise、輪不到 drop</strong>:<code>model_builder</code> 對「完全找不到可排時段」的課直接
-        <code>SolverInputError</code> → 整個部分排課失敗。但部分排課的承諾就是「排不下的列清單、其他照排」。
-        改為:建模前把候選為空的課移入未排清單,其餘正常建模。
-        <strong>不做的後果</strong>:資料越難排的學校,越用不了為他們設計的功能。</li>
-      <li><strong>3b. 未排清單持久化</strong>:目前只活在 Redis(24h TTL,<code>progress.py</code>);部分排課草稿可被 force
-        發布,之後<strong>沒有任何紀錄</strong>說哪些課沒排。改為隨草稿版本存 DB(新表或版本 JSON 欄),
-        報表與日後查詢都需要它。</li>
-      <li><strong>3c. 群組未排數灌水</strong>:<code>_unscheduled()</code> 按 assignment 逐筆記,跑班群組掉一格會被記 N 筆。
-        按排課單位(group)去重。</li>
-      <li><strong>驗收</strong>:含一個「有課完全排不下」的 e2e / 整合測試,確認列清單而非失敗。</li>
-      </ul>
-      <h3 id="4-開新學期複製補全-s兩項一起">4. 開新學期複製補全 —— S(兩項一起)</h3>
-      <ul>
-      <li><code>semester_copy.py</code> 確認<strong>不帶學期起訖日、不帶 <code>constraint_config</code></strong>(軟約束權重回預設)。
-        複製對話框加起訖日欄位、<code>constraint_config</code> 隨複製帶過去(或加勾選)。</li>
-      <li><strong>影響誰</strong>:每學期交替時的每一位組長(一年至少兩次,必踩)。</li>
-      <li><strong>不做的後果</strong>:新學期忘了補起訖日 → 請假/代課的「今日」判定全錯,查因很痛。</li>
-      </ul>
-      <h3 id="5-小型加固批次-全部-s湊一批出貨">5. 小型加固批次 —— 全部 S,湊一批出貨</h3>
+      <h2 id="已出貨">已出貨</h2>
       <div class="tw"><table>
       <thead>
       <tr>
-      <th>項目</th>
-      <th>現況(已驗證)</th>
-      <th>做法</th>
+      <th>版本</th>
+      <th>日期</th>
+      <th>重點</th>
       </tr>
       </thead>
       <tbody>
       <tr>
-      <td>班級名稱唯一性</td>
-      <td><code>ClassUnit</code> 無 uq,可建兩個「301」</td>
-      <td>加 <code>uq(semester_id, name)</code> + 遷移前清重複 + API 409</td>
+      <td>v1.0.0</td>
+      <td>2026-07-12</td>
+      <td>首次公開發行:基礎資料、配課、手動/自動排課、發布、調代課、匯出、備份</td>
       </tr>
       <tr>
-      <td><code>/api/docs</code> 正式環境公開</td>
-      <td><code>main.py</code> 無條件開</td>
-      <td>預設關閉,<code>.env</code> 顯式打開(開發 compose 帶開)</td>
+      <td>v1.1.0–v1.1.2</td>
+      <td>2026-07-14</td>
+      <td>背景任務拆兩條佇列、部分排課三合一、學期複製補全、小型加固批次、首次登入改密雙送修正</td>
       </tr>
       <tr>
-      <td>主色對比未達 AA</td>
-      <td>Naive 預設綠 <code>#18a058</code> 白字 ≈3.4:1</td>
-      <td>主色調深至 ≥4.5:1(如 <code>#0d7a43</code> 一帶),a11y 測試門檻同步提到 4.5</td>
+      <td>v1.2.0</td>
+      <td>2026-08-02</td>
+      <td>一鍵示範資料、超鐘點上限、校名可在系統內設定</td>
       </tr>
       <tr>
-      <td>衝突定位不理會取消</td>
-      <td><code>conflict_explainer</code> 無 <code>should_stop</code></td>
-      <td>把 control 傳進逐步試解迴圈,按取消得到 cancelled</td>
+      <td>v1.2.1</td>
+      <td>2026-09-17</td>
+      <td><strong>調課操作畫面</strong>(使用學校回饋:只能代課、找不到調課):可對調節次清單、範圍 1–4 週、連堂單節對調、補課日上看板</td>
       </tr>
       <tr>
-      <td><code>check_feasibility</code> 吞錯誤訊息</td>
-      <td><code>except SolverInputError: return "infeasible"</code>(model_builder:968)</td>
-      <td>訊息記 log + 附進 conflict detail,建模 bug 不再偽裝成「資料無解」</td>
+      <td>v1.2.2</td>
+      <td>2026-09-17</td>
+      <td><strong>教師/班級調課通知單列印</strong>(照使用學校紙本格式)</td>
       </tr>
       <tr>
-      <td>清單查詢保護性上限</td>
-      <td><code>audit-logs</code> 有 limit(≤500);<code>substitution-log</code>/<code>leaves</code> 無上限</td>
-      <td>先加伺服器端上限(如 1000)防整年資料整包拉;完整分頁 UI 留 v1.2</td>
+      <td>v1.2.3</td>
+      <td>2026-09-17</td>
+      <td><strong>系統版本顯示與新版本提醒</strong>;調課單斜線列印修正</td>
       </tr>
       </tbody>
       </table></div>
+      <p>各版細節見 <a href="../CHANGELOG.html">CHANGELOG.md</a>。</p>
       <hr />
-      <h2 id="v12明確延後不是忘記">v1.2+(明確延後,不是忘記)</h2>
+      <h2 id="v13-範圍依實作順序">v1.3 範圍(依實作順序)</h2>
+      <p>排序原則:<strong>學校裝得快、用得順的先做</strong>,純工程衛生的後做。全部不改資料表結構。</p>
+      <h3 id="1-api-映像拆掉-ortools-m">1. api 映像拆掉 ortools —— M</h3>
       <ul>
-      <li><strong>完整清單分頁</strong>(UI + offset):單校一學期的量還撐得住,先靠上限保護;整年資料變慢時再做。</li>
-      <li><strong>restore-upload 串流落地</strong>:<code>await file.read()</code> 整包進記憶體;現有 Caddy 200MB 上限 +
-        「超大 DB 走 volume 複製法」文件已緩解。</li>
-      <li><strong>還原溯源 <code>restore.log</code> + stale 警告持久徽章</strong>(M5 複審 G):presafe 檔名時戳暫可佐證。</li>
-      <li><strong>CORS 文件化</strong>:Backlog 說「不可由 .env 設定」——<strong>不精確</strong>:<code>cors_origins</code> 是
-        pydantic-settings 的 list 欄位,本來就能用 env(JSON 格式)覆寫,只是沒文件、沒驗證。
-        v1.2 補文件與格式驗證即可,同源部署下本項無實害。</li>
-      <li><strong>前端 bundle 瘦身</strong>(1.4MB,<code>app.use(naive)</code> 全量註冊):校內網冷載 ~1 秒可接受;
-        改按需匯入時記得 e2e 全跑一次。</li>
-      <li><strong>api 映像拆掉 ortools</strong>(660MB→約 200MB;已確認 ortools 在主依賴、api 容器用不到):
-        搬到 <code>[export]</code> 之類的 extra 由 worker 安裝;對頻寬敏感的部署才有感。</li>
+      <li><strong>現況</strong>:<code>ortools</code> 在 <code>pyproject.toml</code> 主依賴,api 映像 <strong>674MB</strong>;排課求解只在 worker 跑,api 容器用不到。</li>
+      <li><strong>影響誰</strong>:第一次安裝與每次升級的學校。校內網路或 NAS 拉映像慢,是「升級很麻煩」的主因之一。</li>
+      <li><strong>做法</strong>:移到 <code>[solver]</code> 之類的 extra 由 worker 安裝;確認 api 端沒有任何路徑匯入 <code>ortools</code>
+        (pre-flight 檢查若有用到要拆開)。預期 api 映像約 200MB。</li>
+      <li><strong>驗證</strong>:api 容器內 <code>python -c "import ortools"</code> 應失敗、全部 API 與 e2e 照常;worker 自動排課照常。</li>
+      </ul>
+      <h3 id="2-前端改按需匯入-naive-ui-m">2. 前端改按需匯入 Naive UI —— M</h3>
+      <ul>
+      <li><strong>現況</strong>:<code>main.ts</code> 以 <code>app.use(naive)</code> 全量註冊,主程式 <strong>1.4MB</strong>。校內網冷載約 1 秒,可接受但偏大。</li>
+      <li><strong>做法</strong>:移除全量註冊,改各頁自行匯入(多數頁面已經是具名匯入);檢查是否有模板直接用未匯入的元件。</li>
+      <li><strong>驗證</strong>:建置後主程式大小、冷載時間(<code>perf-page-load.spec.ts</code>);<strong>e2e 全跑</strong>——漏匯入的元件只會在執行時才壞。</li>
+      </ul>
+      <h3 id="3-科目匯入支援主科欄-s">3. 科目匯入支援「主科」欄 —— S</h3>
+      <ul>
+      <li><strong>現況</strong>:表單可勾「主科」(<code>is_major</code>,影響自動排課把主科排在上午),但 Excel 匯入沒有這一欄,
+        匯入後要一科科手動勾。</li>
+      <li><strong>做法</strong>:匯入範本加「主科」欄(是/否),匯入時寫入;舊範本沒有這欄照樣可匯入。</li>
+      </ul>
+      <h3 id="4-配課-api-直接擋群組節數不一致-s">4. 配課 API 直接擋群組節數不一致 —— S</h3>
+      <ul>
+      <li><strong>現況</strong>:跑班群組成員節數不一致時,要等到自動排課前的 pre-flight 才擋(<code>group_shape_mismatch</code>)。</li>
+      <li><strong>做法</strong>:建立/修改配課當下就回 409 並說明是哪幾門課不一致,錯誤提早出現在組長正在填的地方。</li>
+      </ul>
+      <h3 id="5-還原上傳改串流落地-s">5. 還原上傳改串流落地 —— S</h3>
+      <ul>
+      <li><strong>現況</strong>:<code>restore-upload</code> 以 <code>await file.read()</code> 整包讀進記憶體;Caddy 200MB 上限與「超大資料庫走 volume 複製」
+        文件已緩解,但 4GB 主機上仍有風險。</li>
+      <li><strong>做法</strong>:分塊寫入暫存檔再驗魔數、交給 worker 還原。</li>
+      </ul>
+      <h3 id="6-cors-設定文件化與格式驗證-s">6. CORS 設定文件化與格式驗證 —— S</h3>
+      <ul>
+      <li><strong>現況</strong>:<code>cors_origins</code> 本來就能用環境變數(JSON 格式)覆寫,但沒有文件、格式錯了也不會提示。
+        同源部署(預設)下無實害。</li>
+      <li><strong>做法</strong>:部署文件補一段;設定格式錯誤時啟動即明確報錯。</li>
+      </ul>
+      <h3 id="7-工程衛生-s">7. 工程衛生 —— S</h3>
+      <ul>
+      <li><code>tests/solver/test_purity.py</code> 目前只掃絕對匯入(<code>level == 0</code>),補相對匯入。</li>
+      <li><code>slots_overlap</code>、<code>course_key</code> 補邊界單元測試。</li>
+      </ul>
+      <hr />
+      <h2 id="等使用學校回饋再決定">等使用學校回饋再決定</h2>
+      <ul>
+      <li><strong>教師端「我的課表」顯示調課</strong>:調課成立後,教師自己的課表不會反映這次變動(看板、通知、調課單都有)。
+        使用學校目前以紙本調課單通知,沒有提出需求。</li>
+      <li><strong>調代課處理頁的清單很長時</strong>:研習多的週,一張假單可能十幾節。目前逐節處理;若回饋操作太多,
+        再考慮「整張假單一次調課」。</li>
+      </ul>
+      <h2 id="v13-之後明確延後不是忘記">v1.3 之後(明確延後,不是忘記)</h2>
+      <ul>
+      <li><strong>完整清單分頁</strong>(UI + offset):調代課紀錄、請假清單目前取最新 1000 筆並明講被截斷;整年資料變慢時再做。</li>
+      <li><strong>還原溯源 <code>restore.log</code> + stale 警告持久徽章</strong>:presafe 檔名時戳暫可佐證。</li>
       <li><strong>求解前 hard-only 探測 + warm start;部分排課獨立短時限</strong>:解品質/速度優化,獨立可做。</li>
-      <li><strong>配課 API 直接擋群組節數不一致(409)</strong>:pre-flight 已擋(<code>group_shape_mismatch</code>),
-        API 層再擋只是把錯誤提早到建立當下。</li>
-      <li><strong>工程衛生</strong>:<code>test_purity</code> 補相對匯入掃描;<code>slots_overlap</code>/<code>course_key</code> 補邊界單元測試;
-        <strong>評估後端相依鎖定</strong>——pyproject 全為 <code>&gt;=</code> 無上限,映像重建即靜默升級主版號
-        (2026-07-13 CI 首跑實例:redis-py 8 讓 RQ 阻塞取結果失效,匯出 500;
-        本機因 pip layer 快取測不到)。至少對 redis/rq/sqlalchemy/fastapi 加上限或引入 constraints 檔。</li>
-      <li><strong>科目匯入加 <code>is_major</code> 欄</strong>:表單已可勾,匯入欄位是便利性。</li>
       </ul>
       <h2 id="v2需要外部條件">v2(需要外部條件)</h2>
       <ul>
       <li><strong>LINE 通知 adapter</strong>:走 LINE OA Messaging API,各校自申請 channel token + 綁定碼流程。
         等有試用學校提出需求再做——沒有真實 OA 可測之前,寫了也驗不了。</li>
-      <li><strong>軟約束權重 UI</strong>:<code>GET/PUT /api/solver/config</code> 已在,滑桿是給進階使用者的;
-        等有學校真的想調權重再開工。</li>
+      <li><strong>軟約束權重 UI</strong>:<code>GET/PUT /api/solver/config</code> 已在,滑桿是給進階使用者的;等有學校真的想調權重再開工。</li>
       </ul>
       <h2 id="刻意不做除非出現真實個案">刻意不做(除非出現真實個案)</h2>
       <ul>
-      <li><strong>「一門課逐節換教室」</strong>:現行 <code>y[配課, 教室]</code>(一門課整學期一間教室)符合台灣中學實務,
-        變數量小;改 <code>y[配課, 節次, 教室]</code> 是為了不存在的需求付模型複雜度。</li>
-      <li><strong><code>teacher_time_rule</code> 牆鐘化(加節次表維度)</strong>:v1 已定案「以該配課班級的節次表解讀」,
-        單節次表學校(絕大多數)無此問題;等真的出現「跨部授課教師 + 兩套節次表」的學校再改 schema。</li>
+      <li><strong>「一門課逐節換教室」</strong>:現行一門課整學期一間教室,符合台灣中學實務;改成逐節換教室是為了不存在的需求付模型複雜度。</li>
+      <li><strong><code>teacher_time_rule</code> 牆鐘化(加節次表維度)</strong>:v1 已定案「以該配課班級的節次表解讀」,單節次表學校(絕大多數)無此問題。</li>
+      <li><strong>沒有請假的教師互調</strong>:使用學校的調課幾乎都由研習引起,研習登記為公假/進修後走既有調課流程即可(2026-09-17 確認)。</li>
+      <li><strong>自動升級</strong>:新版本提醒只提醒;升級必須由學校先備份、自己決定。</li>
       </ul>
       <hr />
-      <h2 id="依賴與順序總覽">依賴與順序總覽</h2>
-      <pre><code>1(E2E 日期,有死線)→ 2(ops 佇列,定容器架構)→ 3(部分排課三合一)
-      → 4(學期複製)→ 5(小型加固批次)→ 發 v1.1
-      </code></pre>
-      <p>每項照既有流程:實作 → 全品質門檻(ruff/mypy/pytest;eslint/vue-tsc/build/vitest)→
-      Docker 重建 → E2E(現在 CI 也會擋)→ 真 PostgreSQL 實測 → commit/push → tasks.md 勾銷。</p>
+      <h2 id="工作流程每項照做">工作流程(每項照做)</h2>
+      <p>實作 → 全品質門檻(ruff/mypy/pytest;eslint/vue-tsc/build/vitest)→ Docker 重建 → E2E(CI 也會擋)→
+      真 PostgreSQL 實測、畫面截圖目視 → 開 PR(CI 全綠)→ 維護者合併 → 依 <a href="../CONTRIBUTING.html">CONTRIBUTING.md</a> 發布。</p>
       <div class="foot">
         本頁由 <code>docs/roadmap.md</code> 自動產生(<code>scripts/build_docs.py</code>)。
         要修改內容請改 Markdown 原始檔,不要直接編輯這份 HTML。<br>
