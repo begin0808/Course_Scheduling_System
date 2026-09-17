@@ -68,6 +68,9 @@ function openPrint() {
 
 function dispositionText(e: LogEntry): string {
   if (!e.disposed) return '待安排'
+  if (e.row_kind === 'swap_makeup') {
+    return `調課補課 · ${e.handler_name}(與 ${e.swap_date} ${e.swap_period_name} 對調)`
+  }
   if (e.sub_type === 'swap' && e.swap_period_name) {
     return `調課 · ${e.handler_name}(補 ${e.swap_date} ${e.swap_period_name})`
   }
@@ -117,7 +120,10 @@ function statusType(e: LogEntry): string {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="e in board.entries" :key="e.affected_period_id" data-testid="board-row">
+        <tr
+          v-for="e in board.entries" :key="`${e.row_kind}-${e.affected_period_id}`"
+          data-testid="board-row"
+        >
           <td>{{ e.period_name }}</td>
           <td>{{ e.class_names }}<n-text v-if="e.room_name" depth="3"> @{{ e.room_name }}</n-text></td>
           <td>{{ e.subject_name }}</td>

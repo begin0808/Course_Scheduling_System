@@ -587,7 +587,7 @@
       </ul>
       <p><strong>補遺(實作後)</strong>
       - <strong>NotificationChannel 分層</strong>:<code>notifications.notify()</code> 建立站內通知列(永遠送達)後,逐一經 <code>CHANNELS</code>(<code>InAppChannel</code> no-op + <code>EmailChannel</code>)派送;v2 加 webhook/LINE 只需再實作一個 channel 並 append。
-      - <strong>Email 的交易語意</strong>:EmailChannel 不直接 enqueue,而是把信放進 <code>session.info</code> 的寄件匣;SQLAlchemy 的 <code>after_commit</code> 事件才排入 RQ,<code>after_rollback</code> 則丟棄——交易回滾就不會寄出一封對應到不存在通知的信(雙寫問題的正解)。已測 rollback 不寄、commit 才寄。
+      - <strong>Email 的交易語意</strong>:EmailChannel 不直接 enqueue,而是把信放進 <code>session.info</code> 的寄件匣;SQLAlchemy 的 <code>after_commit</code> 事件才排入 RQ,<code>after_rollback</code> 則丟棄——交易回復(rollback)就不會寄出一封對應到不存在通知的信(雙寫問題的正解)。已測交易回復不寄、commit 才寄。
       - <strong>站內永遠可用,Email 是加分</strong>:SMTP 未設定時 <code>email.send</code> 回 False、<code>email_job</code> 只記 log,整個調代課流程照常。這是驗收③,實機在 mailhog 上驗過雙通道。
       - <strong>SMTP 設定存 <code>app_settings</code></strong>(全域 key/value,非學期範圍);密碼留空 = 不變更,回傳不含明文。管理員專屬。<code>POST /settings/smtp/test</code> 當場寄測試信回報結果(不走 RQ)。
       - <strong>確認收到 = 通知層已讀確認</strong>,不影響課務(指派即生效,2026-07-09 定案)。教師鈴鐺(輪詢 20s + 未讀數 badge)、組長看板(確認狀態 + 對未確認者「再次提醒」重發,已確認則 409)。
@@ -695,7 +695,7 @@
       - <strong>同一份 compose,兩種部署</strong>:為讓驗收②的 <code>docker compose pull</code> 有意義,<code>docker-compose.yml</code> 的 web/api/worker 三服務同時掛 <code>image:</code>(GHCR)與 <code>build:</code>——clone 原始碼者 <code>up -d</code> 仍在本機建置(行為不變),只需檔案者 <code>pull &amp;&amp; up -d</code> 拉官方映像。映像版本由 <code>.env</code> 的 <code>IMAGE_TAG</code>(預設 latest,建議正式部署釘選版本號)決定。
       - <strong>CI 補版本標籤</strong>:原 <code>images</code> job 只推 <code>:latest</code> 與 <code>:sha</code>,<code>IMAGE_TAG=v1.0.0</code> 會拉不到映像。三個映像各補推 <code>:${github.ref_name}</code>(main push=<code>main</code>、版本標籤=<code>v1.0.0</code>),版本釘選才真的成立;版本標籤仍為唯一觸發雙架構(amd64+arm64)的條件。
       - <strong>HTTPS 選配做成一個設定</strong>:Caddyfile 站台位址寫死 <code>:80</code> 且烘進映像,拉映像的學校改不到。改為 <code>{$SITE_ADDRESS::80}</code> 環境變數(預設 <code>:80</code> 內網 HTTP;於 <code>.env</code> 設 <code>SITE_ADDRESS=網域名</code> 即自動申請/續期 Let's Encrypt 憑證)。compose 補 443 埠映射與 <code>caddydata</code> volume(憑證持久化,避免重啟觸發速率限制)。<strong>實測</strong>:預設(無網域)重建 web 後 <code>/api/health</code> 與首頁皆 200、web healthy,內網 HTTP 部署未受影響;<code>docker compose config</code> 在有/無 <code>SITE_ADDRESS</code> 兩路徑皆正確解析。
-      - <strong>文件產出</strong>:<code>docs/deploy/</code>(index/install/upgrade/backup/https/faq 六篇中文,含 Win/Linux/Synology/QNAP 安裝、異地備援、回滾與 schema 變更提醒、VPS 對外埠與資安)、改寫 <code>README.md</code>(英文摘要+功能總覽+雙部署快速開始+文件索引)、新增 <code>CHANGELOG.md</code>(Keep a Changelog,彙整 M0–M5)、<code>CONTRIBUTING.md</code>(開發環境/品質門檻/任務卡制/發布新版本流程)。<code>LICENSE</code>(MIT)M0 已具備。
+      - <strong>文件產出</strong>:<code>docs/deploy/</code>(index/install/upgrade/backup/https/faq 六篇中文,含 Win/Linux/Synology/QNAP 安裝、異地備援、退回舊版與資料表結構變更提醒、VPS 對外埠與資安)、改寫 <code>README.md</code>(英文摘要+功能總覽+雙部署快速開始+文件索引)、新增 <code>CHANGELOG.md</code>(Keep a Changelog,彙整 M0–M5)、<code>CONTRIBUTING.md</code>(開發環境/品質門檻/任務卡制/發布新版本流程)。<code>LICENSE</code>(MIT)M0 已具備。
       - <strong>驗收①「乾淨 VM 實測」的界線</strong>:compose 解析、web 重建與預設 HTTP 服務已在本機 Docker 驗過;真正的「全新 VM 從零 pull 安裝」需待版本標籤推上 GHCR 後才可端到端跑(目前尚無 release tag),此步驟留給實際發布時(或使用者)在乾淨環境驗收並記錄於 PR。</p>
       <h3 id="m5-4-e2e-總驗收與效能"><span class="tick done">☑</span> M5-4 E2E 總驗收與效能</h3>
       <ul>

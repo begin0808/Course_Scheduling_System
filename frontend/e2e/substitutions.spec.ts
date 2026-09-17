@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { SEM_END, SEM_START, WED } from './dates'
+import { SEM_END, SEM_START, THU, WED, WED2 } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const SHOTS = 'e2e/screenshots'
@@ -174,6 +174,126 @@ test('調代課處理:無人可代時提示併班/自習並可直接設定', asy
   await page.getByTestId('sub-selfstudy').click()
   await expect(page.getByText('已設為自習')).toBeVisible()
   await expect(page.getByTestId('sub-period').first()).toContainText('已確認')
+
+  await deleteSemesterByYearTerm(page, YEAR, 1)
+})
+
+// ── v1.2.1:調課(使用學校回饋:只有代課、找不到調課)──
+// 王師週三第一節 701 國文請假;陳師也教 701(週四第二節數學)、另有 702 週三第二節。
+test('調代課處理:調課列出可對調節次,點選後成立並上看板', async ({ page }) => {
+  test.setTimeout(120_000)
+  const YEAR = 142
+  await login(page)
+  await page.request.patch('/api/wizard/state', { data: { completed: true } })
+  await deleteSemesterByYearTerm(page, YEAR, 1)
+
+  const sid = (await post(page, '/api/semesters', {
+    academic_year: YEAR, term: 1, template_key: 'junior_high',
+    start_date: SEM_START, end_date: SEM_END,
+  })).id
+  const subjects: Record<string, number> = {}
+  for (const s of await (await page.request.get(`/api/subjects?semester_id=${sid}`)).json()) {
+    subjects[s.name] = s.id
+  }
+  const subject = async (name: string) => {
+    if (!subjects[name]) {
+      subjects[name] = (await post(page, `/api/subjects?semester_id=${sid}`, { name })).id
+    }
+    return subjects[name]
+  }
+  const T: Record<string, number> = {}
+  for (const [name, subs] of [['王師', ['國文']], ['陳師', ['數學', '自然']]] as const) {
+    T[name] = (await post(page, `/api/teachers?semester_id=${sid}`, {
+      name, base_periods: 20, subject_ids: await Promise.all(subs.map(subject)),
+    })).id
+  }
+  const classes: Record<string, number> = {}
+  for (const name of ['701', '702']) {
+    classes[name] = (await post(page, `/api/class-units?semester_id=${sid}`,
+      { grade: 7, name, track: 'junior_high' })).id
+  }
+  const periods = (await (await page.request.get(
+    `/api/class-units/${classes['701']}/period-table`)).json()).periods
+    .filter((p: { type: string }) => p.type === 'regular')
+  const slot = (weekday: number, idx: number) =>
+    periods.filter((p: { weekday: number }) => p.weekday === weekday)[idx].period_no
+  const tt = (await post(page, `/api/timetables?semester_id=${sid}`, { name: '草稿A' })).id
+  const place = async (t: string, subj: string, kls: string, weekday: number, idx: number) => {
+    const a = await post(page, `/api/assignments?semester_id=${sid}`, {
+      class_id: classes[kls], subject_id: await subject(subj), periods_per_week: 1,
+      teachers: [{ teacher_id: T[t] }], block_rules: [],
+    })
+    await page.request.post(`/api/timetables/${tt}/entries`, {
+      data: { course_assignment_id: a.id, weekday, period_no: slot(weekday, idx), span: 1 },
+    })
+  }
+  await place('王師', '國文', '701', 3, 0) // 被請假
+  await place('陳師', '數學', '701', 4, 1) // 同班 → 可互調
+  await place('陳師', '自然', '702', 3, 1) // 別班 → 只有下週三換得成(本週三王師請假)
+  await page.request.post(`/api/timetables/${tt}/publish?force=true`)
+  await post(page, `/api/leaves?semester_id=${sid}`, {
+    teacher_id: T['王師'], leave_type: 'personal', start_date: WED, end_date: WED,
+  })
+
+  const short = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number)
+    const wd = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'][new Date(y, m - 1, d).getDay()]
+    return `${m}/${d}(${wd})`
+  }
+
+  await page.goto('/substitutions')
+  await selectSemester(page, YEAR)
+  await page.getByTestId('sub-handle').first().click()
+  await page.getByTestId('sub-swap').click()
+
+  const swapPanel = page.getByTestId('sub-swap-panel')
+  const partner = swapPanel.getByTestId('sub-swap-partner')
+  await expect(partner).toHaveCount(1)
+  await expect(partner).toContainText('陳師')
+  await expect(partner).toContainText('也教這班')
+  const options = partner.getByTestId('sub-swap-option')
+  await expect(options).toHaveCount(2) // 先只列同班:本週四、下週四
+  await expect(options.first()).toContainText(`${short(THU)}`)
+  await expect(options.first()).toContainText('701 數學')
+  await partner.getByTestId('sub-swap-more').click() // 展開其他班:下週三 702
+  await expect(options).toHaveCount(3)
+  await expect(options.nth(2)).toContainText(`${short(WED2)}`)
+  await expect(swapPanel).not.toContainText(short(WED)) // 請假當天不能補
+  await page.screenshot({ path: `${SHOTS}/sub-4-swap-options.png` })
+
+  await options.first().click()
+  await expect(page.getByText('已和 陳師 調課')).toBeVisible()
+  const period = page.getByTestId('sub-period').first()
+  await expect(period).toContainText('已確認')
+  await expect(period.getByTestId('sub-handler')).toContainText('陳師')
+
+  // 今日看板(請假那天)標示調課與補課時間
+  await page.goto(`/daily-board?semester_id=${sid}&date=${WED}`)
+  await expect(page.getByTestId('board-row').first()).toContainText(`調課 · 陳師(補 ${THU}`)
+  await page.screenshot({ path: `${SHOTS}/sub-5-swap-board.png` })
+
+  // 補課那天(週四)的看板與 A4 公告單也列出換來的那一節:原任陳師、改由王師上
+  await page.goto(`/daily-board?semester_id=${sid}&date=${THU}`)
+  const makeup = page.getByTestId('board-row')
+  await expect(makeup).toHaveCount(1)
+  await expect(makeup).toContainText('701')
+  await expect(makeup).toContainText('數學')
+  await expect(makeup).toContainText('陳師')
+  await expect(makeup).toContainText('調課補課')
+  await expect(makeup).toContainText(`調課補課 · 王師(與 ${WED} `)
+  await page.screenshot({ path: `${SHOTS}/sub-6-swap-makeup-board.png` })
+
+  await page.goto(`/daily-board/print?semester_id=${sid}&date=${THU}`)
+  const printRow = page.getByTestId('print-row')
+  await expect(printRow).toHaveCount(1)
+  await expect(printRow).toContainText('王師')
+  await expect(printRow).toContainText(`與 ${WED}`)
+  await page.screenshot({ path: `${SHOTS}/sub-7-swap-makeup-print.png` })
+
+  // 請假的王師也收到補課通知
+  const notes = await (await page.request.get(
+    `/api/notifications?semester_id=${sid}&teacher_id=${T['王師']}`)).json()
+  expect(notes.map((n: { title: string }) => n.title).join()).toContain('調課補課通知')
 
   await deleteSemesterByYearTerm(page, YEAR, 1)
 })

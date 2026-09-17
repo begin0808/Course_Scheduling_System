@@ -37,6 +37,7 @@ class LogEntryOut(BaseModel):
     swap_class_names: str = ""
     swap_subject_name: str = ""
     note: str = ""
+    row_kind: str = "leave"  # leave / swap_makeup(調課補課日被換來的那一節)
 
 
 class DailyBoardOut(BaseModel):

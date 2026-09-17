@@ -212,9 +212,9 @@ def test_smtp_settings_require_admin(school):
     assert client.get("/api/settings/smtp").status_code == 403
 
 
-# ── outbox 交易語意:回滾不寄信 ─────────────────────────────
+# ── outbox 交易語意:交易回復不寄信 ─────────────────────────────
 def test_email_outbox_is_discarded_on_rollback(env, outbox):
-    """通知寫入的交易若回滾,不該寄出對應的信。"""
+    """通知寫入的交易若回復(rollback),不該寄出對應的信。"""
     client, db = env
     sid = _prep_teacher_with_email(client, db)
 
@@ -223,7 +223,7 @@ def test_email_outbox_is_discarded_on_rollback(env, outbox):
     notif_service.notify(db, semester_id=sid, teacher_id=tid,
                          type=NotificationType.leave_registered, title="x", body="y")
     db.rollback()
-    assert outbox == []  # 回滾 → 不寄
+    assert outbox == []  # 交易回復 → 不寄
 
     notif_service.notify(db, semester_id=sid, teacher_id=tid,
                          type=NotificationType.leave_registered, title="x", body="y")

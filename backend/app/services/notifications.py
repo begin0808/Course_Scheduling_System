@@ -50,7 +50,7 @@ class InAppChannel:
 class EmailChannel:
     """Email:把信放進交易的寄件匣;commit 後由 after_commit 事件排入 RQ。
 
-    這裡不直接 enqueue——交易若回滾,就不該寄出一封對應到不存在通知的信。
+    這裡不直接 enqueue——交易若回復(rollback),就不該寄出一封對應到不存在通知的信。
     """
 
     key = "email"

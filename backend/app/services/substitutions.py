@@ -25,7 +25,8 @@ from app.models.substitution import (
 )
 from app.models.timetable import ScheduleEntry
 from app.services import notifications
-from app.services.availability import Availability, Interval
+from app.services.availability import Availability
+from app.services.swap_options import SwapChecker, block_periods
 
 
 class SubstitutionError(Exception):
@@ -53,6 +54,7 @@ def assign(
     swap_date: date | None,
     created_by_user_id: int | None,
     created_by_name: str,
+    swap_period_no: int | None = None,
     availability: Availability | None = None,
 ) -> Substitution:
     """對一個受影響節次做處置。呼叫端負責 commit。"""
@@ -70,7 +72,8 @@ def assign(
 
     swap_fields: dict = {}
     if sub_type == SubstitutionType.swap.value:
-        swap_fields = _validate_swap(db, affected, handler, swap_entry_id, swap_date, av)
+        swap_fields = _validate_swap(
+            db, affected, handler, swap_entry_id, swap_date, swap_period_no, av)
 
     counts = _counts_default(sub_type) if counts_toward_hours is None else counts_toward_hours
 
@@ -136,13 +139,18 @@ def _validate_swap(
     handler: Teacher | None,
     swap_entry_id: int | None,
     swap_date: date | None,
+    swap_period_no: int | None,
     av: Availability,
 ) -> dict:
     """調課:乙(handler)代甲請假那節;甲(請假教師)於 swap_date 補乙原本的 swap_entry。
 
-    驗四件事,任一撞課即拒絕並指名道姓:
-      ① 乙 在甲請假那節無自己的課    ② swap_entry 確實是乙的課
-      ③ 甲 在 swap_date 那節無課、也沒請假   ④ swap_date 是乙該節課真的會上的日子
+    先驗組合本身成立(是已發布課表裡乙的課、日期星期相符),再交給 `SwapChecker`
+    驗「乙能來、甲能補」——與「可對調節次」清單同一套規則,清單上的一定送得出去:
+      ① 乙 在甲請假那節有空(沒課、沒請假、沒被安排代別班)
+      ② swap_entry 確實是乙在已發布課表裡的課,且 swap_date 是那節課真的會上的日子;
+         連堂格位以 swap_period_no 指定換其中哪一節(空 = 第一節)
+      ③ 甲 在 swap_date 那節有空;乙那節沒請假、也沒已經換給別人;日期在學期內且還沒上過
+    任一不成立即拒絕並指名道姓。
     """
     if handler is None:
         raise SubstitutionError("調課需要指定對調教師")
@@ -150,8 +158,8 @@ def _validate_swap(
         raise SubstitutionError("調課需要指定對調的節次與補課日期")
 
     entry = db.get(ScheduleEntry, swap_entry_id)
-    if entry is None:
-        raise SubstitutionError("找不到要對調的節次")
+    if entry is None or av.timetable is None or entry.timetable_id != av.timetable.id:
+        raise SubstitutionError("找不到要對調的節次(需為已發布課表中的課)")
     teaches = db.scalar(
         select(AssignmentTeacher).where(
             AssignmentTeacher.course_assignment_id == entry.course_assignment_id,
@@ -165,58 +173,40 @@ def _validate_swap(
             f"{swap_date} 是 {_wd(swap_date.isoweekday())},"
             f"但對調的課在 {_wd(entry.weekday)},補課日期與該節課星期不符"
         )
-
-    # ① 乙 在甲請假那節不能有自己的課(代課要來上)
-    clash = av.teaching_at(handler.id, av.slot_of(affected))
-    if clash is not None:
-        raise SubstitutionError(
-            f"{handler.name} {affected.date} {affected.period_name} 有自己的課,無法對調"
-        )
+    period_no = entry.period_no if swap_period_no is None else swap_period_no
+    if period_no not in block_periods(av, entry):
+        raise SubstitutionError("指定的節次不在這堂課的時段內")
+    if swap_date == affected.date and period_no == affected.period_no:
+        raise SubstitutionError("補課的節次不能是請假的同一節")
 
     swap_assignment = db.get(CourseAssignment, entry.course_assignment_id)
     if swap_assignment is None:
         raise SubstitutionError("要對調的節次已無對應配課")
 
-    # ③ 甲 在 swap_date 的 swap 節次不能有課、也不能請假
-    absent = affected.leave_request.teacher
-    swap_slot = Interval(entry.weekday, entry.period_no, None, None)
-    conflict = av.conflict_for(absent.id, swap_date, swap_slot)
-    if conflict is not None:
+    checker = SwapChecker(db, affected, av)
+    blocked = checker.partner_blocker(handler)
+    if blocked is not None:
+        raise SubstitutionError(f"{blocked},無法對調")
+    blocked = checker.option_blocker(handler, entry, swap_date, period_no)
+    if blocked is not None:
         subj = db.get(Subject, swap_assignment.subject_id)
-        pname = _entry_period_name(db, entry)
-        raise SubstitutionError(
-            f"{absent.name} 無法在 {swap_date} {pname} 補課:{conflict.detail}"
-            + (f"(對調的是{subj.name})" if subj else "")
-        )
+        raise SubstitutionError(blocked + (f"(對調的是{subj.name})" if subj else ""))
 
     subject = db.get(Subject, swap_assignment.subject_id)
     classes = "、".join(m.class_unit.name for m in swap_assignment.scheduling_unit.members)
     return {
         "swap_date": swap_date,
-        "swap_period_no": entry.period_no,
-        "swap_period_name": _entry_period_name(db, entry),
+        "swap_period_no": period_no,
+        "swap_period_name": _entry_period_name(av, entry, period_no),
         "swap_class_names": classes,
         "swap_subject_name": subject.name if subject else "",
         "swap_entry_id": entry.id,
     }
 
 
-def _entry_period_name(db: Session, entry: ScheduleEntry) -> str:
-    from app.models.period import Period
-
-    a = db.get(CourseAssignment, entry.course_assignment_id)
-    if a and a.scheduling_unit.members:
-        from app.services import period_tables as pt_service
-
-        table = pt_service.resolve_period_table(db, a.scheduling_unit.members[0].class_unit)
-        if table:
-            p = db.scalar(select(Period).where(
-                Period.period_table_id == table.id,
-                Period.weekday == entry.weekday, Period.period_no == entry.period_no,
-            ))
-            if p:
-                return p.name
-    return f"第 {entry.period_no} 格"
+def _entry_period_name(av: Availability, entry: ScheduleEntry, period_no: int) -> str:
+    p = av.entry_period(entry, period_no)
+    return p.name if p else f"第 {period_no} 格"
 
 
 def _clear_swap(sub: Substitution) -> None:
@@ -248,6 +238,18 @@ def _notify_handler(
         title=f"{type_cn}通知:{affected.date} {affected.period_name}",
         body=body,
     )
+    if sub.type == SubstitutionType.swap.value:
+        # 調課多了一個要到場的人:請假的甲得回來補乙那節。只通知乙,甲就會漏掉補課。
+        notifications.notify(
+            db, semester_id=affected.semester_id, teacher_id=absent.id,
+            type=NotificationType.substitution_assigned,
+            title=f"調課補課通知:{sub.swap_date} {sub.swap_period_name}",
+            body=(
+                f"{handler.name} 將於 {where} 代您上課;"
+                f"請您於 {sub.swap_date} {sub.swap_period_name} 補上 {handler.name} 的"
+                f"{sub.swap_class_names}{sub.swap_subject_name}"
+            ),
+        )
 
 
 def clear(db: Session, affected: AffectedPeriod, *, actor_name: str) -> None:
@@ -265,6 +267,16 @@ def clear(db: Session, affected: AffectedPeriod, *, actor_name: str) -> None:
             type=NotificationType.substitution_cancelled,
             title=f"原訂{SUBSTITUTION_TYPE_CN[sub.type]}已取消",
             body=f"{actor_name} 取消了 {affected.date} {affected.period_name} 的處置",
+        )
+    if sub.type == SubstitutionType.swap.value:
+        notifications.notify(
+            db, semester_id=affected.semester_id, teacher_id=affected.leave_request.teacher_id,
+            type=NotificationType.substitution_cancelled,
+            title="原訂調課已取消",
+            body=(
+                f"{actor_name} 取消了 {affected.date} {affected.period_name} 的調課;"
+                f"您不必於 {sub.swap_date} {sub.swap_period_name} 補課"
+            ),
         )
     db.delete(sub)
     affected.status = AffectedStatus.pending.value

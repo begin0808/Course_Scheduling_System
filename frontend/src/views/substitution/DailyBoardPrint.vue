@@ -22,6 +22,9 @@ function handlerText(e: LogEntry): string {
 }
 
 function noteText(e: LogEntry): string {
+  if (e.row_kind === 'swap_makeup') {
+    return `與 ${e.swap_date} ${e.swap_period_name} ${e.swap_class_names}${e.swap_subject_name} 對調`
+  }
   if (e.sub_type === 'swap' && e.swap_period_name) {
     return `${e.absent_teacher_name} 於 ${e.swap_date} ${e.swap_period_name} 補 ${e.swap_class_names}${e.swap_subject_name}`
   }
@@ -79,7 +82,7 @@ onMounted(async () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="e in rows" :key="e.affected_period_id" data-testid="print-row">
+          <tr v-for="e in rows" :key="`${e.row_kind}-${e.affected_period_id}`" data-testid="print-row">
             <td>{{ e.period_name }}</td>
             <td>{{ e.class_names }}<span v-if="e.room_name" class="room"> @{{ e.room_name }}</span></td>
             <td>{{ e.subject_name }}</td>
