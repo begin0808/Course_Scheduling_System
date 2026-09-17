@@ -4,9 +4,19 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.1**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.0 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.2**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.1 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.2] — 2026-09-17
+
+**列印調課通知單的一版。** 已上線學校幾乎每週都有調課(多為研習),調好之後要把結果印給老師與班級;
+版面照該校現行的紙本格式。v1.2.1 的調課與本版的列印建議一起升級、一起測試。
+
+**本版沒有資料表結構變更**,升級只需換映像;若要退回 v1.2.1 或 v1.2.0,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.2`
 
 ### 新增
 - **列印調課通知單**:照使用學校現行紙本格式,產生**教師調課通知單**與**班級調課通知單**(A4 直式週課表,只在異動格寫「日期/科目/上課老師/[調MM-DD_星期節次]」)。
@@ -183,7 +193,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.1.1...v1.1.2
