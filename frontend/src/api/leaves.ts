@@ -16,6 +16,7 @@ export interface AffectedPeriod {
   status: 'pending' | 'resolved' | 'completed' | 'cancelled'
   handler_teacher_id: number | null
   handler_name: string | null
+  sub_type: string | null // 已處置時的處置方式(substitute/swap/…)
 }
 
 export interface LeaveRequest {

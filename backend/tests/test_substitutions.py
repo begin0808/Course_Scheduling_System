@@ -7,7 +7,7 @@
 不代表 11/11 他能代(他自己可能也請假、或已被指派代別班)。這裡逐一造出那些情境。
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -562,6 +562,80 @@ def test_board_on_makeup_day_lists_the_swapped_period(env2):
     assert [e["row_kind"] for e in wed] == ["leave"]
     w.client.delete(f"/api/affected-periods/{affected_id}/substitution")
     assert w.client.get(f"/api/daily-board{w.q}&on={opt['date']}").json()["entries"] == []
+
+
+# ── v1.2.2:調課通知單(教師調課單、班級調課單)────────────────
+def _slips(w, *affected_ids):
+    q = "&".join(f"affected_period_ids={i}" for i in affected_ids)
+    return w.client.get(f"/api/swap-slips{w.q}&{q}")
+
+
+def _swap_first(w, affected_id, pick):
+    opt = next(o for o in _options(w, affected_id)["partners"][0]["options"] if pick(o))
+    code, body = w.assign(affected_id, type="swap", handler_teacher_id=w.teachers["陳師"],
+                          swap_entry_id=opt["entry_id"], swap_date=opt["date"],
+                          swap_period_no=opt["period_no"])
+    assert code == 200, body
+    return opt
+
+
+def _cells(slip):
+    return [(c["date"], c["ordinal"], c["subject_name"], c["teacher_name"], c["code"])
+            for week in slip["weeks"] for c in week["cells"]]
+
+
+def test_swap_slips_same_class_follow_the_paper_form(env2):
+    """同班互調:兩張教師單(先對調的老師)+ 一張班級單;科目跟著老師走,代碼指向對調的另一節。"""
+    w = env2
+    affected_id = _swap_world(w)  # 王師週三第 1 節 701 國文 ⇄ 陳師週四第 2 節 701 數學
+    _swap_first(w, affected_id, lambda o: o["date"] == THU.isoformat())
+    wang = [p["id"] for p in w.client.get(f"/api/leaves{w.q}").json()[0]["affected_periods"]]
+    assert w.client.get(f"/api/leaves{w.q}").json()[0]["affected_periods"][0]["sub_type"] == "swap"
+
+    r = _slips(w, *wang)
+    assert r.status_code == 200, r.json()
+    body = r.json()
+    assert body["title"].endswith("115學年第一學期")
+    kinds = [(s["kind"], s["teacher_name"], s["class_names"]) for s in body["slips"]]
+    assert kinds == [("teacher", "陳師", "701"), ("teacher", "王師", "701"), ("class", "", "701")]
+
+    chen, wang_slip, klass = body["slips"]
+    thu, wed = THU.strftime("%m-%d"), WED.strftime("%m-%d")
+    assert _cells(chen) == [(WED.isoformat(), 1, "數學", "陳師", f"調{thu}_42")]
+    assert _cells(wang_slip) == [(THU.isoformat(), 2, "國文", "王師", f"調{wed}_31")]
+    assert len(_cells(klass)) == 2
+    assert (chen["date_from"], chen["date_to"]) == (WED.isoformat(), WED.isoformat())
+    assert (klass["date_from"], klass["date_to"]) == (WED.isoformat(), THU.isoformat())
+
+    week = klass["weeks"][0]
+    assert week["monday"] == (WED - timedelta(days=2)).isoformat() and len(week["days"]) == 5
+    assert [r["ordinal"] for r in klass["rows"]][:2] == [1, 2]
+    assert any(r["afternoon_starts"] for r in klass["rows"])  # 午休後畫粗線
+
+
+def test_swap_slips_cross_class_and_cross_week(env2):
+    """跨班又跨週:兩個班各一張,科目沿用那一節原本的課;每張單依週分開。"""
+    w = env2
+    affected_id = _swap_world(w)
+    _swap_first(w, affected_id, lambda o: o["class_names"] == "702")  # 下週三 702 自然
+
+    body = _slips(w, affected_id).json()
+    kinds = [(s["kind"], s["class_names"]) for s in body["slips"]]
+    assert kinds == [("teacher", "701"), ("teacher", "702"), ("class", "701"), ("class", "702")]
+    chen, wang, c701, c702 = body["slips"]
+    assert _cells(chen)[0][2:4] == ("國文", "陳師")   # 陳師去 701 上王師那節國文
+    assert _cells(wang)[0][2:4] == ("自然", "王師")   # 王師去 702 上陳師那節自然
+    assert _cells(c702)[0][0] == WED2.isoformat()
+    assert [wk["monday"] for wk in c701["weeks"]] != [wk["monday"] for wk in c702["weeks"]]
+
+
+def test_swap_slips_ignore_non_swap_periods(env2):
+    """代課或未處置的節次不印;全都不是調課就回 404 並說明。"""
+    w = env2
+    affected_id = _swap_world(w)
+    r = _slips(w, affected_id)
+    assert r.status_code == 404 and "沒有已成立的調課" in r.json()["detail"]
+    assert w.client.get(f"/api/leaves{w.q}").json()[0]["affected_periods"][0]["sub_type"] is None
 
 
 def _place_block(w, teacher, subject, klass, weekday, period_idx):

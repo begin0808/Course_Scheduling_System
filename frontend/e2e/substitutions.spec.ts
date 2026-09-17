@@ -276,6 +276,30 @@ test('調代課處理:調課列出可對調節次,點選後成立並上看板', 
   await expect(period).toContainText('已確認')
   await expect(period.getByTestId('sub-handler')).toContainText('陳師')
 
+  // 調課通知單:陳師、王師各一張教師單 + 701 班級單;格子寫「日期/科目/老師/[調MM-DD_星期節次]」
+  const [slips] = await Promise.all([
+    page.waitForEvent('popup'),
+    period.getByTestId('sub-print-slip').click(),
+  ])
+  await expect(slips.getByTestId('slip-teacher')).toHaveCount(2)
+  await expect(slips.getByTestId('slip-class')).toHaveCount(1)
+  const mmdd = (iso: string) => iso.slice(5)
+  const chenSlip = slips.getByTestId('slip-teacher').first()
+  await expect(chenSlip).toContainText('教師調課通知單')
+  await expect(chenSlip).toContainText('調課教師：陳師')
+  await expect(chenSlip.getByTestId('slip-cell')).toHaveText(
+    new RegExp(`${WED}\\s*數學\\s*陳師\\s*\\[調${mmdd(THU)}_42\\]`))
+  await expect(slips.getByTestId('slip-teacher').nth(1).getByTestId('slip-cell')).toHaveText(
+    new RegExp(`${THU}\\s*國文\\s*王師\\s*\\[調${mmdd(WED)}_31\\]`))
+  await expect(slips.getByTestId('slip-class').getByTestId('slip-cell')).toHaveCount(2)
+  await slips.screenshot({ path: `${SHOTS}/sub-8-swap-slips.png`, fullPage: true })
+  await slips.close()
+
+  // 調代課紀錄:篩選結果中的調課可一次列印
+  await page.goto('/substitution-log')
+  await selectSemester(page, YEAR)
+  await expect(page.getByTestId('log-print-slips')).toContainText('1 節')
+
   // 今日看板(請假那天)標示調課與補課時間
   await page.goto(`/daily-board?semester_id=${sid}&date=${WED}`)
   await expect(page.getByTestId('board-row').first()).toContainText(`調課 · 陳師(補 ${THU}`)

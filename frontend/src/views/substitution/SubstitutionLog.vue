@@ -6,6 +6,7 @@ import { listLeaveTypes } from '@/api/leaves'
 import { listSemesters } from '@/api/semesters'
 import { getSubstitutionLog } from '@/api/substitutionLog'
 import type { LogEntry } from '@/api/substitutionLog'
+import { openSwapSlips } from '@/api/substitutions'
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
@@ -73,6 +74,15 @@ onMounted(async () => {
   if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
 })
 
+// 篩選結果中還有效的調課:依日期區間篩出本週(或某位老師)的調課,一次印齊
+const swapIds = computed(() => entries.value
+  .filter((e) => e.sub_type === 'swap' && e.status !== 'cancelled')
+  .map((e) => e.affected_period_id))
+
+function printSlips() {
+  if (sid.value) openSwapSlips(sid.value, swapIds.value)
+}
+
 function dispositionText(e: LogEntry): string {
   if (!e.disposed) return '—'
   if (e.handler_name) return `${e.sub_type_label} · ${e.handler_name}`
@@ -113,7 +123,14 @@ function statusType(e: LogEntry): string {
       <n-button quaternary data-testid="log-reset" @click="resetFilters">清除</n-button>
     </n-space>
 
-    <n-text depth="3" data-testid="log-count">共 {{ entries.length }} 筆</n-text>
+    <n-space align="center">
+      <n-text depth="3" data-testid="log-count">共 {{ entries.length }} 筆</n-text>
+      <n-button
+        v-if="swapIds.length" size="small" data-testid="log-print-slips" @click="printSlips"
+      >
+        列印這些紀錄中的調課單({{ swapIds.length }} 節)
+      </n-button>
+    </n-space>
 
     <n-alert v-if="truncated" type="warning" :bordered="false" data-testid="log-truncated">
       只顯示最新的 {{ MAX_ROWS }} 筆,更早的紀錄未列出。請縮小日期區間,或加上教師、假別篩選。

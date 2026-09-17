@@ -91,3 +91,53 @@ export const getSwapOptions = (
   if (teacherId) q.set('teacher_id', String(teacherId))
   return apiGet(`/affected-periods/${affectedId}/swap-options?${q}`)
 }
+
+// ── 調課通知單(教師調課單、班級調課單)──
+
+export interface SlipRow {
+  ordinal: number // 第幾節(只數一般課)
+  start_time: string | null
+  end_time: string | null
+  afternoon_starts: boolean // 下午第一節:紙本在這裡畫粗線
+}
+
+export interface SlipCell {
+  date: string
+  weekday: number
+  ordinal: number
+  subject_name: string
+  teacher_name: string
+  code: string // 「調09-15_25」:與 9/15 星期二第 5 節對調
+}
+
+export interface SlipWeek {
+  monday: string
+  days: string[]
+  cells: SlipCell[]
+}
+
+export interface Slip {
+  kind: 'teacher' | 'class'
+  teacher_name: string
+  class_names: string
+  date_from: string
+  date_to: string
+  rows: SlipRow[]
+  weeks: SlipWeek[]
+}
+
+export interface SwapSlips {
+  title: string
+  slips: Slip[]
+}
+
+export const getSwapSlips = (semesterId: number, affectedIds: number[]): Promise<SwapSlips> => {
+  const q = new URLSearchParams({ semester_id: String(semesterId) })
+  for (const id of affectedIds) q.append('affected_period_ids', String(id))
+  return apiGet(`/swap-slips?${q}`)
+}
+
+/** 在新分頁開啟調課通知單(列印頁不套側邊欄) */
+export function openSwapSlips(semesterId: number, affectedIds: number[]): void {
+  window.open(`/swap-slips/print?semester_id=${semesterId}&ids=${affectedIds.join(',')}`, '_blank')
+}
