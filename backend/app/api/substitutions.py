@@ -21,10 +21,11 @@ from app.schemas.substitution import (
     RecommendationOut,
     SubstitutionOut,
     SwapOptionsOut,
+    SwapSlipsOut,
 )
 from app.services import substitution_recommender as recommender
 from app.services import substitutions as sub_service
-from app.services import swap_options
+from app.services import swap_options, swap_slips
 
 router = APIRouter(tags=["substitutions"])
 
@@ -84,6 +85,21 @@ def get_swap_options(
     affected = _get_affected(db, affected_id)
     return SwapOptionsOut.model_validate(
         asdict(swap_options.search(db, affected, teacher_id=teacher_id, weeks=weeks)))
+
+
+@router.get("/swap-slips", response_model=SwapSlipsOut)
+def get_swap_slips(
+    semester_id: int = Query(...),
+    affected_period_ids: list[int] = Query(..., min_length=1, max_length=500),
+    db: Session = Depends(get_db),
+    _: User = Depends(editor),
+):
+    """調課通知單(教師調課單 + 班級調課單)的列印資料。非調課的節次略過。"""
+    try:
+        slips = swap_slips.build(db, semester_id, affected_period_ids)
+    except swap_slips.SlipError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return SwapSlipsOut.model_validate(asdict(slips))
 
 
 @router.put("/affected-periods/{affected_id}/substitution", response_model=SubstitutionOut)

@@ -1,6 +1,6 @@
 """調代課處置與代課推薦 schema(M4-2)。"""
 
-from datetime import date
+from datetime import date, time
 
 from pydantic import BaseModel, Field
 
@@ -76,3 +76,46 @@ class SwapOptionsOut(BaseModel):
     date_from: date
     date_to: date
     partners: list[SwapPartnerOut] = []
+
+
+# 欄位名 date 會遮蔽同名型別,故以別名標註
+_Date = date
+
+
+class SlipRowOut(BaseModel):
+    ordinal: int
+    start_time: time | None = None
+    end_time: time | None = None
+    afternoon_starts: bool = False
+
+
+class SlipCellOut(BaseModel):
+    date: _Date
+    weekday: int
+    ordinal: int
+    subject_name: str
+    teacher_name: str
+    code: str
+
+
+class SlipWeekOut(BaseModel):
+    monday: _Date
+    days: list[_Date] = []
+    cells: list[SlipCellOut] = []
+
+
+class SlipOut(BaseModel):
+    kind: str  # teacher / class
+    teacher_name: str = ""
+    class_names: str
+    date_from: _Date
+    date_to: _Date
+    rows: list[SlipRowOut] = []
+    weeks: list[SlipWeekOut] = []
+
+
+class SwapSlipsOut(BaseModel):
+    """調課通知單:先每位教師一張,再每個班一張。"""
+
+    title: str
+    slips: list[SlipOut] = []

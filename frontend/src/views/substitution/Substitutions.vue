@@ -11,7 +11,7 @@ import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
 import {
   assignSubstitution, clearSubstitution, getRecommendations, getSwapOptions,
-  listSubstitutionTypes,
+  listSubstitutionTypes, openSwapSlips,
 } from '@/api/substitutions'
 import type {
   Candidate, Recommendation, SwapOption, SwapOptions, SwapPartner,
@@ -134,6 +134,16 @@ async function assign(p: AffectedPeriod, type: string, candidate?: Candidate) {
   }
 }
 
+function swapIds(l: LeaveRequest): number[] {
+  return l.affected_periods
+    .filter((p) => p.sub_type === 'swap' && p.status !== 'cancelled')
+    .map((p) => p.id)
+}
+
+function printSlips(ids: number[]) {
+  if (sid.value) openSwapSlips(sid.value, ids)
+}
+
 function swapTeacherOptions(l: LeaveRequest) {
   return teachers.value
     .filter((t) => t.is_active && t.id !== l.teacher_id)
@@ -224,6 +234,11 @@ function candidateTagType(c: Candidate): string {
         v-for="l in activeLeaves" :key="l.id" size="small" data-testid="sub-leave"
         :title="`${l.teacher_name} · ${l.leave_type_label} · 待處理 ${l.pending_count} 節`"
       >
+        <template v-if="swapIds(l).length" #header-extra>
+          <n-button size="small" data-testid="sub-print-leave" @click="printSlips(swapIds(l))">
+            列印調課單({{ swapIds(l).length }} 節)
+          </n-button>
+        </template>
         <n-space vertical size="small">
           <div v-for="p in l.affected_periods" :key="p.id" data-testid="sub-period">
             <n-space align="center" :wrap="false">
@@ -249,6 +264,12 @@ function candidateTagType(c: Candidate): string {
                 data-testid="sub-undo" @click="undo(p)"
               >
                 撤回
+              </n-button>
+              <n-button
+                v-if="p.sub_type === 'swap' && p.status !== 'cancelled'" size="small" tertiary
+                data-testid="sub-print-slip" @click="printSlips([p.id])"
+              >
+                列印調課單
               </n-button>
             </n-space>
 

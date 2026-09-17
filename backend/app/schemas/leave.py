@@ -19,6 +19,7 @@ class AffectedPeriodOut(BaseModel):
     status: str  # pending / resolved / completed / cancelled
     handler_teacher_id: int | None = None
     handler_name: str | None = None
+    sub_type: str | None = None  # 已處置時的處置方式(substitute/swap/…),未處置為空
 
     model_config = {"from_attributes": True}
 

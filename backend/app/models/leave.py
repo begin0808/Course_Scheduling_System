@@ -13,6 +13,7 @@
 
 import enum
 from datetime import date, datetime, time
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Date,
@@ -29,6 +30,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
 from app.models.basedata import Teacher
+
+if TYPE_CHECKING:
+    from app.models.substitution import Substitution
 
 
 class LeaveType(enum.StrEnum):
@@ -166,3 +170,6 @@ class AffectedPeriod(Base):
 
     leave_request: Mapped[LeaveRequest] = relationship(back_populates="affected_periods")
     handler: Mapped[Teacher | None] = relationship(lazy="selectin")
+    # 唯讀:讓清單直接知道這節是代課還是調課(例如要不要顯示「列印調課單」),不必逐節回頭查
+    substitution: Mapped["Substitution | None"] = relationship(
+        viewonly=True, lazy="selectin", uselist=False)

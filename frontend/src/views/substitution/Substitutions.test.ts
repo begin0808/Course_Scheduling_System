@@ -10,7 +10,7 @@ import Substitutions from './Substitutions.vue'
 const affected = {
   id: 11, date: '2026-10-07', weekday: 3, period_no: 2, period_name: '第一節',
   start_time: null, end_time: null, subject_name: '國文', class_names: '701', room_name: '',
-  status: 'pending', handler_teacher_id: null, handler_name: null,
+  status: 'pending', handler_teacher_id: null, handler_name: null, sub_type: null,
 }
 const leave = {
   id: 5, semester_id: 1, teacher_id: 1, teacher_name: '王師', leave_type: 'sick',

@@ -26,6 +26,12 @@ const routes = [
     component: () => import('@/views/substitution/DailyBoardPrint.vue'),
   },
   {
+    // 調課通知單(教師/班級)列印頁,同樣不套側邊欄
+    path: '/swap-slips/print',
+    name: 'swap-slips-print',
+    component: () => import('@/views/substitution/SwapSlipsPrint.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     children: [
