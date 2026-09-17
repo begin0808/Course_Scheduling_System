@@ -17,6 +17,8 @@ export interface AffectedPeriod {
   handler_teacher_id: number | null
   handler_name: string | null
   sub_type: string | null // 已處置時的處置方式(substitute/swap/…)
+  swap_date: string | null // 調課才有:請假教師回來補課的日期
+  swap_period_name: string
 }
 
 export interface LeaveRequest {

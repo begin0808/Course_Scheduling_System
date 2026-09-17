@@ -66,6 +66,8 @@ def _serialize(leave: LeaveRequest) -> LeaveRequestOut:
                 status=leave_service.effective_status(p.status, p.date, p.end_time),
                 handler_name=p.handler.name if p.handler else None,
                 sub_type=p.substitution.type if p.substitution else None,
+                swap_date=p.substitution.swap_date if p.substitution else None,
+                swap_period_name=p.substitution.swap_period_name if p.substitution else "",
             )
             for p in periods
         ],

@@ -590,7 +590,9 @@ def test_swap_slips_same_class_follow_the_paper_form(env2):
     affected_id = _swap_world(w)  # 王師週三第 1 節 701 國文 ⇄ 陳師週四第 2 節 701 數學
     _swap_first(w, affected_id, lambda o: o["date"] == THU.isoformat())
     wang = [p["id"] for p in w.client.get(f"/api/leaves{w.q}").json()[0]["affected_periods"]]
-    assert w.client.get(f"/api/leaves{w.q}").json()[0]["affected_periods"][0]["sub_type"] == "swap"
+    listed = w.client.get(f"/api/leaves{w.q}").json()[0]["affected_periods"][0]
+    assert listed["sub_type"] == "swap"
+    assert listed["swap_date"] == THU.isoformat() and listed["swap_period_name"]
 
     r = _slips(w, *wang)
     assert r.status_code == 200, r.json()

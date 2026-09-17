@@ -134,6 +134,18 @@ async function assign(p: AffectedPeriod, type: string, candidate?: Candidate) {
   }
 }
 
+// 已處置的節次寫出「怎麼處置」:只寫「→ 陳師」分不出是代課還是調課,
+// 調課還得知道請假的老師哪天要回來補課
+function dispositionText(l: LeaveRequest, p: AffectedPeriod): string {
+  if (!p.sub_type) return p.handler_name ? `→ ${p.handler_name}` : ''
+  const label = types.value[p.sub_type] ?? p.sub_type
+  const who = p.handler_name ? ` → ${p.handler_name}` : ''
+  if (p.sub_type === 'swap' && p.swap_date) {
+    return `${label}${who}(${l.teacher_name} ${shortDate(p.swap_date)} ${p.swap_period_name}補課)`
+  }
+  return `${label}${who}`
+}
+
 function swapIds(l: LeaveRequest): number[] {
   return l.affected_periods
     .filter((p) => p.sub_type === 'swap' && p.status !== 'cancelled')
@@ -250,8 +262,10 @@ function candidateTagType(c: Candidate): string {
                 {{ p.class_names }} {{ p.subject_name }}
                 <n-text v-if="p.room_name" depth="3">@{{ p.room_name }}</n-text>
               </n-text>
-              <n-text v-if="p.handler_name" type="success" data-testid="sub-handler">
-                → {{ p.handler_name }}
+              <n-text
+                v-if="p.sub_type || p.handler_name" type="success" data-testid="sub-handler"
+              >
+                {{ dispositionText(l, p) }}
               </n-text>
               <n-button
                 v-if="p.status === 'pending'" size="small" type="primary"
