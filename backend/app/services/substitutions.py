@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core import clock
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.basedata import Subject, Teacher
-from app.models.leave import AffectedPeriod, AffectedStatus, LeaveStatus
+from app.models.leave import AffectedPeriod, AffectedStatus, LeaveStatus, LeaveType
 from app.models.notification import NotificationType
 from app.models.substitution import (
     SUBSTITUTION_TYPE_CN,
@@ -40,6 +40,16 @@ def _wd(weekday: int) -> str:
 
 def _counts_default(sub_type: str) -> bool:
     return sub_type == SubstitutionType.substitute.value
+
+
+def _funding_default(sub_type: str, leave_type: str) -> str:
+    """沒填計費方式時的預設:事假請人代課由請假教師自付,其餘由學校經費支應。
+
+    學校規定不一,畫面上可改;這裡只是讓通知單不會印空白。
+    """
+    if sub_type != SubstitutionType.substitute.value:
+        return ""
+    return "自費代課" if leave_type == LeaveType.personal.value else "公費代課"
 
 
 def assign(
@@ -84,7 +94,8 @@ def assign(
     sub.type = sub_type
     sub.handler_teacher_id = handler.id if handler else None
     sub.counts_toward_hours = counts
-    sub.funding_source = funding_source
+    sub.funding_source = funding_source or _funding_default(
+        sub_type, affected.leave_request.leave_type)
     sub.created_by_user_id = created_by_user_id
     sub.created_by_name = created_by_name
     for k, v in swap_fields.items():

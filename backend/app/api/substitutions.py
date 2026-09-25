@@ -13,19 +13,25 @@ from app.core.auth import require_roles
 from app.core.db import get_db
 from app.models.audit import AuditLog
 from app.models.leave import AffectedPeriod
-from app.models.substitution import SUBSTITUTION_TYPE_CN, Substitution, SubstitutionType
+from app.models.substitution import (
+    FUNDING_SOURCES,
+    SUBSTITUTION_TYPE_CN,
+    Substitution,
+    SubstitutionType,
+)
 from app.models.user import Role, User
 from app.schemas.substitution import (
     AssignRequest,
     CandidateOut,
     RecommendationOut,
+    SlipsOut,
     SubstitutionOut,
     SwapOptionsOut,
-    SwapSlipsOut,
 )
+from app.services import sub_slips, swap_options, swap_slips
 from app.services import substitution_recommender as recommender
 from app.services import substitutions as sub_service
-from app.services import swap_options, swap_slips
+from app.services.slip_layout import SlipError
 
 router = APIRouter(tags=["substitutions"])
 
@@ -87,7 +93,7 @@ def get_swap_options(
         asdict(swap_options.search(db, affected, teacher_id=teacher_id, weeks=weeks)))
 
 
-@router.get("/swap-slips", response_model=SwapSlipsOut)
+@router.get("/swap-slips", response_model=SlipsOut)
 def get_swap_slips(
     semester_id: int = Query(...),
     affected_period_ids: list[int] = Query(..., min_length=1, max_length=500),
@@ -97,9 +103,24 @@ def get_swap_slips(
     """調課通知單(教師調課單 + 班級調課單)的列印資料。非調課的節次略過。"""
     try:
         slips = swap_slips.build(db, semester_id, affected_period_ids)
-    except swap_slips.SlipError as exc:
+    except SlipError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    return SwapSlipsOut.model_validate(asdict(slips))
+    return SlipsOut.model_validate(asdict(slips))
+
+
+@router.get("/substitute-slips", response_model=SlipsOut)
+def get_substitute_slips(
+    semester_id: int = Query(...),
+    affected_period_ids: list[int] = Query(..., min_length=1, max_length=500),
+    db: Session = Depends(get_db),
+    _: User = Depends(editor),
+):
+    """代課通知單(教師代課單 + 班級代課單)的列印資料。代課與併班以外的節次略過。"""
+    try:
+        slips = sub_slips.build(db, semester_id, affected_period_ids)
+    except SlipError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return SlipsOut.model_validate(asdict(slips))
 
 
 @router.put("/affected-periods/{affected_id}/substitution", response_model=SubstitutionOut)
@@ -154,6 +175,12 @@ def clear_substitution(
 @router.get("/substitution-types", response_model=dict[str, str])
 def substitution_types(_: User = Depends(editor)):
     return {t.value: SUBSTITUTION_TYPE_CN[t.value] for t in SubstitutionType}
+
+
+@router.get("/substitution-funding-sources", response_model=list[str])
+def substitution_funding_sources(_: User = Depends(editor)):
+    """代課鐘點的計費方式常用選項(印在代課通知單上);畫面也允許自行輸入。"""
+    return list(FUNDING_SOURCES)
 
 
 @router.get("/affected-periods/{affected_id}/substitution", response_model=SubstitutionOut | None)
