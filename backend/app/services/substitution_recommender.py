@@ -81,6 +81,8 @@ def _monthly_sub_counts(db: Session, semester_id: int, month_start: date) -> dic
         .group_by(Substitution.handler_teacher_id)
     ).all()
     for teacher_id, n in rows:
+        if teacher_id is None:  # 查詢已過濾掉,這裡只是讓型別檢查看得懂
+            continue
         counts[teacher_id] = n
     return counts
 
