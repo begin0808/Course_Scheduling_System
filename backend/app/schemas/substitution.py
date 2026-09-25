@@ -94,7 +94,7 @@ class SlipCellOut(BaseModel):
     weekday: int
     ordinal: int
     subject_name: str
-    teacher_name: str
+    actor: str  # 第三行:調課單寫上課老師;代課單寫「班級[代]」或「老師[代]」
     code: str
 
 
@@ -110,12 +110,16 @@ class SlipOut(BaseModel):
     class_names: str
     date_from: _Date
     date_to: _Date
+    absent_teacher_name: str = ""  # 代課單:請假教師
+    leave_type_name: str = ""      # 代課單:假別
+    funding_label: str = ""        # 代課單:計費方式
     rows: list[SlipRowOut] = []
     weeks: list[SlipWeekOut] = []
 
 
-class SwapSlipsOut(BaseModel):
-    """調課通知單:先每位教師一張,再每個班一張。"""
+class SlipsOut(BaseModel):
+    """通知單:先每位教師一張,再每個班一張。"""
 
     title: str
+    kind: str = "swap"  # swap / substitute:決定紙本抬頭
     slips: list[SlipOut] = []

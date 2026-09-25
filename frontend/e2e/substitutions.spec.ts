@@ -103,6 +103,9 @@ test('調代課處理:推薦同科優先、過濾有課者,指派後標記已確
   await expect(panel).not.toContainText('吳師')
   await page.screenshot({ path: `${SHOTS}/sub-1-recommend.png` })
 
+  // 計費方式:病假預設公費代課(印在代課通知單上)
+  await expect(panel.getByTestId('sub-funding')).toContainText('公費代課')
+
   // 指派第一名(陳師)
   await candidates.first().getByTestId('sub-pick').click()
   await expect(page.getByText('已指派 陳師 代課')).toBeVisible()
@@ -111,8 +114,41 @@ test('調代課處理:推薦同科優先、過濾有課者,指派後標記已確
   await expect(period.getByTestId('sub-handler')).toContainText('代課 → 陳師')
   await page.screenshot({ path: `${SHOTS}/sub-2-assigned.png` })
 
+  // 代課通知單:陳師教師單 + 701 班級單;格子寫「日期/科目/班級[代]」與「日期/科目/老師[代]」
+  const [slips] = await Promise.all([
+    page.waitForEvent('popup'),
+    period.getByTestId('sub-print-slip-sub').click(),
+  ])
+  await expect(slips.getByTestId('slip-teacher')).toHaveCount(1)
+  await expect(slips.getByTestId('slip-class')).toHaveCount(1)
+  const teacherSlip = slips.getByTestId('slip-teacher')
+  await expect(teacherSlip).toContainText('代課　通知單')
+  await expect(teacherSlip).toContainText('代課教師：陳師')
+  await expect(teacherSlip).toContainText('請假教師：王師')
+  await expect(teacherSlip.getByTestId('slip-leave-meta')).toContainText(`日期：${WED} ~ ${WED}`)
+  await expect(teacherSlip.getByTestId('slip-leave-meta')).toContainText('假別：病假')
+  await expect(teacherSlip.getByTestId('slip-leave-meta')).toContainText('計費方式：公費代課')
+  await expect(teacherSlip.getByTestId('slip-cell')).toHaveText(
+    new RegExp(String.raw`${WED}\s*國文\s*701\[代\]`))
+  await expect(slips.getByTestId('slip-class')).toContainText('班級代課　通知單')
+  await expect(slips.getByTestId('slip-class').getByTestId('slip-cell')).toHaveText(
+    new RegExp(String.raw`${WED}\s*國文\s*陳師\[代\]`))
+  await expect(slips.locator('th.corner svg line')).toHaveCount(2)  // 每張一條斜線
+  await slips.screenshot({ path: `${SHOTS}/sub-9-substitute-slips.png`, fullPage: true })
+  await slips.close()
+
+  // 假單標題列也能一次印齊
+  await expect(page.getByTestId('sub-print-leave-sub')).toContainText('1 節')
+
+  // 調代課紀錄頁:代課單批次列印
+  await page.goto('/substitution-log')
+  await selectSemester(page, YEAR)
+  await expect(page.getByTestId('log-print-sub-slips')).toContainText('1 節')
+  await page.goto('/substitutions')
+  await selectSemester(page, YEAR)
+
   // 撤回 → 退回待處理
-  await period.getByTestId('sub-undo').click()
+  await page.getByTestId('sub-period').first().getByTestId('sub-undo').click()
   await expect(page.getByText('已撤回處置')).toBeVisible()
   await expect(page.getByTestId('sub-period').first()).toContainText('待處理')
 

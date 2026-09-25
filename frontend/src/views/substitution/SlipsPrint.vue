@@ -1,22 +1,30 @@
 <script setup lang="ts">
-// 調課通知單列印頁:教師調課單 + 班級調課單,一張一頁(A4 直式)。
-// 版面照使用學校現行的紙本:週課表,只在有異動的格子寫「日期/科目/老師/[調MM-DD_星期節次]」。
+// 通知單列印頁:調課單(v1.2.2)與代課單(v1.2.5),一張一頁(A4 直式)。
+// 版面照使用學校現行的紙本:週課表,只在有異動的格子寫「日期/科目/第三行」。
+// 兩種單子格線相同,差在抬頭與表頭欄位:代課單多了請假教師、假別、計費方式。
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import type { ApiError } from '@/api/client'
-import { getSwapSlips } from '@/api/substitutions'
-import type { Slip, SlipCell, SlipRow, SwapSlips } from '@/api/substitutions'
+import { getSubstituteSlips, getSwapSlips } from '@/api/substitutions'
+import type { Slip, SlipCell, SlipRow, Slips } from '@/api/substitutions'
 
 const DAY_NAMES = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日']
 
 const route = useRoute()
-const data = ref<SwapSlips | null>(null)
+const data = ref<Slips | null>(null)
 const error = ref('')
 const loading = ref(true)
+
+const isSwap = computed(() => !route.path.startsWith('/substitute-slips'))
 
 // 一週一頁:跨週的調課(例如本週與隔三週對調)會印成同一位老師/班級的兩頁
 const pages = computed(() =>
   (data.value?.slips ?? []).flatMap((slip) => slip.weeks.map((week) => ({ slip, week }))))
+
+function heading(slip: Slip): string {
+  if (isSwap.value) return `●${slip.kind === 'teacher' ? '教師' : '班級'}調課通知單●`
+  return slip.kind === 'teacher' ? '代課　通知單' : '班級代課　通知單'
+}
 
 function rowsOf(slip: Slip): SlipRow[] {
   if (slip.rows.length) return slip.rows
@@ -43,10 +51,11 @@ function doClose() {
 onMounted(async () => {
   const sid = Number(route.query.semester_id)
   const ids = String(route.query.ids ?? '').split(',').map(Number).filter(Boolean)
+  const fetch = isSwap.value ? getSwapSlips : getSubstituteSlips
   try {
-    data.value = await getSwapSlips(sid, ids)
+    data.value = await fetch(sid, ids)
   } catch (e) {
-    error.value = (e as ApiError).message || '無法產生調課單'
+    error.value = (e as ApiError).message || (isSwap.value ? '無法產生調課單' : '無法產生代課單')
   } finally {
     loading.value = false
   }
@@ -68,19 +77,35 @@ onMounted(async () => {
       v-for="({ slip, week }, i) in pages" :key="i" class="page"
       :data-testid="slip.kind === 'teacher' ? 'slip-teacher' : 'slip-class'"
     >
-      <h1 class="school">{{ data?.title }}</h1>
-      <h2 class="kind">●{{ slip.kind === 'teacher' ? '教師' : '班級' }}調課通知單●</h2>
+      <!-- 調課單:校名一行、單別一行;代課單照紙本把校名與單別排成一行 -->
+      <template v-if="isSwap">
+        <h1 class="school">{{ data?.title }}</h1>
+        <h2 class="kind">{{ heading(slip) }}</h2>
+      </template>
+      <h1 v-else class="school one-line">{{ data?.title }}　{{ heading(slip) }}</h1>
 
-      <div v-if="slip.kind === 'teacher'" class="meta">
+      <div v-if="isSwap && slip.kind === 'teacher'" class="meta">
         <div class="meta-line">
           <span class="big">調課教師：{{ slip.teacher_name }}</span>
           <span class="big">調課班級：{{ slip.class_names }}</span>
         </div>
         <div class="small">調課日期：{{ slip.date_from }}~{{ slip.date_to }}</div>
       </div>
-      <div v-else class="meta meta-line">
+      <div v-else-if="isSwap" class="meta meta-line">
         <span class="big">調課班級：{{ slip.class_names }}</span>
         <span class="small">調課日期：{{ slip.date_from }}~{{ slip.date_to }}</span>
+      </div>
+      <div v-else class="meta">
+        <div class="meta-line">
+          <span v-if="slip.kind === 'teacher'" class="big">代課教師：{{ slip.teacher_name }}</span>
+          <span v-else class="big">代課班級：{{ slip.class_names }}</span>
+          <span class="big">請假教師：{{ slip.absent_teacher_name }}</span>
+        </div>
+        <div class="meta-line small" data-testid="slip-leave-meta">
+          <span>日期：{{ slip.date_from }} ~ {{ slip.date_to }}</span>
+          <span>假別：{{ slip.leave_type_name }}</span>
+          <span>計費方式：{{ slip.funding_label || '—' }}</span>
+        </div>
       </div>
 
       <table class="grid">
@@ -117,7 +142,8 @@ onMounted(async () => {
                 v-for="(c, k) in cellsAt(week.cells, day, row.ordinal)" :key="k"
                 data-testid="slip-cell"
               >
-                {{ c.date }}<br>{{ c.subject_name }}<br>{{ c.teacher_name }}<br>[{{ c.code }}]
+                {{ c.date }}<br>{{ c.subject_name }}<br>{{ c.actor }}
+                <template v-if="c.code"><br>[{{ c.code }}]</template>
               </div>
             </td>
           </tr>
@@ -142,6 +168,7 @@ onMounted(async () => {
 .page { max-width: 720px; margin: 0 auto; padding: 32px 24px; }
 .page + .page { border-top: 1px dashed #bbb; }
 .school { font-size: 22px; font-weight: normal; text-align: center; margin: 0; }
+.school.one-line { margin-bottom: 18px; }
 .kind { font-size: 20px; font-weight: normal; text-align: center; margin: 2px 0 18px; }
 .meta { margin-bottom: 18px; }
 .meta-line { display: flex; justify-content: space-between; align-items: baseline; }

@@ -47,6 +47,10 @@ SUBSTITUTION_TYPE_CN = {
     SubstitutionType.cancel.value: "不處理",
 }
 
+# 代課鐘點由誰支付(印在代課通知單的「計費方式」)。自由文字欄位,這裡只是給畫面的常用選項,
+# 學校要填別的也存得進去。
+FUNDING_SOURCES = ("公費代課", "自費代課", "課務自理", "不支鐘點")
+
 # 需要指定一位「處理教師」的處置(代課的代課老師、調課的對調老師、併班的接收老師)
 TYPES_WITH_HANDLER = frozenset({
     SubstitutionType.substitute.value,

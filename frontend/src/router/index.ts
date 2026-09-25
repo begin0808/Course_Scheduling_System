@@ -29,7 +29,13 @@ const routes = [
     // 調課通知單(教師/班級)列印頁,同樣不套側邊欄
     path: '/swap-slips/print',
     name: 'swap-slips-print',
-    component: () => import('@/views/substitution/SwapSlipsPrint.vue'),
+    component: () => import('@/views/substitution/SlipsPrint.vue'),
+  },
+  {
+    // 代課通知單(教師/班級)列印頁:與調課單同一個元件,版面相同、表頭不同
+    path: '/substitute-slips/print',
+    name: 'substitute-slips-print',
+    component: () => import('@/views/substitution/SlipsPrint.vue'),
   },
   {
     path: '/',

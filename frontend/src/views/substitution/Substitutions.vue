@@ -11,7 +11,7 @@ import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
 import {
   assignSubstitution, clearSubstitution, getRecommendations, getSwapOptions,
-  listSubstitutionTypes, openSwapSlips,
+  listFundingSources, listSubstitutionTypes, openSlips,
 } from '@/api/substitutions'
 import type {
   Candidate, Recommendation, SwapOption, SwapOptions, SwapPartner,
@@ -27,6 +27,9 @@ const openId = ref<number | null>(null) // 展開中的受影響節次
 const rec = ref<Recommendation | null>(null)
 const loadingRec = ref(false)
 const countsHours = ref(true)
+// 代課鐘點由誰支付:印在代課通知單上。預設依假別(事假自費、其餘公費),組長可改或自行輸入
+const fundingOptions = ref<{ label: string; value: string }[]>([])
+const funding = ref('')
 const teachers = ref<Teacher[]>([])
 // 調課:展開中節次的可對調清單。swapTeacherId 為空 = 只看也教這個班的老師
 const swapOpen = ref(false)
@@ -96,7 +99,10 @@ async function onSemesterChange(id: number) {
 }
 
 onMounted(async () => {
-  ;[semesters.value, types.value] = await Promise.all([listSemesters(), listSubstitutionTypes()])
+  const [sems, subTypes, fundings] = await Promise.all(
+    [listSemesters(), listSubstitutionTypes(), listFundingSources()])
+  ;[semesters.value, types.value] = [sems, subTypes]
+  fundingOptions.value = fundings.map((f) => ({ label: f, value: f }))
   if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
 })
 
@@ -109,6 +115,7 @@ async function openPeriod(p: AffectedPeriod) {
   rec.value = null
   resetSwap()
   countsHours.value = true
+  funding.value = defaultFunding(leaveOf(p))
   loadingRec.value = true
   try {
     rec.value = await getRecommendations(p.id)
@@ -117,12 +124,23 @@ async function openPeriod(p: AffectedPeriod) {
   }
 }
 
+// 事假請人代課由請假教師自付,其餘由學校經費支應(與後端預設一致;學校規定不一,可改)
+function defaultFunding(l: LeaveRequest | undefined): string {
+  if (!l) return ''
+  return l.leave_type === 'personal' ? '自費代課' : '公費代課'
+}
+
+function leaveOf(p: AffectedPeriod): LeaveRequest | undefined {
+  return leaves.value.find((l) => l.affected_periods.some((x) => x.id === p.id))
+}
+
 async function assign(p: AffectedPeriod, type: string, candidate?: Candidate) {
   try {
     await assignSubstitution(p.id, {
       type,
       handler_teacher_id: candidate?.teacher_id ?? null,
       counts_toward_hours: type === 'substitute' ? countsHours.value : null,
+      funding_source: type === 'substitute' ? funding.value : '',
     })
     message.success(candidate
       ? `已指派 ${candidate.teacher_name} ${types.value[type]}`
@@ -152,8 +170,16 @@ function swapIds(l: LeaveRequest): number[] {
     .map((p) => p.id)
 }
 
-function printSlips(ids: number[]) {
-  if (sid.value) openSwapSlips(sid.value, ids)
+// 代課單同時涵蓋併班(紙本格子標[併])
+function substituteIds(l: LeaveRequest): number[] {
+  return l.affected_periods
+    .filter((p) => (p.sub_type === 'substitute' || p.sub_type === 'merge')
+      && p.status !== 'cancelled')
+    .map((p) => p.id)
+}
+
+function printSlips(kind: 'swap' | 'substitute', ids: number[]) {
+  if (sid.value) openSlips(kind, sid.value, ids)
 }
 
 function swapTeacherOptions(l: LeaveRequest) {
@@ -246,10 +272,21 @@ function candidateTagType(c: Candidate): string {
         v-for="l in activeLeaves" :key="l.id" size="small" data-testid="sub-leave"
         :title="`${l.teacher_name} · ${l.leave_type_label} · 待處理 ${l.pending_count} 節`"
       >
-        <template v-if="swapIds(l).length" #header-extra>
-          <n-button size="small" data-testid="sub-print-leave" @click="printSlips(swapIds(l))">
-            列印調課單({{ swapIds(l).length }} 節)
-          </n-button>
+        <template v-if="swapIds(l).length || substituteIds(l).length" #header-extra>
+          <n-space size="small">
+            <n-button
+              v-if="swapIds(l).length" size="small" data-testid="sub-print-leave"
+              @click="printSlips('swap', swapIds(l))"
+            >
+              列印調課單({{ swapIds(l).length }} 節)
+            </n-button>
+            <n-button
+              v-if="substituteIds(l).length" size="small" data-testid="sub-print-leave-sub"
+              @click="printSlips('substitute', substituteIds(l))"
+            >
+              列印代課單({{ substituteIds(l).length }} 節)
+            </n-button>
+          </n-space>
         </template>
         <n-space vertical size="small">
           <div v-for="p in l.affected_periods" :key="p.id" data-testid="sub-period">
@@ -281,9 +318,17 @@ function candidateTagType(c: Candidate): string {
               </n-button>
               <n-button
                 v-if="p.sub_type === 'swap' && p.status !== 'cancelled'" size="small" tertiary
-                data-testid="sub-print-slip" @click="printSlips([p.id])"
+                data-testid="sub-print-slip" @click="printSlips('swap', [p.id])"
               >
                 列印調課單
+              </n-button>
+              <n-button
+                v-if="(p.sub_type === 'substitute' || p.sub_type === 'merge')
+                  && p.status !== 'cancelled'"
+                size="small" tertiary
+                data-testid="sub-print-slip-sub" @click="printSlips('substitute', [p.id])"
+              >
+                列印代課單
               </n-button>
             </n-space>
 
@@ -308,6 +353,12 @@ function candidateTagType(c: Candidate): string {
                       <n-text depth="3">代課鐘點</n-text>
                       <n-switch v-model:value="countsHours" size="small" />
                       <n-text depth="3">{{ countsHours ? '計入' : '不計' }}</n-text>
+                      <n-text depth="3">計費方式</n-text>
+                      <n-select
+                        v-model:value="funding" size="small" style="width: 150px"
+                        filterable tag :options="fundingOptions"
+                        data-testid="sub-funding"
+                      />
                     </n-space>
                     <div
                       v-for="c in rec.candidates" :key="c.teacher_id"

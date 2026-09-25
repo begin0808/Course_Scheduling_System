@@ -1,4 +1,4 @@
-// 調代課處理:代課推薦、指派處置(M4-2)、可對調節次(v1.2.1)。
+// 調代課處理:代課推薦、指派處置(M4-2)、可對調節次(v1.2.1)、通知單(v1.2.2/v1.2.5)。
 
 import { apiDelete, apiGet, apiPut } from '@/api/client'
 
@@ -92,7 +92,7 @@ export const getSwapOptions = (
   return apiGet(`/affected-periods/${affectedId}/swap-options?${q}`)
 }
 
-// ── 調課通知單(教師調課單、班級調課單)──
+// ── 通知單(調課單 v1.2.2、代課單 v1.2.5;兩者版面相同,表頭與格子內容不同)──
 
 export interface SlipRow {
   ordinal: number // 第幾節(只數一般課)
@@ -106,8 +106,8 @@ export interface SlipCell {
   weekday: number
   ordinal: number
   subject_name: string
-  teacher_name: string
-  code: string // 「調09-15_25」:與 9/15 星期二第 5 節對調
+  actor: string // 第三行:調課單寫上課老師;代課單寫「班級[代]」或「老師[代]」
+  code: string // 「調09-15_25」:與 9/15 星期二第 5 節對調;代課單沒有
 }
 
 export interface SlipWeek {
@@ -122,22 +122,38 @@ export interface Slip {
   class_names: string
   date_from: string
   date_to: string
+  absent_teacher_name: string // 代課單:請假教師
+  leave_type_name: string // 代課單:假別
+  funding_label: string // 代課單:計費方式
   rows: SlipRow[]
   weeks: SlipWeek[]
 }
 
-export interface SwapSlips {
+export interface Slips {
   title: string
+  kind: 'swap' | 'substitute'
   slips: Slip[]
 }
 
-export const getSwapSlips = (semesterId: number, affectedIds: number[]): Promise<SwapSlips> => {
+const slipsQuery = (semesterId: number, affectedIds: number[]): string => {
   const q = new URLSearchParams({ semester_id: String(semesterId) })
   for (const id of affectedIds) q.append('affected_period_ids', String(id))
-  return apiGet(`/swap-slips?${q}`)
+  return String(q)
 }
 
-/** 在新分頁開啟調課通知單(列印頁不套側邊欄) */
-export function openSwapSlips(semesterId: number, affectedIds: number[]): void {
-  window.open(`/swap-slips/print?semester_id=${semesterId}&ids=${affectedIds.join(',')}`, '_blank')
+export const getSwapSlips = (semesterId: number, affectedIds: number[]): Promise<Slips> =>
+  apiGet(`/swap-slips?${slipsQuery(semesterId, affectedIds)}`)
+
+export const getSubstituteSlips = (semesterId: number, affectedIds: number[]): Promise<Slips> =>
+  apiGet(`/substitute-slips?${slipsQuery(semesterId, affectedIds)}`)
+
+export const listFundingSources = (): Promise<string[]> =>
+  apiGet('/substitution-funding-sources')
+
+/** 在新分頁開啟通知單(列印頁不套側邊欄);kind 決定印調課單還是代課單 */
+export function openSlips(
+  kind: 'swap' | 'substitute', semesterId: number, affectedIds: number[],
+): void {
+  const path = kind === 'swap' ? '/swap-slips/print' : '/substitute-slips/print'
+  window.open(`${path}?semester_id=${semesterId}&ids=${affectedIds.join(',')}`, '_blank')
 }

@@ -6,7 +6,7 @@ import { listLeaveTypes } from '@/api/leaves'
 import { listSemesters } from '@/api/semesters'
 import { getSubstitutionLog } from '@/api/substitutionLog'
 import type { LogEntry } from '@/api/substitutionLog'
-import { openSwapSlips } from '@/api/substitutions'
+import { openSlips } from '@/api/substitutions'
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
@@ -74,13 +74,18 @@ onMounted(async () => {
   if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
 })
 
-// 篩選結果中還有效的調課:依日期區間篩出本週(或某位老師)的調課,一次印齊
+// 篩選結果中還有效的調課/代課:依日期區間篩出本週(或某位老師)的處置,一次印齊
 const swapIds = computed(() => entries.value
   .filter((e) => e.sub_type === 'swap' && e.status !== 'cancelled')
   .map((e) => e.affected_period_id))
 
-function printSlips() {
-  if (sid.value) openSwapSlips(sid.value, swapIds.value)
+const substituteIds = computed(() => entries.value
+  .filter((e) => (e.sub_type === 'substitute' || e.sub_type === 'merge')
+    && e.status !== 'cancelled')
+  .map((e) => e.affected_period_id))
+
+function printSlips(kind: 'swap' | 'substitute') {
+  if (sid.value) openSlips(kind, sid.value, kind === 'swap' ? swapIds.value : substituteIds.value)
 }
 
 function dispositionText(e: LogEntry): string {
@@ -126,9 +131,16 @@ function statusType(e: LogEntry): string {
     <n-space align="center">
       <n-text depth="3" data-testid="log-count">共 {{ entries.length }} 筆</n-text>
       <n-button
-        v-if="swapIds.length" size="small" data-testid="log-print-slips" @click="printSlips"
+        v-if="swapIds.length" size="small" data-testid="log-print-slips"
+        @click="printSlips('swap')"
       >
         列印這些紀錄中的調課單({{ swapIds.length }} 節)
+      </n-button>
+      <n-button
+        v-if="substituteIds.length" size="small" data-testid="log-print-sub-slips"
+        @click="printSlips('substitute')"
+      >
+        列印這些紀錄中的代課單({{ substituteIds.length }} 節)
       </n-button>
     </n-space>
 

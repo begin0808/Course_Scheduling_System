@@ -40,18 +40,25 @@ const swapOptions = {
   ],
 }
 
-function stubFetch() {
+const candidate = {
+  teacher_id: 2, teacher_name: '陳師', same_subject: true, at_school_that_day: true,
+  sub_periods_this_month: 0, reasons: ['同科'],
+}
+
+function stubFetch(leaveObj: unknown = leave, candidates: unknown[] = []) {
   const calls: { url: string; method: string; body?: unknown }[] = []
   vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
     calls.push({ url, method: init.method ?? 'GET', body: init.body && JSON.parse(String(init.body)) })
     let body: unknown = []
     if (url.includes('/swap-options')) body = swapOptions
     else if (url.includes('/recommendations')) {
-      body = { affected_period_id: 11, candidates: [], no_candidate_hint: '無人可代' }
-    } else if (url.includes('/substitution-types')) body = { swap: '調課' }
+      body = { affected_period_id: 11, candidates, no_candidate_hint: '無人可代' }
+    } else if (url.includes('/substitution-funding-sources')) {
+      body = ['公費代課', '自費代課', '課務自理', '不支鐘點']
+    } else if (url.includes('/substitution-types')) body = { swap: '調課', substitute: '代課' }
     else if (url.includes('/semesters')) body = [{ id: 1, label: '115 學年度第 1 學期' }]
     else if (url.includes('/teachers')) body = []
-    else if (url.includes('/leaves')) body = [leave]
+    else if (url.includes('/leaves')) body = [leaveObj]
     else if (url.includes('/substitution')) body = { id: 1 }
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
   }))
@@ -68,6 +75,32 @@ async function openSwap() {
   await flushPromises()
   return { wrapper, calls }
 }
+
+// 代課單上要印「計費方式」,所以指派代課時一定要把它送出去;預設依假別(事假自費)
+describe('調代課處理:代課的計費方式', () => {
+  async function pick(leaveObj: unknown) {
+    const calls = stubFetch(leaveObj, [candidate])
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    await wrapper.find('[data-testid="sub-handle"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="sub-pick"]').trigger('click')
+    await flushPromises()
+    return calls.find((c) => c.method === 'PUT')
+  }
+
+  it('病假預設公費代課', async () => {
+    expect((await pick(leave))?.body).toEqual({
+      type: 'substitute', handler_teacher_id: 2, counts_toward_hours: true,
+      funding_source: '公費代課',
+    })
+  })
+
+  it('事假預設自費代課', async () => {
+    const personal = { ...leave, leave_type: 'personal', leave_type_label: '事假' }
+    expect((await pick(personal))?.body).toMatchObject({ funding_source: '自費代課' })
+  })
+})
 
 describe('調代課處理:調課', () => {
   it('列出可對調節次,來不了的老師說明原因', async () => {

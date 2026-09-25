@@ -90,9 +90,9 @@ class _World:
         assert r.status_code == 200, r.json()
         self._published = True
 
-    def leave(self, teacher: str, when: date = WED) -> list[dict]:
+    def leave(self, teacher: str, when: date = WED, leave_type: str = "sick") -> list[dict]:
         r = self.client.post(f"/api/leaves{self.q}", json={
-            "teacher_id": self.teachers[teacher], "leave_type": "sick",
+            "teacher_id": self.teachers[teacher], "leave_type": leave_type,
             "start_date": when.isoformat(), "end_date": when.isoformat()})
         assert r.status_code == 201, r.json()
         return r.json()["affected_periods"]
@@ -580,7 +580,7 @@ def _swap_first(w, affected_id, pick):
 
 
 def _cells(slip):
-    return [(c["date"], c["ordinal"], c["subject_name"], c["teacher_name"], c["code"])
+    return [(c["date"], c["ordinal"], c["subject_name"], c["actor"], c["code"])
             for week in slip["weeks"] for c in week["cells"]]
 
 
@@ -638,6 +638,98 @@ def test_swap_slips_ignore_non_swap_periods(env2):
     r = _slips(w, affected_id)
     assert r.status_code == 404 and "沒有已成立的調課" in r.json()["detail"]
     assert w.client.get(f"/api/leaves{w.q}").json()[0]["affected_periods"][0]["sub_type"] is None
+
+
+# ── v1.2.5:代課通知單(教師代課單、班級代課單)────────────────
+def _sub_slips(w, *affected_ids):
+    q = "&".join(f"affected_period_ids={i}" for i in affected_ids)
+    return w.client.get(f"/api/substitute-slips{w.q}&{q}")
+
+
+def _sub_world(w, leave_type: str = "sick") -> list[int]:
+    """王師週三兩節(701 國文、702 數學)請假,回傳兩個受影響節次。"""
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["國文"])
+    w.teacher("林師", ["數學"])
+    w.place("王師", "國文", "701", 0)
+    w.place("王師", "數學", "702", 1)
+    w.publish()
+    return [p["id"] for p in w.leave("王師", leave_type=leave_type)]
+
+
+def test_substitute_slips_follow_the_paper_form(env2):
+    """每位代課老師一張、每個班一張;表頭寫請假教師、假別、計費方式,格子寫班級[代]/老師[代]。"""
+    w = env2
+    first, second = _sub_world(w)
+    assert w.assign(first, type="substitute", handler_teacher_id=w.teachers["陳師"])[0] == 200
+    assert w.assign(second, type="substitute", handler_teacher_id=w.teachers["林師"])[0] == 200
+
+    r = _sub_slips(w, first, second)
+    assert r.status_code == 200, r.json()
+    body = r.json()
+    assert body["kind"] == "substitute"
+    assert "學年" not in body["title"]  # 代課單紙本只有校名
+    kinds = [(s["kind"], s["teacher_name"], s["class_names"]) for s in body["slips"]]
+    assert kinds == [
+        ("teacher", "陳師", "701"), ("teacher", "林師", "702"),
+        ("class", "", "701"), ("class", "", "702"),
+    ]
+
+    chen, lin, c701, c702 = body["slips"]
+    assert _cells(chen) == [(WED.isoformat(), 1, "國文", "701[代]", "")]
+    assert _cells(lin) == [(WED.isoformat(), 2, "數學", "702[代]", "")]
+    assert _cells(c701) == [(WED.isoformat(), 1, "國文", "陳師[代]", "")]
+    assert _cells(c702) == [(WED.isoformat(), 2, "數學", "林師[代]", "")]
+
+    for slip in body["slips"]:
+        assert slip["absent_teacher_name"] == "王師"
+        assert slip["leave_type_name"] == "病假"
+        assert slip["funding_label"] == "公費代課"          # 事假以外的預設
+        # 日期是請假起訖,不是只有被代的那幾天
+        assert (slip["date_from"], slip["date_to"]) == (WED.isoformat(), WED.isoformat())
+        assert [row["ordinal"] for row in slip["rows"]][:2] == [1, 2]
+        assert any(row["afternoon_starts"] for row in slip["rows"])
+
+
+def test_substitute_slips_personal_leave_defaults_to_self_funding(env2):
+    """事假請人代課預設自費;畫面指定的計費方式優先。"""
+    w = env2
+    first, second = _sub_world(w, leave_type="personal")
+    assert w.assign(first, type="substitute", handler_teacher_id=w.teachers["陳師"])[0] == 200
+    slip = _sub_slips(w, first).json()["slips"][0]
+    assert slip["leave_type_name"] == "事假" and slip["funding_label"] == "自費代課"
+
+    assert w.assign(second, type="substitute", handler_teacher_id=w.teachers["林師"],
+                    funding_source="課務自理")[0] == 200
+    sub = w.client.get(f"/api/affected-periods/{second}/substitution").json()
+    assert sub["funding_source"] == "課務自理"
+
+
+def test_substitute_slips_include_merge_with_its_own_mark(env2):
+    """併班也印,格子標[併];自習、不處理、調課不印。"""
+    w = env2
+    first, second = _sub_world(w)
+    assert w.assign(first, type="merge", handler_teacher_id=w.teachers["陳師"])[0] == 200
+    assert w.assign(second, type="self_study")[0] == 200
+
+    body = _sub_slips(w, first, second).json()
+    assert [(s["kind"], s["class_names"]) for s in body["slips"]] == [
+        ("teacher", "701"), ("class", "701")]
+    assert _cells(body["slips"][0]) == [(WED.isoformat(), 1, "國文", "701[併]", "")]
+    assert body["slips"][0]["funding_label"] == ""  # 併班不另計代課鐘點
+
+
+def test_substitute_slips_without_any_substitute_is_404(env2):
+    """全都不是代課/併班就回 404 並說明。"""
+    w = env2
+    first, _ = _sub_world(w)
+    r = _sub_slips(w, first)
+    assert r.status_code == 404 and "沒有已指派的代課" in r.json()["detail"]
+
+
+def test_funding_sources_are_listed_for_the_form(env2):
+    options = env2.client.get("/api/substitution-funding-sources").json()
+    assert "公費代課" in options and "自費代課" in options
 
 
 def _place_block(w, teacher, subject, klass, weekday, period_idx):
