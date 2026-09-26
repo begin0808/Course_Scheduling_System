@@ -233,13 +233,18 @@
       <td>2026-09-17</td>
       <td>調代課處理寫出處置方式(代課/調課、哪天補課);手冊補調課通知單截圖</td>
       </tr>
+      <tr>
+      <td>v1.2.5</td>
+      <td>2026-09-26</td>
+      <td><strong>教師/班級代課通知單列印</strong>(照使用學校紙本格式);代課可選計費方式</td>
+      </tr>
       </tbody>
       </table></div>
       <p>各版細節見 <a href="../CHANGELOG.html">CHANGELOG.md</a>。</p>
       <hr />
       <h2 id="v13-範圍依實作順序">v1.3 範圍(依實作順序)</h2>
       <p>排序原則:<strong>學校裝得快、用得順的先做</strong>,純工程衛生的後做。全部不改資料表結構。</p>
-      <p><strong>開工時機</strong>:先讓使用學校實際用 v1.2.4 幾天,沒有新的問題回報再動工。</p>
+      <p><strong>開工時機</strong>:先讓使用學校實際用 v1.2.5 幾天,沒有新的問題回報再動工。</p>
       <h3 id="1-api-映像拆掉-ortools-m">1. api 映像拆掉 ortools —— M</h3>
       <ul>
       <li><strong>現況</strong>:<code>ortools</code> 在 <code>pyproject.toml</code> 主依賴,api 映像 <strong>674MB</strong>;排課求解只在 worker 跑,api 容器用不到。</li>
