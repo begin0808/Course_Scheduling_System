@@ -4,9 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.4**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.3 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.5**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.4 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.5] — 2026-09-26
+
+**代課也印得出通知單的一版。** 使用學校一張假單裡常常代課與調課並存,調課單(v1.2.2)印得出來,代課還是得手寫;照學校提供的紙本格式補上。
+
+**本版沒有資料表結構變更**,升級只需換映像;若要退回,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.5`
 
 ### 新增
 - **代課通知單列印**(照使用學校紙本格式):指派代課後可印出**教師代課通知單**與**班級代課通知單**(A4 直式週課表)。表頭寫代課教師(或代課班級)、請假教師、請假起訖、假別與計費方式;格子裡教師單寫「日期/科目/班級[代]」,班級單寫「日期/科目/代課老師[代]」。**併班**一併印出,標記為「[併]」。
@@ -249,7 +258,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.4...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.5...HEAD
+[1.2.5]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.1...v1.2.2
