@@ -8,7 +8,7 @@ import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import {
   STATUS_LABELS, copySemester, createPeriodTable, createSemester, deletePeriodTable,
-  deleteSemester, listSemesters, listTemplates,
+  deleteSemester, listSemesters, listTemplates, updateSemester,
 } from '@/api/semesters'
 import type { CopyOptions, SemesterListItem, Semester, Template } from '@/api/semesters'
 import { getSemester } from '@/api/semesters'
@@ -20,8 +20,13 @@ const semesters = ref<Semester[]>([])
 const templates = ref<Template[]>([])
 const loading = ref(false)
 
-// 建立學期表單
-const form = ref({ academic_year: 115, term: 1, template_key: null as string | null })
+// 建立學期表單。起訖日期是請假展開、今日看板、調代課判定的依據——少了它請假會被擋,
+// 而先前畫面上沒有任何地方填得了(使用者回報 #15)
+const emptyForm = () => ({
+  academic_year: 115, term: 1, template_key: null as string | null,
+  start_date: null as string | null, end_date: null as string | null,
+})
+const form = ref(emptyForm())
 const templateOptions = computed(() => [
   { label: '空白(不帶入節次表)', value: '' },
   ...templates.value.map((t) => ({ label: `${t.name}(${t.minutes_per_period} 分/節)`, value: t.key })),
@@ -48,16 +53,53 @@ onMounted(async () => {
 })
 
 async function onCreateSemester() {
+  if (!form.value.start_date || !form.value.end_date) {
+    message.warning('請填學期起訖日期(請假與調代課需要)')
+    return
+  }
   try {
     await createSemester({
       academic_year: form.value.academic_year,
       term: form.value.term,
       template_key: form.value.template_key || null,
+      start_date: form.value.start_date,
+      end_date: form.value.end_date,
     })
     message.success('學期已建立')
+    form.value = emptyForm()
     await reload()
   } catch (e) {
     message.error((e as ApiError).detail || '建立失敗')
+  }
+}
+
+// 編輯學期:已經建好、但沒有起訖日期的學期靠這裡補(先前只能重建或改資料庫)
+const showEdit = ref(false)
+const editing = ref<Semester | null>(null)
+const editForm = ref({ start_date: null as string | null, end_date: null as string | null })
+
+function openEdit(sem: Semester) {
+  editing.value = sem
+  editForm.value = { start_date: sem.start_date, end_date: sem.end_date }
+  showEdit.value = true
+}
+
+async function onSaveEdit() {
+  if (!editing.value) return
+  if (!editForm.value.start_date || !editForm.value.end_date) {
+    message.warning('請填學期起訖日期')
+    return
+  }
+  try {
+    await updateSemester(editing.value.id, {
+      start_date: editForm.value.start_date,
+      end_date: editForm.value.end_date,
+    })
+    message.success('學期已更新')
+    showEdit.value = false
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).detail || '更新失敗')
   }
 }
 
@@ -176,8 +218,21 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
           placeholder="選擇學制範本"
           style="width: 220px"
         />
-        <n-button type="primary" @click="onCreateSemester">建立</n-button>
+        <n-text>起訖日期</n-text>
+        <n-date-picker
+          v-model:formatted-value="form.start_date" value-format="yyyy-MM-dd"
+          type="date" placeholder="開學日" style="width: 150px" data-testid="sem-start"
+        />
+        <n-text>~</n-text>
+        <n-date-picker
+          v-model:formatted-value="form.end_date" value-format="yyyy-MM-dd"
+          type="date" placeholder="結業日" style="width: 150px" data-testid="sem-end"
+        />
+        <n-button type="primary" data-testid="sem-create" @click="onCreateSemester">建立</n-button>
       </n-space>
+      <n-text depth="3" style="font-size: 13px">
+        起訖日期依貴校校曆填寫;請假展開節次、今日看板與調代課都以它為準。
+      </n-text>
     </n-card>
 
     <n-empty v-if="!loading && semesters.length === 0" description="尚未建立任何學期" />
@@ -187,8 +242,15 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
         <n-space align="center">
           <strong>{{ sem.label }}</strong>
           <n-tag :type="statusType[sem.status]" size="small">{{ STATUS_LABELS[sem.status] }}</n-tag>
+          <n-text v-if="sem.start_date && sem.end_date" depth="3" data-testid="sem-range">
+            {{ sem.start_date }} ~ {{ sem.end_date }}
+          </n-text>
+          <n-tag v-else type="warning" size="small" data-testid="sem-no-range">
+            尚未設定起訖日期(無法登記請假)
+          </n-tag>
         </n-space>
         <n-space>
+          <n-button size="tiny" data-testid="sem-edit" @click="openEdit(sem)">編輯學期</n-button>
           <n-button size="tiny" data-testid="copy-semester" @click="openCopy(sem)">
             複製到新學期
           </n-button>
@@ -228,6 +290,30 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
         <n-button size="small" dashed @click="openAddTable(sem.id)">+ 新增節次表</n-button>
       </n-space>
     </n-card>
+
+    <n-modal
+      v-model:show="showEdit" preset="card" style="max-width: 420px"
+      :title="`編輯學期:${editing?.label ?? ''}`"
+    >
+      <n-space vertical size="small">
+        <n-text>學期起訖日期</n-text>
+        <n-space align="center">
+          <n-date-picker
+            v-model:formatted-value="editForm.start_date" value-format="yyyy-MM-dd"
+            type="date" placeholder="開學日" style="width: 150px" data-testid="sem-edit-start"
+          />
+          <n-text>~</n-text>
+          <n-date-picker
+            v-model:formatted-value="editForm.end_date" value-format="yyyy-MM-dd"
+            type="date" placeholder="結業日" style="width: 150px" data-testid="sem-edit-end"
+          />
+        </n-space>
+        <n-text depth="3" style="font-size: 13px">
+          請假只能登記在這個範圍內;改動不影響已排好的課表。
+        </n-text>
+        <n-button type="primary" data-testid="sem-edit-save" @click="onSaveEdit">儲存</n-button>
+      </n-space>
+    </n-modal>
 
     <n-modal
       v-model:show="showAddTable"
