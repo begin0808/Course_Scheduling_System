@@ -160,13 +160,15 @@ router.beforeEach(async (to) => {
   if (auth.mustChangePassword && to.name !== 'change-password') {
     return { name: 'change-password' }
   }
-  if (!auth.mustChangePassword && to.name === 'change-password') {
-    return { name: 'dashboard' }
-  }
 
-  // 純教師帳號:只開放課表查詢與請假登記(其餘頁面的後端 API 皆需教學組長以上權限)
+  // 純教師帳號:只開放課表查詢與請假登記(其餘頁面的後端 API 皆需教學組長以上權限)。
+  // 改密碼頁必須排除:否則首次登入的教師會被「導去改密碼 → 不在教師可進清單 → 導回課表查詢
+  // → 又要求改密碼」互踢,畫面卡在 /login 動不了(#10)。
   const canManage = auth.hasRole('admin') || auth.hasRole('scheduler') || auth.hasRole('director')
-  if (!canManage && auth.hasRole('teacher') && !TEACHER_PAGES.has(to.name as string)) {
+  if (
+    !canManage && auth.hasRole('teacher')
+    && !AUTH_PAGES.has(to.name as string) && !TEACHER_PAGES.has(to.name as string)
+  ) {
     return { name: 'timetable-query' }
   }
 

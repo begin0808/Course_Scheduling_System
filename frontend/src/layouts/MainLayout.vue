@@ -92,6 +92,10 @@ onMounted(async () => {
   }
 })
 
+function onChangePassword() {
+  router.push({ name: 'change-password' })
+}
+
 async function onLogout() {
   await auth.logout()
   router.push({ name: 'login' })
@@ -139,6 +143,9 @@ async function onLogout() {
           <n-tag v-for="label in roleLabels" :key="label" type="info" size="small">
             {{ label }}
           </n-tag>
+          <n-button size="small" data-testid="header-change-password" @click="onChangePassword">
+            修改密碼
+          </n-button>
           <n-button size="small" @click="onLogout">登出</n-button>
         </n-space>
       </n-layout-header>
