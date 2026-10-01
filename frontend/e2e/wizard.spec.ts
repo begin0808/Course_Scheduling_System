@@ -20,10 +20,21 @@ test('設定精靈:五步驟建立學期並於儀表板顯示摘要', async ({ p
   await page.screenshot({ path: `${SHOTS}/wizard-1-template.png` })
   await page.getByTestId('wizard-next').click()
 
-  // Step 1:設定學年度(改成 120 避免與既有 115 衝突)→ 建立學期
+  // Step 1:設定學年度(改成 120 避免與既有 115 衝突)與起訖日期 → 建立學期
   const yearInput = page.getByTestId('wizard-year').locator('input')
   await yearInput.fill(String(YEAR))
   await yearInput.press('Enter')
+
+  // 沒填起訖日期不讓過:少了它請假會被擋,而使用者當下看不出哪裡不對(#15)
+  await page.getByTestId('wizard-next').click()
+  await expect(page.getByText('請填學期起訖日期(請假與調代課需要)')).toBeVisible()
+
+  const startInput = page.getByTestId('wizard-start').locator('input')
+  await startInput.fill('2026-08-30')
+  await startInput.press('Enter')
+  const endInput = page.getByTestId('wizard-end').locator('input')
+  await endInput.fill('2027-01-20')
+  await endInput.press('Enter')
   await page.screenshot({ path: `${SHOTS}/wizard-2-year.png` })
   await page.getByTestId('wizard-next').click()
 

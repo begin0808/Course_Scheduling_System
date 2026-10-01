@@ -199,7 +199,10 @@ def validate(semester: Semester, start: date, end: date) -> None:
     if (end - start).days + 1 > MAX_LEAVE_DAYS:
         raise LeaveError(f"單張假單最長 {MAX_LEAVE_DAYS} 天")
     if semester.start_date is None or semester.end_date is None:
-        raise LeaveError("學期尚未設定起訖日期,無法登記請假")
+        raise LeaveError(
+            "學期尚未設定起訖日期,無法登記請假;"
+            "請到「學期與節次表」點該學期的「編輯學期」補上開學日與結業日"
+        )
     if start < semester.start_date or end > semester.end_date:
         raise LeaveError(
             f"請假日期須落在學期範圍內({semester.start_date} ~ {semester.end_date})"

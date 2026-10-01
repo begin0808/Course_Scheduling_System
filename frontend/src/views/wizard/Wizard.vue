@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  NAlert, NButton, NCard, NGrid, NGridItem, NInputNumber, NResult, NSelect, NSpace,
-  NStatistic, NStep, NSteps, NText, useMessage,
+  NAlert, NButton, NCard, NDatePicker, NGrid, NGridItem, NInputNumber, NResult, NSelect,
+  NSpace, NStatistic, NStep, NSteps, NText, useMessage,
 } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -24,6 +24,9 @@ const templates = ref<Template[]>([])
 const templateKey = ref<string | null>(null)
 const year = ref(115)
 const term = ref(1)
+// 學期起訖日期:請假展開、今日看板與調代課都以它為準,建立時就要填(使用者回報 #15)
+const startDate = ref<string | null>(null)
+const endDate = ref<string | null>(null)
 const semesterId = ref<number | null>(null)
 const semester = ref<Semester | null>(null)
 const summary = ref<SemesterSummary | null>(null)
@@ -68,10 +71,15 @@ async function goNext() {
       message.warning('請先於上一步選擇學制範本')
       return
     }
+    if (!startDate.value || !endDate.value) {
+      message.warning('請填學期起訖日期(請假與調代課需要)')
+      return
+    }
     busy.value = true
     try {
       const sem = await createSemester({
         academic_year: year.value, term: term.value, template_key: templateKey.value,
+        start_date: startDate.value, end_date: endDate.value,
       })
       semesterId.value = sem.id
       await wizard.patch({ semester_id: sem.id })
@@ -206,6 +214,23 @@ function openPeriodEditor() {
               <n-input-number v-model:value="year" data-testid="wizard-year" :min="100" :max="200" :disabled="!!semesterId" style="width: 120px" />
               <n-select v-model:value="term" :options="termOptions" :disabled="!!semesterId" style="width: 140px" />
             </n-space>
+            <n-space align="center">
+              <n-text>起訖日期</n-text>
+              <n-date-picker
+                v-model:formatted-value="startDate" value-format="yyyy-MM-dd" type="date"
+                placeholder="開學日" style="width: 150px" :disabled="!!semesterId"
+                data-testid="wizard-start"
+              />
+              <n-text>~</n-text>
+              <n-date-picker
+                v-model:formatted-value="endDate" value-format="yyyy-MM-dd" type="date"
+                placeholder="結業日" style="width: 150px" :disabled="!!semesterId"
+                data-testid="wizard-end"
+              />
+            </n-space>
+            <n-text depth="3" style="font-size: 13px">
+              依貴校校曆填寫。請假只能登記在這個範圍內,之後可在「學期與節次表」修改。
+            </n-text>
             <n-text v-if="semesterId" type="success">已建立:{{ semester?.label }}</n-text>
           </n-space>
         </template>
