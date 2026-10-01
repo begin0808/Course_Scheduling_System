@@ -387,7 +387,9 @@ function onKey(ev: KeyboardEvent) {
               </n-tag>
             </n-space>
           </template>
-          <n-space vertical size="small">
+          <!-- 清單自己捲動:課務多時整頁會被撐長,捲到底部拖卡片時左邊課表格已經捲出畫面,
+               等於沒有可以放開的目標(#8)。清單限高自捲 + 整張卡片 sticky,兩邊永遠同時看得到。 -->
+          <n-space vertical size="small" class="tray-list" data-testid="wb-tray-list">
             <n-text v-if="trayItems.length === 0" depth="3" data-testid="wb-tray-empty">
               本班課務已全部排入 🎉
             </n-text>
@@ -416,12 +418,18 @@ function onKey(ev: KeyboardEvent) {
 
 <style scoped>
 .wb-layout { display: flex; gap: 20px; align-items: flex-start; }
-.wb-tray { width: 260px; flex-shrink: 0; }
+.wb-tray { width: 260px; flex-shrink: 0; position: sticky; top: 8px; }
+.tray-list { max-height: calc(100vh - 230px); overflow-y: auto; padding-right: 6px; }
 .tray-item {
   border: 1px solid var(--n-border-color, #e2e2e2); border-radius: 6px; padding: 8px 10px;
   cursor: grab; background: rgba(24, 160, 88, 0.08);
 }
 .tray-subject { font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .tray-meta { font-size: 12px; opacity: 0.75; }
-@media (max-width: 900px) { .wb-layout { flex-direction: column; } .wb-tray { width: 100%; } }
+@media (max-width: 900px) {
+  .wb-layout { flex-direction: column; }
+  /* 直式排列時課表格在上方,清單再限高就只是多一層捲軸,交給整頁捲動即可 */
+  .wb-tray { width: 100%; position: static; }
+  .tray-list { max-height: none; overflow-y: visible; }
+}
 </style>

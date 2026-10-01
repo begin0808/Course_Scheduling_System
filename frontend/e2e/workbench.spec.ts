@@ -155,3 +155,64 @@ test('排課工作台:衝突紅框、拖放排課、鎖定、拖回移除、Ctrl
 
   await deleteSemesterByYearTerm(page, YEAR, 1)
 })
+
+/**
+ * #8:未排課務清單超過一個畫面高度時,捲到底部的卡片拖不進課表格。
+ * 原因是清單跟著整頁變長,捲到底部時左側課表格已經被捲出畫面,沒有可以放開的目標。
+ * 修法是清單限高自己捲動 + 卡片 sticky,課表格永遠留在畫面上。
+ */
+const YEAR_TRAY = 152
+
+test('排課工作台:未排課務很多時,清單自己捲動,最底下的卡片仍拖得進課表', async ({ page }) => {
+  test.setTimeout(120_000)
+  await login(page)
+  await page.request.patch('/api/wizard/state', { data: { completed: true } })
+  await page.setViewportSize({ width: 1280, height: 720 })
+
+  await deleteSemesterByYearTerm(page, YEAR_TRAY, 1)
+  const sem = await (await page.request.post('/api/semesters', {
+    data: { academic_year: YEAR_TRAY, term: 1, template_key: 'junior_high' },
+  })).json()
+  const sid = sem.id
+  const post = async (url: string, data: object) =>
+    (await page.request.post(url, { data })).json()
+
+  // 一個班、12 筆各 1 節的課務:卡片數量穩定超過一個畫面高度
+  const klass = await post(`/api/class-units?semester_id=${sid}`,
+    { grade: 3, name: '301', track: 'junior_high' })
+  const names = ['甲科', '乙科', '丙科', '丁科', '戊科', '己科',
+    '庚科', '辛科', '壬科', '癸科', '子科', '丑科']
+  for (const name of names) {
+    const subject = await post(`/api/subjects?semester_id=${sid}`, { name })
+    const teacher = await post(`/api/teachers?semester_id=${sid}`, { name: `${name}師` })
+    await post(`/api/assignments?semester_id=${sid}`, {
+      class_id: klass.id, subject_id: subject.id, periods_per_week: 1,
+      teachers: [{ teacher_id: teacher.id, is_lead: true }], block_rules: [],
+    })
+  }
+  await post(`/api/timetables?semester_id=${sid}`, { name: '草稿A' })
+
+  await page.goto('/scheduling/workbench')
+  await page.locator('.n-base-selection').first().click()
+  await page.locator('.n-base-select-option', { hasText: `${YEAR_TRAY} 學年度第 1 學期` }).click()
+  const trayList = page.getByTestId('wb-tray-list')
+  await expect(trayList).toBeVisible()
+  await expect(page.getByTestId(`wb-tray-${names[0]}`)).toBeVisible()
+
+  // ① 清單自己有捲軸(不是把整頁撐長)
+  const scrollable = await trayList.evaluate((el) => el.scrollHeight > el.clientHeight + 1)
+  expect(scrollable, '課務多時清單應該自己捲動').toBeTruthy()
+
+  // ② 捲到清單底部之後,左側課表格仍在畫面內
+  await trayList.evaluate((el) => { el.scrollTop = el.scrollHeight })
+  const last = page.getByTestId(`wb-tray-${names[names.length - 1]}`)
+  await expect(last).toBeInViewport()
+  const target = cell(page, 3, SLOTS[0])
+  await expect(target).toBeInViewport()
+
+  // ③ 最底下那張卡片拖得進課表格
+  await dragDrop(page, last, target)
+  await expect(target).toContainText(names[names.length - 1])
+
+  await deleteSemesterByYearTerm(page, YEAR_TRAY, 1)
+})
