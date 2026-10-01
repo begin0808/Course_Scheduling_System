@@ -4,9 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.6**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.5 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.7**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.6 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.7] — 2026-10-02
+
+**新安裝的學校一定會踩到的一個洞。** 學期沒有起訖日期就不能登記請假,但畫面上從頭到尾沒有地方可以填——影響每一所照正常流程安裝的學校(使用者回報 #15)。
+
+**本版沒有資料表結構變更**,升級只需換映像;若要退回,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.7`
 
 ### 修正
 - **學期沒有起訖日期就不能請假,畫面上卻無處可填**(使用者回報 #15):建立學期的表單只有學年度/學期/學制範本,學期卡片沒有編輯功能,設定精靈也不問日期——照正常流程建立的學期日期永遠是空的,一登記請假就被擋,使用者自己救不回來(後端早有 `PATCH /api/semesters/{id}`,只是畫面沒有接上)。
@@ -284,7 +293,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.6...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.7...HEAD
+[1.2.7]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.3...v1.2.4
