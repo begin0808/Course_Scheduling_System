@@ -124,6 +124,93 @@ def test_bindable_accounts_includes_current_in_edit(sched):
     assert u1 in {a["id"] for a in avail}
 
 
+# ── 事後補開帳號(#9)與重設密碼(#10)──────────
+def test_create_account_for_existing_teacher(sched):
+    """匯入時沒建帳號的老師,事後可以直接補:建好即綁定,且首次登入必須改密碼。"""
+    client, sid, db = sched
+    t = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
+    assert t["user_id"] is None
+
+    r = client.post(f"/api/teachers/{t['id']}/account", json={"username": "wang001"})
+    assert r.status_code == 201, r.json()
+    acc = r.json()
+    assert acc["username"] == "wang001" and acc["must_change_password"] is True
+    assert acc["display_name"] == "王老師"
+    assert client.get(f"/api/teachers?semester_id={sid}").json()[0]["user_id"] == acc["id"]
+
+    # 新帳號用預設密碼登入得了(密碼未指定時用部署設定的預設值)
+    client.post("/api/auth/logout")
+    assert client.post(
+        "/api/auth/login", json={"username": "wang001", "password": "changeme"}
+    ).status_code == 200
+
+
+def test_create_account_rejects_duplicate_username_and_second_account(sched):
+    client, sid, db = sched
+    _make_teacher_account(db, "wang001")
+    t = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
+
+    dup = client.post(f"/api/teachers/{t['id']}/account", json={"username": "wang001"})
+    assert dup.status_code == 409 and "已存在" in dup.json()["detail"]
+
+    assert client.post(
+        f"/api/teachers/{t['id']}/account",
+        json={"username": "wang002", "password": "teacherpw123"},
+    ).status_code == 201
+    again = client.post(f"/api/teachers/{t['id']}/account", json={"username": "wang003"})
+    assert again.status_code == 409 and "已綁定" in again.json()["detail"]
+
+
+def test_create_account_rejects_short_password(sched):
+    client, sid, _ = sched
+    t = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
+    r = client.post(
+        f"/api/teachers/{t['id']}/account", json={"username": "wang001", "password": "short"}
+    )
+    assert r.status_code == 400 and "至少" in r.json()["detail"]
+
+
+def test_reset_teacher_password(sched):
+    """重設後:新密碼可登入、舊密碼不行,且對方下次登入要自行改密碼。"""
+    client, sid, db = sched
+    t = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
+    client.post(
+        f"/api/teachers/{t['id']}/account",
+        json={"username": "wang001", "password": "oldpassword1"},
+    )
+
+    r = client.post(
+        f"/api/teachers/{t['id']}/account/reset-password", json={"password": "newpassword1"}
+    )
+    assert r.status_code == 200 and r.json()["must_change_password"] is True
+
+    client.post("/api/auth/logout")
+    assert client.post(
+        "/api/auth/login", json={"username": "wang001", "password": "oldpassword1"}
+    ).status_code == 401
+    assert client.post(
+        "/api/auth/login", json={"username": "wang001", "password": "newpassword1"}
+    ).status_code == 200
+
+
+def test_reset_password_refuses_non_teacher_account(sched):
+    """綁定的帳號若不只是教師角色(例如兼任組長),這條路不給改,避免越權。"""
+    client, sid, db = sched
+    boss = make_user(db, "boss", PW, roles=[Role.teacher, Role.scheduler])
+    t = client.post(
+        f"/api/teachers?semester_id={sid}", json={"name": "主任老師", "user_id": boss.id}
+    ).json()
+    r = client.post(f"/api/teachers/{t['id']}/account/reset-password", json={})
+    assert r.status_code == 403 and "系統管理員" in r.json()["detail"]
+
+
+def test_reset_password_without_account_is_404(sched):
+    client, sid, _ = sched
+    t = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
+    r = client.post(f"/api/teachers/{t['id']}/account/reset-password", json={})
+    assert r.status_code == 404 and "尚未綁定" in r.json()["detail"]
+
+
 # ── current_teacher helper ──────────────
 def test_current_teacher_helper(sched):
     client, sid, db = sched

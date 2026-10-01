@@ -87,6 +87,27 @@ class BindableAccount(BaseModel):
     display_name: str
 
 
+class TeacherAccountIn(BaseModel):
+    """為既有教師補開登入帳號(匯入時沒勾、或後來才需要用系統的老師)。"""
+
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(default="", max_length=128)  # 空=用部署設定的預設密碼
+
+
+class ResetPasswordIn(BaseModel):
+    password: str = Field(default="", max_length=128)  # 空=用部署設定的預設密碼
+
+
+class TeacherAccountOut(BaseModel):
+    """教師的登入帳號狀態(給畫面顯示;不含密碼)。"""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    display_name: str
+    must_change_password: bool
+
+
 class TeacherTimeRuleIn(BaseModel):
     weekday: int = Field(ge=1, le=6)
     period_no: int = Field(ge=1)

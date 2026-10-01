@@ -9,7 +9,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
+from app.core.config import settings
 from app.core.db import get_db
+from app.core.security import hash_password
 from app.models.basedata import (
     ClassUnit,
     Room,
@@ -26,10 +28,13 @@ from app.schemas.basedata import (
     BindableAccount,
     ClassUnitIn,
     ClassUnitOut,
+    ResetPasswordIn,
     RoomIn,
     RoomOut,
     SubjectIn,
     SubjectOut,
+    TeacherAccountIn,
+    TeacherAccountOut,
     TeacherIn,
     TeacherOut,
     TeacherTimeRuleIn,
@@ -185,6 +190,97 @@ def list_bindable_accounts(
     return db.scalars(
         select(User).where(User.id.in_(available), User.is_active.is_(True)).order_by(User.username)
     ).all()
+
+
+def _teacher_account(db: Session, teacher_id: int) -> tuple[Teacher, User]:
+    """取出教師與其綁定帳號;只允許動「純教師角色」的帳號。
+
+    教學組長本來就能建立教師帳號(Excel 匯入就是),但不該透過這條路去改到
+    主任/組長/管理員的密碼,所以這裡擋掉有其他角色的帳號。
+    """
+    teacher = db.get(Teacher, teacher_id)
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    user = db.get(User, teacher.user_id) if teacher.user_id else None
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "此教師尚未綁定登入帳號")
+    if user.role_names - {Role.teacher.value}:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "此帳號不只是教師角色,請由系統管理員處理"
+        )
+    return teacher, user
+
+
+@router.post(
+    "/teachers/{teacher_id}/account",
+    response_model=TeacherAccountOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_teacher_account(
+    teacher_id: int,
+    body: TeacherAccountIn,
+    db: Session = Depends(get_db),
+    _: object = Depends(editor),
+) -> User:
+    """為既有教師補開登入帳號並綁定。
+
+    先前只有「Excel 匯入教師時勾選建立帳號」這一條路,匯入後才需要帳號的老師補不了
+    (重新匯入會因姓名+身分證末四碼重複被擋)——使用者回報 #9。
+    """
+    teacher = db.get(Teacher, teacher_id)
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    if teacher.user_id is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "此教師已綁定登入帳號")
+    username = body.username.strip()
+    if db.scalar(select(User.id).where(User.username == username)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"登入帳號「{username}」已存在")
+    password = body.password or settings.default_import_password
+    if len(password) < settings.min_password_length:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"密碼至少需 {settings.min_password_length} 個字元",
+        )
+    user = User(
+        username=username,
+        password_hash=hash_password(password),
+        display_name=teacher.name,
+        must_change_password=True,  # 老師第一次登入自行改掉
+        roles=[UserRole(role=Role.teacher.value)],
+    )
+    db.add(user)
+    db.flush()
+    teacher.user_id = user.id
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/teachers/{teacher_id}/account/reset-password", response_model=TeacherAccountOut)
+def reset_teacher_password(
+    teacher_id: int,
+    body: ResetPasswordIn,
+    db: Session = Depends(get_db),
+    _: object = Depends(editor),
+) -> User:
+    """重設教師帳號的密碼;重設後對方下次登入必須自行改密碼。
+
+    密碼指紋變了,該帳號既有的登入狀態會立即失效。
+    """
+    _, user = _teacher_account(db, teacher_id)
+    password = body.password or settings.default_import_password
+    if len(password) < settings.min_password_length:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"密碼至少需 {settings.min_password_length} 個字元",
+        )
+    user.password_hash = hash_password(password)
+    user.must_change_password = True
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 @router.get("/teachers", response_model=list[TeacherOut])
