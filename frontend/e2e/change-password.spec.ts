@@ -88,3 +88,51 @@ test('首次登入:強制改密頁擋住去路、驗證輸入,改完才能進入
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 })
   await expect(page).not.toHaveURL(/change-password/)
 })
+
+/**
+ * #10:**純教師角色**的首次登入。教師可進的頁面比組長少,改密碼頁先前不在那份清單裡,
+ * 於是「導去改密碼 → 教師不能進 → 導回課表查詢 → 又要求改密碼」互踢,畫面卡在 /login
+ * 完全不動(回報者必須強制關閉分頁)。組長帳號走同一條路卻正常,所以這一支要用教師帳號。
+ *
+ * 帳號 e2e_newteacher 由 seed_e2e 每次重設回「首次登入」狀態。
+ */
+const T_USER = 'e2e_newteacher'
+const T_OLD_PW = 'e2enewteacher1234'
+const T_NEW_PW = 'e2eteacherchanged5678'
+
+test('首次登入(純教師角色):不會卡在登入頁,改完密碼進得了課表查詢', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByPlaceholder('請輸入帳號').fill(T_USER)
+  await page.getByPlaceholder('請輸入密碼').fill(T_OLD_PW)
+  await page.getByRole('button', { name: '登入' }).click()
+
+  // ① 真的離開 /login 並且畫面有東西(卡死時網址會停在 /login)
+  await page.waitForURL(/change-password/, { timeout: 15_000 })
+  await expect(page.getByTestId('cp-forced')).toContainText('首次登入')
+  await expect(page.getByTestId('cp-submit')).toBeVisible()
+
+  // ② 改密成功 → 進到教師可用的頁面(教師沒有儀表板權限,應落在課表查詢)
+  await page.getByTestId('cp-old').locator('input').fill(T_OLD_PW)
+  await page.getByTestId('cp-new').locator('input').fill(T_NEW_PW)
+  await page.getByTestId('cp-confirm').locator('input').fill(T_NEW_PW)
+  await page.getByTestId('cp-submit').click()
+  await expect(page.getByText('密碼已更新')).toBeVisible()
+  await page.waitForURL(/timetable-query/, { timeout: 15_000 })
+  await expect(page.getByTestId('header-change-password')).toBeVisible()
+})
+
+/** 使用者自己要改密碼時的入口:右上角「修改密碼」(先前只有首次登入進得去這一頁)。 */
+test('一般使用者可自行修改密碼,也可以取消返回', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByPlaceholder('請輸入帳號').fill('e2e_teacher')
+  await page.getByPlaceholder('請輸入密碼').fill('e2eteacher1234')
+  await page.getByRole('button', { name: '登入' }).click()
+  await page.waitForURL(/timetable-query/, { timeout: 15_000 })
+
+  await page.getByTestId('header-change-password').click()
+  await page.waitForURL(/change-password/, { timeout: 15_000 })
+  await expect(page.getByTestId('cp-forced')).toHaveCount(0)  // 不是被強制的
+
+  await page.getByTestId('cp-cancel').click()
+  await page.waitForURL(/timetable-query/, { timeout: 15_000 })
+})

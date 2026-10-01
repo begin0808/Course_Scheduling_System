@@ -4,6 +4,7 @@
 - 教師帳號 e2e_teacher / e2eteacher1234(供測試綁定「陳老師」)
 - 系統管理員帳號 e2e_admin / e2eadmin1234(系統管理頁的備份/SMTP 卡片只有 admin 看得到)
 - **首次登入帳號** e2e_newuser / e2enewuser1234(`must_change_password=True`)
+- **首次登入的純教師帳號** e2e_newteacher / e2enewteacher1234(教師角色的強制改密流程,見 #10)
 - 將設定精靈標記為已完成(否則路由守衛會把組長導回 /wizard,
   wizard.spec 會自行 reset 再走完整流程,不受影響)
 
@@ -29,22 +30,26 @@ _ACCOUNTS: list[tuple[str, str, Role, str]] = [
 # 「首次登入強制改密」是每位新使用者必經的第一個畫面,而那一頁**只有在強制狀態下進得去**
 # (路由守衛會把非強制狀態的人導回儀表板)。測試跑完必然把這個狀態消耗掉——它就是去改密碼的——
 # 所以這個帳號每次 seed 都強制重設回「首次登入」,否則第二次跑 e2e 會因為狀態已被用掉而失敗。
-NEW_USER = ("e2e_newuser", "e2enewuser1234", Role.scheduler, "E2E 首次登入使用者")
+# 純教師角色另外一個:教師可進的頁面比組長少,改密碼頁曾因此被守衛互踢成無限跳轉(#10)
+NEW_USERS: list[tuple[str, str, Role, str]] = [
+    ("e2e_newuser", "e2enewuser1234", Role.scheduler, "E2E 首次登入使用者"),
+    ("e2e_newteacher", "e2enewteacher1234", Role.teacher, "E2E 首次登入教師"),
+]
 
 
-def _reset_first_login_account(db) -> None:
-    username, password, role, display = NEW_USER
-    user = db.scalar(select(User).where(User.username == username))
-    if user is None:
-        create_user(
-            db, username, password, [role],
-            display_name=display, must_change_password=True,
-        )
-        print(f"已建立帳號:{username}(首次登入狀態)")
-        return
-    user.password_hash = hash_password(password)
-    user.must_change_password = True
-    print(f"已重設回首次登入狀態:{username}")
+def _reset_first_login_accounts(db) -> None:
+    for username, password, role, display in NEW_USERS:
+        user = db.scalar(select(User).where(User.username == username))
+        if user is None:
+            create_user(
+                db, username, password, [role],
+                display_name=display, must_change_password=True,
+            )
+            print(f"已建立帳號:{username}(首次登入狀態)")
+            continue
+        user.password_hash = hash_password(password)
+        user.must_change_password = True
+        print(f"已重設回首次登入狀態:{username}")
 
 
 def seed() -> None:
@@ -59,7 +64,7 @@ def seed() -> None:
             )
             print(f"已建立帳號:{username}({role.value})")
 
-        _reset_first_login_account(db)
+        _reset_first_login_accounts(db)
 
         state = db.get(WizardState, SINGLETON_ID)
         if state is None:

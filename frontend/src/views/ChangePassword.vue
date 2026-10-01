@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { NButton, NCard, NForm, NFormItem, NInput, NText, useMessage } from 'naive-ui'
-import { ref } from 'vue'
+import { NButton, NCard, NForm, NFormItem, NInput, NSpace, NText, useMessage } from 'naive-ui'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
@@ -15,7 +15,12 @@ const newPassword = ref('')
 const confirmPassword = ref('')
 const loading = ref(false)
 
-const forced = auth.mustChangePassword
+// 首次登入是被導過來的(不能離開);其餘是使用者自己從右上角進來改,可以取消
+const forced = computed(() => auth.mustChangePassword)
+
+function onCancel() {
+  router.back()
+}
 
 async function onSubmit() {
   // 送出中就不再受理:避免連點兩下送出兩次改密請求——第二次必然因為密碼已被改掉而
@@ -71,9 +76,14 @@ async function onSubmit() {
         </n-form-item>
         <!-- 送出只走表單的 submit 這一條路(按鈕是 type=submit,輸入框按 Enter 也會觸發它)。
              先前按鈕另外掛了 @click、確認欄另外掛了 @keyup.enter,於是每次送出都跑兩遍。 -->
-        <n-button type="primary" block :loading="loading" attr-type="submit" data-testid="cp-submit">
-          更新密碼
-        </n-button>
+        <n-space vertical size="small">
+          <n-button type="primary" block :loading="loading" attr-type="submit" data-testid="cp-submit">
+            更新密碼
+          </n-button>
+          <n-button v-if="!forced" block quaternary data-testid="cp-cancel" @click="onCancel">
+            取消
+          </n-button>
+        </n-space>
       </n-form>
     </n-card>
   </div>
