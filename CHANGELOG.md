@@ -4,9 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.5**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.4 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.6**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.5 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.6] — 2026-10-01
+
+**第一批外部使用者回報的修正。** 系統公開分享後,有老師實測回報三個問題(GitHub Issues #8、#9、#10),本版全部處理:教師帳號登入不進來、拿不到帳號、課務拖不動。
+
+**本版沒有資料表結構變更**,升級只需換映像;若要退回,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.6`
 
 ### 修正
 - **未排課務清單過長時,最底下的卡片拖不進課表**(使用者回報 #8):清單原本跟著整頁變長,捲到底部時左側課表格已被捲出畫面,等於沒有可以放開的目標。改為清單限高自行捲動、整張卡片 sticky,課表格永遠留在畫面上(手機/窄螢幕維持上下排列,交給整頁捲動)。
@@ -269,7 +278,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.5...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.6...HEAD
+[1.2.6]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.2...v1.2.3
