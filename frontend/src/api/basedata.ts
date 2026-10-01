@@ -108,6 +108,18 @@ export const listBindableAccounts = (semesterId: number, currentTeacherId?: numb
     `/teachers/bindable-accounts?semester_id=${semesterId}` +
       (currentTeacherId ? `&current_teacher_id=${currentTeacherId}` : ''),
   )
+/** 教師的登入帳號(事後補開、重設密碼;建好即綁定該教師) */
+export interface TeacherAccount {
+  id: number
+  username: string
+  display_name: string
+  must_change_password: boolean
+}
+export const createTeacherAccount = (teacherId: number, username: string, password?: string) =>
+  apiPost<TeacherAccount>(`/teachers/${teacherId}/account`, { username, password: password ?? '' })
+export const resetTeacherPassword = (teacherId: number, password?: string) =>
+  apiPost<TeacherAccount>(`/teachers/${teacherId}/account/reset-password`,
+    { password: password ?? '' })
 export const getTimeRules = (id: number) => apiGet<TeacherTimeRule[]>(`/teachers/${id}/time-rules`)
 export const replaceTimeRules = (id: number, rules: TeacherTimeRule[]) =>
   request<TeacherTimeRule[]>('PUT', `/teachers/${id}/time-rules`, rules)

@@ -5,7 +5,8 @@ import {
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
 import {
-  createTeacher, deleteTeacher, listBindableAccounts, listSubjects, listTeachers, updateTeacher,
+  createTeacher, createTeacherAccount, deleteTeacher, listBindableAccounts, listSubjects,
+  listTeachers, resetTeacherPassword, updateTeacher,
 } from '@/api/basedata'
 import type { BindableAccount, Subject, Teacher } from '@/api/basedata'
 import TeacherTimeRules from './TeacherTimeRules.vue'
@@ -46,6 +47,56 @@ function emptyForm(): TeacherForm {
 }
 const form = ref<TeacherForm>(emptyForm())
 
+// 事後補開登入帳號(匯入時沒勾、或後來才要用系統的老師);savedUserId 是「已存檔」的綁定,
+// 下拉選單改了還沒存不算,重設密碼要以存檔狀態為準
+const savedUserId = ref<number | null>(null)
+const newUsername = ref('')
+const newPassword = ref('')
+const accountBusy = ref(false)
+const boundAccount = computed(() =>
+  accounts.value.find((a) => a.id === savedUserId.value) ?? null)
+
+async function onCreateAccount() {
+  const username = newUsername.value.trim()
+  if (!username || editingId.value === null) {
+    message.warning('請輸入登入帳號')
+    return
+  }
+  accountBusy.value = true
+  try {
+    const acc = await createTeacherAccount(editingId.value, username, newPassword.value || undefined)
+    savedUserId.value = acc.id
+    form.value.user_id = acc.id
+    newUsername.value = ''
+    message.success(newPassword.value
+      ? `已建立帳號 ${acc.username},密碼為你剛才輸入的值;老師首次登入須自行修改`
+      : `已建立帳號 ${acc.username},使用系統預設密碼;老師首次登入須自行修改`)
+    newPassword.value = ''
+    await loadAccounts(editingId.value)
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).detail || '建立帳號失敗')
+  } finally {
+    accountBusy.value = false
+  }
+}
+
+async function onResetPassword() {
+  if (editingId.value === null) return
+  accountBusy.value = true
+  try {
+    await resetTeacherPassword(editingId.value, newPassword.value || undefined)
+    message.success(newPassword.value
+      ? '密碼已重設為你剛才輸入的值;老師下次登入須自行修改'
+      : '密碼已重設為系統預設密碼;老師下次登入須自行修改')
+    newPassword.value = ''
+  } catch (e) {
+    message.error((e as ApiError).detail || '重設密碼失敗')
+  } finally {
+    accountBusy.value = false
+  }
+}
+
 async function loadAccounts(currentTeacherId?: number) {
   accounts.value = await listBindableAccounts(props.semesterId, currentTeacherId)
 }
@@ -53,6 +104,9 @@ async function loadAccounts(currentTeacherId?: number) {
 async function openCreate() {
   editingId.value = null
   form.value = emptyForm()
+  savedUserId.value = null
+  newUsername.value = ''
+  newPassword.value = ''
   await loadAccounts()
   show.value = true
 }
@@ -64,6 +118,9 @@ async function openEdit(t: Teacher) {
     subject_ids: t.subjects.map((s) => s.id),
     email: t.email ?? '', phone: t.phone ?? '', line_id: t.line_id ?? '', user_id: t.user_id,
   }
+  savedUserId.value = t.user_id
+  newUsername.value = ''
+  newPassword.value = ''
   await loadAccounts(t.id)
   show.value = true
 }
@@ -146,7 +203,7 @@ function openRules(t: Teacher) {
           </td>
           <td>
             <n-space>
-              <n-button size="tiny" @click="openEdit(t)">編輯</n-button>
+              <n-button size="tiny" data-testid="teacher-edit" @click="openEdit(t)">編輯</n-button>
               <n-button size="tiny" @click="openRules(t)">時段規則</n-button>
               <n-popconfirm @positive-click="remove(t)">
                 <template #trigger><n-button size="tiny" type="error" ghost>刪除</n-button></template>
@@ -207,6 +264,52 @@ function openRules(t: Teacher) {
           clearable
           placeholder="綁定後此教師可用該帳號登入查課表/請假"
         />
+
+        <!-- 匯入時沒建帳號的老師,在這裡直接補一個;已經有帳號的則可重設密碼 -->
+        <template v-if="editingId !== null">
+          <n-divider style="margin: 4px 0" />
+          <template v-if="boundAccount">
+            <n-text>登入帳號:<b>{{ boundAccount.username }}</b></n-text>
+            <n-space align="center">
+              <n-input
+                key="reset-password"
+                v-model:value="newPassword" type="password" show-password-on="click"
+                placeholder="新密碼(留空=系統預設密碼)" style="width: 230px"
+                data-testid="teacher-reset-password"
+              />
+              <n-popconfirm @positive-click="onResetPassword">
+                <template #trigger>
+                  <n-button size="small" :loading="accountBusy" data-testid="teacher-reset-submit">
+                    重設密碼
+                  </n-button>
+                </template>
+                重設後這位老師目前的登入狀態會失效,下次登入必須自行改密碼。確定重設?
+              </n-popconfirm>
+            </n-space>
+          </template>
+          <template v-else>
+            <n-text depth="3">沒有帳號?直接建立一個(自動綁定這位老師,首次登入須改密碼)</n-text>
+            <n-space align="center">
+              <n-input
+                key="new-username"
+                v-model:value="newUsername" placeholder="登入帳號" style="width: 160px"
+                data-testid="teacher-new-username"
+              />
+              <n-input
+                key="new-password"
+                v-model:value="newPassword" type="password" show-password-on="click"
+                placeholder="預設密碼(留空=系統預設)" style="width: 210px"
+                data-testid="teacher-new-password"
+              />
+              <n-button
+                size="small" :loading="accountBusy"
+                data-testid="teacher-create-account" @click="onCreateAccount"
+              >
+                建立帳號
+              </n-button>
+            </n-space>
+          </template>
+        </template>
 
         <n-button type="primary" data-testid="teacher-save" @click="save">儲存</n-button>
       </n-space>
