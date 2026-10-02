@@ -34,8 +34,20 @@ export const exportTimetable = (
     `/export/timetable?semester_id=${semesterId}&view=${view}&target_id=${targetId}&fmt=${fmt}`,
     `課表.${fmt}`)
 
-export const exportSchoolWorkbook = (semesterId: number): Promise<void> =>
-  download(`/export/school.xlsx?semester_id=${semesterId}`, '全校課表總表.xlsx')
+/** 全校總表:view=class 每班一個分頁;view=teacher 每位教師一個分頁 */
+export const exportSchoolWorkbook = (
+  semesterId: number, view: 'class' | 'teacher' = 'class',
+): Promise<void> =>
+  download(
+    `/export/school.xlsx?semester_id=${semesterId}&view=${view}`,
+    view === 'teacher' ? '全校教師課表總表.xlsx' : '全校課表總表.xlsx',
+  )
 
-export const exportBatchZip = (semesterId: number): Promise<void> =>
-  download(`/export/batch.zip?semester_id=${semesterId}`, '全校班級課表.zip')
+/** 批次 zip:view=class 每班一個檔;view=teacher 每位教師一個檔 */
+export const exportBatchZip = (
+  semesterId: number, view: 'class' | 'teacher' = 'class',
+): Promise<void> =>
+  download(
+    `/export/batch.zip?semester_id=${semesterId}&view=${view}`,
+    view === 'teacher' ? '全校教師課表.zip' : '全校班級課表.zip',
+  )

@@ -241,23 +241,48 @@ def _classes(db: Session, semester_id: int) -> list[ClassUnit]:
     ))
 
 
-def school_workbook(db: Session, semester_id: int) -> bytes:
-    """全校總表:一個 Excel 檔,每班一個分頁。"""
+def _teachers(db: Session, semester_id: int) -> list[Teacher]:
+    """在職教師,依姓名排序。
+
+    沒有排到課的也列入(會是一張空白課表)——全校發放時寧可多一張,也不要漏人
+    (使用者回報 #22);離職教師則不列入,與代課推薦的口徑一致。
+    """
+    return list(db.scalars(
+        select(Teacher).where(
+            Teacher.semester_id == semester_id, Teacher.is_active.is_(True)
+        ).order_by(Teacher.name)
+    ))
+
+
+def school_workbook(db: Session, semester_id: int, view: str = "class") -> bytes:
+    """全校總表:一個 Excel 檔,每個班級(或每位教師)一個分頁。"""
     pub = _Published(db, semester_id)
-    grids = [class_grid(pub, c) for c in _classes(db, semester_id)]
+    if view == "teacher":
+        grids = [teacher_grid(pub, t) for t in _teachers(db, semester_id)]
+    else:
+        grids = [class_grid(pub, c) for c in _classes(db, semester_id)]
     return grids_to_xlsx(grids, pub.meta())
 
 
-def class_batch_zip(db: Session, semester_id: int) -> bytes:
-    """批次匯出:全部班級各一個 Excel 檔,打包成 zip。"""
+def batch_zip(db: Session, semester_id: int, view: str = "class") -> bytes:
+    """批次匯出:每個班級(或每位教師)各一個 Excel 檔,打包成 zip。"""
     pub = _Published(db, semester_id)
     meta = pub.meta()
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for c in _classes(db, semester_id):
-            grid = class_grid(pub, c)
-            z.writestr(f"{c.grade}年{c.name}.xlsx", grids_to_xlsx([grid], meta))
+        if view == "teacher":
+            for t in _teachers(db, semester_id):
+                z.writestr(f"{t.name}.xlsx", grids_to_xlsx([teacher_grid(pub, t)], meta))
+        else:
+            for c in _classes(db, semester_id):
+                z.writestr(f"{c.grade}年{c.name}.xlsx",
+                           grids_to_xlsx([class_grid(pub, c)], meta))
     return buf.getvalue()
+
+
+def class_batch_zip(db: Session, semester_id: int) -> bytes:
+    """批次匯出全部班級(保留舊名稱,供既有呼叫端使用)。"""
+    return batch_zip(db, semester_id, "class")
 
 
 # ── Excel 渲染 ──────────────────────────────────────────────

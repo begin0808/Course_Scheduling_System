@@ -47,11 +47,19 @@ async function onExport(fmt: ExportFmt) {
   }
 }
 
+// 全校匯出跟著目前的檢視走:班級視角出班級版,教師視角出教師版(使用者回報 #22)。
+// 場地沒有這個需求,切到場地時不顯示這兩個按鈕。
+const batchView = computed<'class' | 'teacher' | null>(() =>
+  view.value === 'class' || view.value === 'teacher' ? view.value : null)
+const batchLabel = computed(() => (batchView.value === 'teacher' ? '全校教師' : '全校班級'))
+
 async function onExportAll(kind: 'school' | 'batch') {
-  if (sid.value === null) return
+  if (sid.value === null || batchView.value === null) return
   exporting.value = true
   try {
-    await (kind === 'school' ? exportSchoolWorkbook(sid.value) : exportBatchZip(sid.value))
+    await (kind === 'school'
+      ? exportSchoolWorkbook(sid.value, batchView.value)
+      : exportBatchZip(sid.value, batchView.value))
   } catch (e) {
     message.error((e as Error).message || '匯出失敗')
   } finally {
@@ -187,8 +195,8 @@ const entries = computed<GridEntry[]>(() => {
             PNG
           </n-button>
         </n-button-group>
-        <template v-if="canManage">
-          <n-text depth="3" style="font-size: 13px">全校:</n-text>
+        <template v-if="canManage && batchView">
+          <n-text depth="3" style="font-size: 13px">{{ batchLabel }}:</n-text>
           <n-button
             size="small" :disabled="exporting" data-testid="export-school"
             @click="onExportAll('school')"
@@ -201,6 +209,9 @@ const entries = computed<GridEntry[]>(() => {
           >
             批次 zip
           </n-button>
+          <n-text depth="3" style="font-size: 12px">
+            {{ batchView === 'teacher' ? '每位在職教師一張(含沒排到課的)' : '每班一張' }}
+          </n-text>
         </template>
       </n-space>
 

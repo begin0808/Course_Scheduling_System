@@ -76,5 +76,24 @@ test.describe('課表匯出', () => {
       page.getByTestId('export-batch').click(),
     ])
     expect(zip.suggestedFilename()).toContain('.zip')
+
+    // #22:切到教師視角,全校匯出要跟著變成教師版(先前只有班級版)
+    await page.getByTestId('tq-view-teacher').click()
+    await expect(page.getByTestId('tq-teacher')).toBeVisible()
+    const [teacherBook] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('export-school').click(),
+    ])
+    expect(teacherBook.suggestedFilename()).toContain('全校教師課表總表')
+    const [teacherZip] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('export-batch').click(),
+    ])
+    expect(teacherZip.suggestedFilename()).toContain('全校教師課表')
+    expect(teacherZip.suggestedFilename()).toContain('.zip')
+
+    // 場地視角沒有全校匯出
+    await page.getByTestId('tq-view-room').click()
+    await expect(page.getByTestId('export-school')).toHaveCount(0)
   })
 })
