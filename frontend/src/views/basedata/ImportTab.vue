@@ -14,6 +14,8 @@ const message = useMessage()
 
 const entity = ref<ImportEntity>('subjects')
 const createAccounts = ref(false)
+// 既有教師改為更新而非報錯:每學年職務異動要改幾十位老師(使用者回報 #18)
+const updateExisting = ref(false)
 const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
 const result = ref<ImportResult | null>(null)
@@ -42,11 +44,15 @@ async function onUpload() {
   result.value = null
   try {
     const r = await uploadImport(
-      entity.value, props.semesterId, selectedFile.value, isTeacher.value && createAccounts.value,
+      entity.value, props.semesterId, selectedFile.value,
+      isTeacher.value && createAccounts.value,
+      isTeacher.value && updateExisting.value,
     )
     result.value = r
     if (r.errors.length === 0) {
-      message.success(`成功匯入 ${r.imported} 筆`)
+      message.success(r.updated
+        ? `成功新增 ${r.imported} 筆、更新 ${r.updated} 筆`
+        : `成功匯入 ${r.imported} 筆`)
       emit('imported')
     } else {
       message.error('匯入未完成,請修正錯誤後重試')
@@ -85,6 +91,13 @@ async function onUpload() {
       <n-checkbox v-if="isTeacher" v-model:checked="createAccounts">
         同時建立教師登入帳號(預設密碼,首次登入需更改)
       </n-checkbox>
+      <n-checkbox v-if="isTeacher" v-model:checked="updateExisting" data-testid="import-update">
+        既有教師改為更新資料(以姓名＋身分末四碼比對)
+      </n-checkbox>
+      <n-text v-if="isTeacher && updateExisting" depth="3" style="font-size: 13px">
+        只覆蓋有填的欄位,空白保留原值;行政職稱填「無」代表卸任,數字欄要歸零請填 0。
+        既有教師的登入帳號不會在這裡建立。
+      </n-text>
       <n-upload :max="1" :default-upload="false" accept=".xlsx" @change="onFileChange">
         <n-button>選擇檔案</n-button>
       </n-upload>
@@ -93,8 +106,11 @@ async function onUpload() {
       </n-button>
     </n-space>
 
-    <n-alert v-if="result && result.errors.length === 0" type="success">
-      成功匯入 {{ result.imported }} 筆資料。
+    <n-alert v-if="result && result.errors.length === 0" type="success" data-testid="import-ok">
+      <template v-if="result.updated">
+        新增 {{ result.imported }} 筆、更新 {{ result.updated }} 筆。
+      </template>
+      <template v-else>成功匯入 {{ result.imported }} 筆資料。</template>
     </n-alert>
     <n-alert v-if="result && result.errors.length > 0" type="error" title="匯入失敗(資料庫未寫入)">
       <n-list>
