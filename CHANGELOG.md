@@ -4,9 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.7**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.6 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.8**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.7 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.8] — 2026-10-02
+
+**新學年換屆的兩件雜事。** 職務異動要一位位改、老師離職沒有正確的處理方式——都是使用者實際跑過一輪才會踩到的(回報 #18、#19)。
+
+**本版沒有資料表結構變更**,升級只需換映像;若要退回,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.8`
 
 ### 新增
 - **匯入教師可用來批次更新既有教師**(使用者回報 #18):匯入畫面新增「**既有教師改為更新資料**」選項(預設不勾,維持原行為)。每學年職務異動(卸任/新任行政職、鐘點與減課調整)原本只能一位位手動編輯——匯入遇到既有教師(姓名＋身分末四碼相同)一律視為重複並整批不寫入。
@@ -304,7 +313,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.7...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.8...HEAD
+[1.2.8]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.4...v1.2.5
