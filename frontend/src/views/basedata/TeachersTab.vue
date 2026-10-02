@@ -5,10 +5,13 @@ import {
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
 import {
-  createTeacher, createTeacherAccount, deleteTeacher, listBindableAccounts, listSubjects,
-  listTeachers, resetTeacherPassword, updateTeacher,
+  createTeacher, createTeacherAccount, deleteTeacher, getTeacherAccount, getTeacherDeleteImpact,
+  listBindableAccounts, listSubjects, listTeachers, resetTeacherPassword,
+  setTeacherAccountActive, updateTeacher,
 } from '@/api/basedata'
-import type { BindableAccount, Subject, Teacher } from '@/api/basedata'
+import type {
+  BindableAccount, Subject, Teacher, TeacherAccount, TeacherDeleteImpact,
+} from '@/api/basedata'
 import TeacherTimeRules from './TeacherTimeRules.vue'
 
 const props = defineProps<{ semesterId: number }>()
@@ -53,8 +56,29 @@ const savedUserId = ref<number | null>(null)
 const newUsername = ref('')
 const newPassword = ref('')
 const accountBusy = ref(false)
-const boundAccount = computed(() =>
-  accounts.value.find((a) => a.id === savedUserId.value) ?? null)
+// 停用的帳號不會出現在「可綁定帳號」清單裡,所以編輯時直接問這位教師的帳號
+const boundAccount = ref<TeacherAccount | null>(null)
+
+async function loadBoundAccount(teacherId: number) {
+  boundAccount.value = await getTeacherAccount(teacherId)
+  savedUserId.value = boundAccount.value?.id ?? null
+}
+
+async function onToggleAccountActive() {
+  if (editingId.value === null || !boundAccount.value) return
+  const next = !boundAccount.value.is_active
+  accountBusy.value = true
+  try {
+    boundAccount.value = await setTeacherAccountActive(editingId.value, next)
+    message.success(next
+      ? '已啟用帳號,這位老師可以再登入了'
+      : '已停用帳號,這位老師無法再登入;資料與紀錄都保留')
+  } catch (e) {
+    message.error((e as ApiError).detail || '變更帳號狀態失敗')
+  } finally {
+    accountBusy.value = false
+  }
+}
 
 async function onCreateAccount() {
   const username = newUsername.value.trim()
@@ -65,6 +89,7 @@ async function onCreateAccount() {
   accountBusy.value = true
   try {
     const acc = await createTeacherAccount(editingId.value, username, newPassword.value || undefined)
+    boundAccount.value = acc
     savedUserId.value = acc.id
     form.value.user_id = acc.id
     newUsername.value = ''
@@ -72,13 +97,15 @@ async function onCreateAccount() {
       ? `已建立帳號 ${acc.username},密碼為你剛才輸入的值;老師首次登入須自行修改`
       : `已建立帳號 ${acc.username},使用系統預設密碼;老師首次登入須自行修改`)
     newPassword.value = ''
-    await loadAccounts(editingId.value)
-    await reload()
   } catch (e) {
     message.error((e as ApiError).detail || '建立帳號失敗')
+    return
   } finally {
+    // 只在送出期間鎖住按鈕;下面的清單重載是背景工作,不該讓「停用帳號」按鈕一直是停用狀態
     accountBusy.value = false
   }
+  await loadAccounts(editingId.value)
+  await reload()
 }
 
 async function onResetPassword() {
@@ -104,6 +131,7 @@ async function loadAccounts(currentTeacherId?: number) {
 async function openCreate() {
   editingId.value = null
   form.value = emptyForm()
+  boundAccount.value = null
   savedUserId.value = null
   newUsername.value = ''
   newPassword.value = ''
@@ -119,9 +147,10 @@ async function openEdit(t: Teacher) {
     email: t.email ?? '', phone: t.phone ?? '', line_id: t.line_id ?? '', user_id: t.user_id,
   }
   savedUserId.value = t.user_id
+  boundAccount.value = null
   newUsername.value = ''
   newPassword.value = ''
-  await loadAccounts(t.id)
+  await Promise.all([loadAccounts(t.id), t.user_id ? loadBoundAccount(t.id) : Promise.resolve()])
   show.value = true
 }
 
@@ -146,6 +175,30 @@ async function save() {
   } catch (e) {
     message.error((e as ApiError).detail || '儲存失敗')
   }
+}
+
+// 刪除教師會連帶刪掉請假紀錄、配課關聯,代課紀錄也查不出是誰代的——先把後果講清楚(#19)
+const impact = ref<TeacherDeleteImpact | null>(null)
+const impactFor = ref<number | null>(null)
+
+async function loadImpact(t: Teacher) {
+  impactFor.value = t.id
+  impact.value = null
+  try {
+    impact.value = await getTeacherDeleteImpact(t.id)
+  } catch {
+    impact.value = null  // 查不到就只顯示一般提醒,不擋住刪除
+  }
+}
+
+function impactText(t: Teacher): string {
+  if (impactFor.value !== t.id || !impact.value) return ''
+  const i = impact.value
+  const parts: string[] = []
+  if (i.leave_requests) parts.push(`${i.leave_requests} 張請假單`)
+  if (i.substitutions) parts.push(`${i.substitutions} 筆調代課紀錄`)
+  if (i.assignments) parts.push(`${i.assignments} 筆配課的任課教師`)
+  return parts.length ? parts.join('、') : ''
 }
 
 async function remove(t: Teacher) {
@@ -206,8 +259,26 @@ function openRules(t: Teacher) {
               <n-button size="tiny" data-testid="teacher-edit" @click="openEdit(t)">編輯</n-button>
               <n-button size="tiny" @click="openRules(t)">時段規則</n-button>
               <n-popconfirm @positive-click="remove(t)">
-                <template #trigger><n-button size="tiny" type="error" ghost>刪除</n-button></template>
-                確定刪除此教師?
+                <template #trigger>
+                  <n-button
+                    size="tiny" type="error" ghost data-testid="teacher-delete"
+                    @click="loadImpact(t)"
+                  >
+                    刪除
+                  </n-button>
+                </template>
+                <div style="max-width: 320px" data-testid="teacher-delete-confirm">
+                  <div>確定刪除教師「{{ t.name }}」?</div>
+                  <div v-if="impactText(t)" style="margin-top: 6px">
+                    將一併刪除:<b>{{ impactText(t) }}</b>,之後查不回來。
+                  </div>
+                  <div v-if="t.user_id" style="margin-top: 6px">
+                    其登入帳號會一併<b>停用</b>(帳號保留,但無法再登入)。
+                  </div>
+                  <div style="margin-top: 6px">
+                    老師離職請改用:編輯裡取消「在職」,並在帳號區塊按「停用帳號」——歷史紀錄會完整保留。
+                  </div>
+                </div>
               </n-popconfirm>
             </n-space>
           </td>
@@ -269,7 +340,24 @@ function openRules(t: Teacher) {
         <template v-if="editingId !== null">
           <n-divider style="margin: 4px 0" />
           <template v-if="boundAccount">
-            <n-text>登入帳號:<b>{{ boundAccount.username }}</b></n-text>
+            <n-space align="center">
+              <n-text>登入帳號:<b>{{ boundAccount.username }}</b></n-text>
+              <n-tag
+                size="small" :type="boundAccount.is_active ? 'success' : 'warning'"
+                data-testid="teacher-account-state"
+              >
+                {{ boundAccount.is_active ? '可登入' : '已停用' }}
+              </n-tag>
+              <n-button
+                size="tiny" :loading="accountBusy"
+                data-testid="teacher-account-toggle" @click="onToggleAccountActive"
+              >
+                {{ boundAccount.is_active ? '停用帳號' : '啟用帳號' }}
+              </n-button>
+            </n-space>
+            <n-text v-if="!boundAccount.is_active" depth="3" style="font-size: 13px">
+              停用中:這位老師無法登入,但請假、調代課等歷史紀錄都保留。離職教師建議用這個方式,不要刪除。
+            </n-text>
             <n-space align="center">
               <n-input
                 key="reset-password"

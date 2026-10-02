@@ -114,9 +114,27 @@ export interface TeacherAccount {
   username: string
   display_name: string
   must_change_password: boolean
+  is_active: boolean // 停用後無法登入,帳號與歷史資料仍保留
+}
+
+/** 刪除教師會連帶失去的東西(刪除前先讓使用者看清楚) */
+export interface TeacherDeleteImpact {
+  teacher_id: number
+  teacher_name: string
+  leave_requests: number
+  substitutions: number
+  assignments: number
+  homeroom_classes: number
+  account_username: string
 }
 export const createTeacherAccount = (teacherId: number, username: string, password?: string) =>
   apiPost<TeacherAccount>(`/teachers/${teacherId}/account`, { username, password: password ?? '' })
+export const getTeacherAccount = (teacherId: number) =>
+  apiGet<TeacherAccount | null>(`/teachers/${teacherId}/account`)
+export const setTeacherAccountActive = (teacherId: number, isActive: boolean) =>
+  apiPost<TeacherAccount>(`/teachers/${teacherId}/account/active`, { is_active: isActive })
+export const getTeacherDeleteImpact = (teacherId: number) =>
+  apiGet<TeacherDeleteImpact>(`/teachers/${teacherId}/delete-impact`)
 export const resetTeacherPassword = (teacherId: number, password?: string) =>
   apiPost<TeacherAccount>(`/teachers/${teacherId}/account/reset-password`,
     { password: password ?? '' })
