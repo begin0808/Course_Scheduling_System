@@ -111,3 +111,76 @@ test('教師帳號:事後補開登入帳號,可登入;重設密碼後舊密碼�
   await login(page)
   await deleteSemesterByYearTerm(page, YEAR, 1)
 })
+
+/**
+ * #19:離職教師的處理。先前刪除教師會連帶刪掉請假紀錄,卻不會停用其登入帳號
+ * (`users.is_active` 有欄位、登入會檢查,但沒有任何地方設定得了)。
+ */
+test('教師帳號:可停用與重新啟用;刪除教師時帳號一併停用', async ({ page }) => {
+  test.setTimeout(120_000)
+  const PW = 'disablepw1234'
+const YEAR_DISABLE = 155  // 專用學年度:避免與其他 spec 互刪學期
+  await login(page)
+  await page.request.patch('/api/wizard/state', { data: { completed: true } })
+
+  await deleteSemesterByYearTerm(page, YEAR_DISABLE, 1)
+  await page.request.post('/api/semesters', {
+    data: { academic_year: YEAR_DISABLE, term: 1, template_key: 'junior_high' },
+  })
+  const username = `e2e_leave_${Date.now()}`
+
+  await page.goto('/basedata')
+  await page.locator('.n-base-selection').first().click()
+  await page.locator('.n-base-select-option', { hasText: `${YEAR_DISABLE} 學年度第 1 學期` }).click()
+  await page.locator('.n-tabs-tab', { hasText: '教師' }).click()
+
+  await page.getByTestId('teacher-add').click()
+  await page.getByTestId('teacher-name').locator('input').fill('張老師')
+  await page.getByTestId('teacher-save').click()
+  await expect(page.getByRole('cell', { name: '張老師' })).toBeVisible()
+
+  const row = page.getByRole('row', { name: /張老師/ })
+  await row.getByTestId('teacher-edit').click()
+  await page.getByTestId('teacher-new-username').locator('input').fill(username)
+  await page.getByTestId('teacher-new-password').locator('input').fill(PW)
+  await page.getByTestId('teacher-create-account').click()
+  await expect(page.getByTestId('teacher-account-state')).toContainText('可登入')
+
+  // 停用 → 立刻登不進來
+  await page.getByTestId('teacher-account-toggle').click()
+  await expect(page.getByTestId('teacher-account-state')).toContainText('已停用')
+  const blocked = await page.request.post('/api/auth/login', {
+    data: { username, password: PW }, failOnStatusCode: false,
+  })
+  expect(blocked.status(), '停用後應該登不進來').toBe(403)
+
+  // 重新啟用 → 又可以登入
+  await page.getByTestId('teacher-account-toggle').click()
+  await expect(page.getByTestId('teacher-account-state')).toContainText('可登入')
+  const ok = await page.request.post('/api/auth/login', {
+    data: { username, password: PW }, failOnStatusCode: false,
+  })
+  expect(ok.status(), '重新啟用後應該可以登入').toBe(200)
+  await page.request.post('/api/auth/logout')
+  await login(page)
+
+  // 刪除教師:確認框要先講後果,刪除後帳號一併停用
+  await page.goto('/basedata')
+  await page.locator('.n-base-selection').first().click()
+  await page.locator('.n-base-select-option', { hasText: `${YEAR_DISABLE} 學年度第 1 學期` }).click()
+  await page.locator('.n-tabs-tab', { hasText: '教師' }).click()
+  await page.getByRole('row', { name: /張老師/ }).getByTestId('teacher-delete').click()
+  const confirm = page.getByTestId('teacher-delete-confirm')
+  await expect(confirm).toContainText('停用')
+  await expect(confirm).toContainText('離職')
+  await page.getByRole('button', { name: '確定' }).click()
+  await expect(page.getByText('已刪除')).toBeVisible()
+
+  const afterDelete = await page.request.post('/api/auth/login', {
+    data: { username, password: PW }, failOnStatusCode: false,
+  })
+  expect(afterDelete.status(), '教師刪除後帳號不該還能登入').toBe(403)
+
+  // 這裡仍是組長的登入狀態(上面失敗的登入不會換掉 session),直接清掉測試學期
+  await deleteSemesterByYearTerm(page, YEAR_DISABLE, 1)
+})

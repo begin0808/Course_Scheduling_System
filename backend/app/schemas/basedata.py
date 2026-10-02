@@ -106,6 +106,23 @@ class TeacherAccountOut(BaseModel):
     username: str
     display_name: str
     must_change_password: bool
+    is_active: bool = True  # 停用後無法登入,帳號與歷史資料仍保留
+
+
+class AccountActiveIn(BaseModel):
+    is_active: bool
+
+
+class TeacherDeleteImpact(BaseModel):
+    """刪除教師會連帶消失的東西(刪除前先讓使用者看清楚)。"""
+
+    teacher_id: int
+    teacher_name: str
+    leave_requests: int        # 請假單數
+    substitutions: int         # 調代課處置數(含代課、調課、併班…)
+    assignments: int           # 會失去這位教師的配課數
+    homeroom_classes: int      # 擔任導師的班級數(有的話根本不能刪)
+    account_username: str = ""  # 綁定的登入帳號(刪除教師時會一併停用)
 
 
 class TeacherTimeRuleIn(BaseModel):

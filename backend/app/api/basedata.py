@@ -12,6 +12,7 @@ from app.core.auth import require_roles
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.security import hash_password
+from app.models.assignment import AssignmentTeacher
 from app.models.basedata import (
     ClassUnit,
     Room,
@@ -21,10 +22,13 @@ from app.models.basedata import (
     room_subjects,
     teacher_subjects,
 )
+from app.models.leave import LeaveRequest
 from app.models.period import PeriodTable
 from app.models.semester import Semester
+from app.models.substitution import Substitution
 from app.models.user import Role, User, UserRole
 from app.schemas.basedata import (
+    AccountActiveIn,
     BindableAccount,
     ClassUnitIn,
     ClassUnitOut,
@@ -35,6 +39,7 @@ from app.schemas.basedata import (
     SubjectOut,
     TeacherAccountIn,
     TeacherAccountOut,
+    TeacherDeleteImpact,
     TeacherIn,
     TeacherOut,
     TeacherTimeRuleIn,
@@ -283,6 +288,71 @@ def reset_teacher_password(
     return user
 
 
+@router.get("/teachers/{teacher_id}/account", response_model=TeacherAccountOut | None)
+def get_teacher_account(
+    teacher_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+) -> User | None:
+    """這位教師綁定的登入帳號與其狀態;沒有綁定則回 null。
+
+    停用的帳號不會出現在「可綁定帳號」清單裡,所以編輯畫面要另外問這一筆。
+    """
+    teacher = db.get(Teacher, teacher_id)
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    return db.get(User, teacher.user_id) if teacher.user_id else None
+
+
+@router.post("/teachers/{teacher_id}/account/active", response_model=TeacherAccountOut)
+def set_teacher_account_active(
+    teacher_id: int,
+    body: AccountActiveIn,
+    db: Session = Depends(get_db),
+    _: object = Depends(editor),
+) -> User:
+    """停用或重新啟用教師的登入帳號。
+
+    離職教師要的是「資料留著、人進不來」:停用後立刻無法登入,帳號與請假、
+    調代課等歷史紀錄都保留(使用者回報 #19)。先前 `users.is_active` 登入時
+    會檢查,但沒有任何地方設定得了。
+    """
+    _, user = _teacher_account(db, teacher_id)
+    user.is_active = body.is_active
+    if not body.is_active:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.get("/teachers/{teacher_id}/delete-impact", response_model=TeacherDeleteImpact)
+def teacher_delete_impact(
+    teacher_id: int, db: Session = Depends(get_db), _: object = Depends(editor)
+) -> TeacherDeleteImpact:
+    """刪除這位教師會連帶失去什麼:給刪除確認視窗先講清楚(使用者回報 #19)。"""
+    teacher = db.get(Teacher, teacher_id)
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    user = db.get(User, teacher.user_id) if teacher.user_id else None
+    return TeacherDeleteImpact(
+        teacher_id=teacher.id,
+        teacher_name=teacher.name,
+        leave_requests=db.scalar(
+            select(func.count()).select_from(LeaveRequest)
+            .where(LeaveRequest.teacher_id == teacher_id)) or 0,
+        substitutions=db.scalar(
+            select(func.count()).select_from(Substitution)
+            .where(Substitution.handler_teacher_id == teacher_id)) or 0,
+        assignments=db.scalar(
+            select(func.count()).select_from(AssignmentTeacher)
+            .where(AssignmentTeacher.teacher_id == teacher_id)) or 0,
+        homeroom_classes=db.scalar(
+            select(func.count()).select_from(ClassUnit)
+            .where(ClassUnit.homeroom_teacher_id == teacher_id)) or 0,
+        account_username=user.username if user else "",
+    )
+
+
 @router.get("/teachers", response_model=list[TeacherOut])
 def list_teachers(
     semester_id: int = Query(...),
@@ -381,6 +451,10 @@ def delete_teacher(
             status.HTTP_409_CONFLICT,
             f"此教師為 {homeroom_count} 個班級的導師,無法刪除;請先更換導師,或將教師設為離職",
         )
+    # 教師刪了、帳號卻還能登入是說不過去的(使用者回報 #19)。帳號不刪(留稽核軌跡),改為停用
+    user = db.get(User, teacher.user_id) if teacher.user_id else None
+    if user is not None and not (user.role_names - {Role.teacher.value}):
+        user.is_active = False
     db.delete(teacher)
     db.commit()
 

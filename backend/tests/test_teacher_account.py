@@ -211,6 +211,80 @@ def test_reset_password_without_account_is_404(sched):
     assert r.status_code == 404 and "尚未綁定" in r.json()["detail"]
 
 
+# ── 停用/啟用帳號與刪除教師的連帶影響(#19)──────────
+def _teacher_with_account(client, sid, name="王老師", username="wang001", pw="teacherpw123"):
+    t = client.post(f"/api/teachers?semester_id={sid}", json={"name": name}).json()
+    acc = client.post(f"/api/teachers/{t['id']}/account",
+                      json={"username": username, "password": pw}).json()
+    return t, acc
+
+
+def test_disable_and_enable_teacher_account(sched):
+    """離職教師要的是「資料留著、人進不來」:停用後登不進來,重新啟用又可以。"""
+    client, sid, _ = sched
+    t, _ = _teacher_with_account(client, sid)
+
+    r = client.post(f"/api/teachers/{t['id']}/account/active", json={"is_active": False})
+    assert r.status_code == 200 and r.json()["is_active"] is False
+
+    client.post("/api/auth/logout")
+    blocked = client.post("/api/auth/login",
+                          json={"username": "wang001", "password": "teacherpw123"})
+    assert blocked.status_code == 403 and "停用" in blocked.json()["detail"]
+
+    # 重新啟用(需要重新以組長登入)
+    client.post("/api/auth/login", json={"username": "s", "password": PW})
+    assert client.post(f"/api/teachers/{t['id']}/account/active",
+                       json={"is_active": True}).json()["is_active"] is True
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login",
+                       json={"username": "wang001", "password": "teacherpw123"}).status_code == 200
+
+
+def test_account_active_refuses_non_teacher_account(sched):
+    """只能停用單純教師身分的帳號,不會動到主任/組長/管理員。"""
+    client, sid, db = sched
+    boss = make_user(db, "boss2", PW, roles=[Role.teacher, Role.director])
+    t = client.post(f"/api/teachers?semester_id={sid}",
+                    json={"name": "主任老師", "user_id": boss.id}).json()
+    r = client.post(f"/api/teachers/{t['id']}/account/active", json={"is_active": False})
+    assert r.status_code == 403
+
+
+def test_delete_teacher_disables_bound_account(sched):
+    """刪除教師後帳號不該還能登入;帳號本身保留(稽核軌跡)。"""
+    client, sid, db = sched
+    t, acc = _teacher_with_account(client, sid)
+
+    assert client.delete(f"/api/teachers/{t['id']}").status_code == 204
+    user = db.get(User, acc["id"])
+    db.refresh(user)
+    assert user is not None and user.is_active is False  # 帳號還在,但停用
+
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login",
+                       json={"username": "wang001", "password": "teacherpw123"}).status_code == 403
+
+
+def test_delete_impact_lists_what_will_be_lost(sched):
+    """刪除前先告訴使用者會連帶失去什麼。"""
+    client, sid, _ = sched
+    t, _ = _teacher_with_account(client, sid)
+    # 一張請假單(學期要有起訖日期才建得了)
+    client.patch(f"/api/semesters/{sid}",
+                 json={"start_date": "2026-08-30", "end_date": "2027-01-20"})
+    r = client.post(f"/api/leaves?semester_id={sid}", json={
+        "teacher_id": t["id"], "leave_type": "sick",
+        "start_date": "2026-10-07", "end_date": "2026-10-07"})
+    assert r.status_code == 201, r.json()
+
+    impact = client.get(f"/api/teachers/{t['id']}/delete-impact").json()
+    assert impact["teacher_name"] == "王老師"
+    assert impact["leave_requests"] == 1
+    assert impact["account_username"] == "wang001"
+    assert impact["homeroom_classes"] == 0
+
+
 # ── current_teacher helper ──────────────
 def test_current_teacher_helper(sched):
     client, sid, db = sched
