@@ -67,26 +67,31 @@ def export_timetable(
 @router.get("/export/school.xlsx")
 def export_school(
     semester_id: int = Query(...),
+    # 教師版是後來補的(使用者回報 #22);預設 class 讓舊的呼叫方式照常運作
+    view: str = Query("class", pattern="^(class|teacher)$"),
     db: Session = Depends(get_db),
     _: User = Depends(manager),
 ):
-    """全校總表:一個 Excel,每班一個分頁。"""
+    """全校總表:一個 Excel,每班(或每位教師)一個分頁。"""
     try:
-        data = tex.school_workbook(db, semester_id)
+        data = tex.school_workbook(db, semester_id, view)
     except tex.ExportError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e)) from e
-    return _download(data, f"全校課表總表_{semester_id}", "xlsx")
+    name = "全校教師課表總表" if view == "teacher" else "全校課表總表"
+    return _download(data, f"{name}_{semester_id}", "xlsx")
 
 
 @router.get("/export/batch.zip")
 def export_batch(
     semester_id: int = Query(...),
+    view: str = Query("class", pattern="^(class|teacher)$"),
     db: Session = Depends(get_db),
     _: User = Depends(manager),
 ):
-    """批次匯出:全部班級各一個 Excel,打包成 zip。"""
+    """批次匯出:全部班級(或全部教師)各一個 Excel,打包成 zip。"""
     try:
-        data = tex.class_batch_zip(db, semester_id)
+        data = tex.batch_zip(db, semester_id, view)
     except tex.ExportError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e)) from e
-    return _download(data, f"全校班級課表_{semester_id}", "zip")
+    name = "全校教師課表" if view == "teacher" else "全校班級課表"
+    return _download(data, f"{name}_{semester_id}", "zip")

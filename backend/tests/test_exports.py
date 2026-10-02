@@ -146,6 +146,46 @@ def test_batch_60_classes_under_60s(db):
     assert len(z.namelist()) == 60
 
 
+# ── 全校教師課表的總表與批次(使用者回報 #22)──────────────
+def test_school_workbook_teacher_view_has_a_sheet_per_teacher(w):
+    """每位在職教師一個分頁;沒排到課的也要在(全校發放時不能漏人)。"""
+    w.teacher("陳師", ["數學"])      # 有建教師但沒排課
+    w.teacher("林師", ["英文"])
+    w.client.patch(f"/api/teachers/{w.teachers['林師']}", json={"name": "林師", "is_active": False})
+
+    r = w.client.get(f"/api/export/school.xlsx{w.q}&view=teacher")
+    wb = _xlsx(r)
+    titles = "|".join(wb.sheetnames)
+    assert "王師" in titles and "陳師" in titles      # 有課的、沒課的都在
+    assert "林師" not in titles                       # 離職的不列入
+    assert len(wb.sheetnames) == 2
+
+    # 內容:王師那張要有他週三第一節的國文
+    ws = wb[next(n for n in wb.sheetnames if "王師" in n)]
+    assert "國文" in " ".join(_cells(ws))
+
+
+def test_batch_zip_teacher_view_has_one_file_per_teacher(w):
+    w.teacher("陳師", ["數學"])
+    r = w.client.get(f"/api/export/batch.zip{w.q}&view=teacher")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert sorted(names) == ["王師.xlsx", "陳師.xlsx"]
+
+
+def test_school_and_batch_default_to_class_view(w):
+    """沒帶 view 時維持原本的班級版(舊的呼叫方式不受影響)。"""
+    wb = _xlsx(w.client.get(f"/api/export/school.xlsx{w.q}"))
+    assert any("701" in n for n in wb.sheetnames)
+    names = zipfile.ZipFile(io.BytesIO(
+        w.client.get(f"/api/export/batch.zip{w.q}").content)).namelist()
+    assert all("年" in n for n in names)
+
+
+def test_export_view_param_is_validated(w):
+    assert w.client.get(f"/api/export/school.xlsx{w.q}&view=room").status_code == 422
+
+
 def test_teacher_can_export_single_but_not_batch(w):
     make_user(w.db, "t", PW, roles=[Role.teacher])
     w.client.post("/api/auth/logout")
