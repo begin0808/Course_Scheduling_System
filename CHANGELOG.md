@@ -4,9 +4,18 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.2.8**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.7 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.2.9**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.2.8 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.2.9] — 2026-10-02
+
+**開學要發課表給每位老師的那一步。** 班級早就有全校總表與批次打包,教師卻只能一位位匯出(使用者回報 #22)。
+
+**本版沒有資料表結構變更**,升級只需換映像;若要退回,把 `IMAGE_TAG` 改回即可,不必還原備份。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.2.9`
 
 ### 新增
 - **全校教師課表的總表與批次匯出**(使用者回報 #22):先前只有班級有「全校總表」與「批次 zip」,教師只能一位位匯出;開學要發給每位老師時非常耗時。
@@ -319,7 +328,8 @@
 - Docker Compose 五容器骨架與開發熱重載設定;帳號、bcrypt 登入、session cookie 與 RBAC(admin/director/scheduler/teacher);首次登入強制改密。
 - CI:ruff + mypy + pytest / eslint + vue-tsc + build + vitest / PostgreSQL 遷移驗證 / 雙架構映像建置發布。
 
-[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.8...HEAD
+[Unreleased]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.9...HEAD
+[1.2.9]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/begin0808/Course_Scheduling_System/compare/v1.2.5...v1.2.6
