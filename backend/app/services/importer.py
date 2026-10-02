@@ -63,10 +63,10 @@ TEMPLATE_DEFS: dict[str, dict] = {
         "sheet": "教師",
         "columns": [
             ("姓名", "必填", "王小明"),
-            ("身分末四碼", "選填,4 碼,用於辨識同名教師", "1234"),
+            ("身分末四碼", "選填,4 碼,用於辨識同名教師;更新既有教師時以姓名＋末四碼比對", "1234"),
             ("任教科目", "選填,多科以、分隔;需為已建立的科目", "數學、物理"),
             ("基本鐘點", "選填,數字", "20"),
-            ("行政職稱", "選填", "教學組長"),
+            ("行政職稱", "選填;更新時填「無」代表卸任", "教學組長"),
             ("行政減課", "選填,數字", "4"),
             ("外聘", "選填:是/否,預設否", "否"),
             ("登入帳號", "選填,勾選建立帳號時使用", "wang001"),
@@ -105,6 +105,7 @@ TEMPLATE_DEFS: dict[str, dict] = {
 @dataclass
 class ImportResult:
     imported: int = 0
+    updated: int = 0          # 更新既有資料的筆數(目前只有教師匯入會用到)
     errors: list[str] = field(default_factory=list)
 
 
@@ -130,6 +131,10 @@ def _cell(row: tuple, i: int) -> str | None:
         return None
     text = str(row[i]).strip()
     return text or None
+
+
+# 更新模式下,這些值代表「清空這一欄」(例如卸任行政職)
+_CLEAR_TOKENS = {"無", "-", "—", "none", "None"}
 
 
 def _parse_int(value: str | None) -> int | None:
@@ -261,22 +266,35 @@ def _import_classes(db: Session, semester_id: int, file_bytes: bytes) -> ImportR
 
 
 def _import_teachers(
-    db: Session, semester_id: int, file_bytes: bytes, create_accounts: bool
+    db: Session,
+    semester_id: int,
+    file_bytes: bytes,
+    create_accounts: bool,
+    update_existing: bool = False,
 ) -> ImportResult:
+    """教師匯入。
+
+    `update_existing` 為真時,檔案裡已存在的教師(姓名＋身分末四碼相同)改為更新而非報錯——
+    每學年職務異動要改幾十位老師,逐筆手改不切實際(使用者回報 #18)。
+    更新時**只覆蓋有填的欄位**,空白保留原值;要清掉行政職稱請填「無」或「-」,
+    數字欄要歸零請填 0。既有教師的登入帳號一律不在這裡處理(避免誤建),
+    請改用教師編輯畫面的「建立登入帳號」。
+    """
     result = ImportResult()
     subjects = {
         s.name: s
         for s in db.scalars(select(Subject).where(Subject.semester_id == semester_id))
     }
-    existing_keys = {
-        (t.name, t.id_last4 or "")
+    existing = {
+        (t.name, t.id_last4 or ""): t
         for t in db.scalars(select(Teacher).where(Teacher.semester_id == semester_id))
     }
     existing_usernames = set(db.scalars(select(User.username)))
 
     seen_keys: set[tuple[str, str]] = set()
     seen_usernames: set[str] = set()
-    pending: list[tuple[Teacher, str | None]] = []  # (teacher, username or None)
+    pending: list[tuple[Teacher, str | None]] = []   # 新增:(teacher, username or None)
+    updates: list[tuple[Teacher, dict, list[Subject] | None]] = []  # 更新:(教師, 欄位, 科目)
 
     for idx, row in _data_rows(file_bytes):
         name = _cell(row, 0)
@@ -285,7 +303,8 @@ def _import_teachers(
             continue
         id_last4 = _cell(row, 1)
         key = (name, id_last4 or "")
-        if key in existing_keys or key in seen_keys:
+        current = existing.get(key)
+        if key in seen_keys or (current is not None and not update_existing):
             result.errors.append(f"第 {idx} 列:教師「{name}」(末四碼 {id_last4 or '無'})重複")
             continue
         seen_keys.add(key)
@@ -304,15 +323,15 @@ def _import_teachers(
         if subj_error:
             continue
         try:
-            base_periods = _parse_int(_cell(row, 3)) or 0
-            admin_reduction = _parse_int(_cell(row, 5)) or 0
+            base_periods_cell = _parse_int(_cell(row, 3))
+            admin_reduction_cell = _parse_int(_cell(row, 5))
         except ValueError as e:
             result.errors.append(f"第 {idx} 列:{e}")
             continue
-        is_external = (_cell(row, 6) or "否") == "是"
+        external_cell = _cell(row, 6)
 
         username = _cell(row, 7)
-        if create_accounts and username:
+        if create_accounts and username and current is None:
             if username in existing_usernames or username in seen_usernames:
                 result.errors.append(f"第 {idx} 列:登入帳號「{username}」重複")
                 continue
@@ -323,10 +342,30 @@ def _import_teachers(
             result.errors.append(f"第 {idx} 列:Email「{email}」格式不正確")
             continue
 
+        if current is not None:
+            # 更新:只動有填的欄位。行政職稱填「無」/「-」視為卸任(清空)
+            fields: dict = {}
+            title = _cell(row, 4)
+            if title is not None:
+                fields["admin_title"] = "" if title in _CLEAR_TOKENS else title
+            if base_periods_cell is not None:
+                fields["base_periods"] = base_periods_cell
+            if admin_reduction_cell is not None:
+                fields["admin_reduction"] = admin_reduction_cell
+            if external_cell is not None:
+                fields["is_external"] = external_cell == "是"
+            for attr, value in (("email", email), ("phone", _cell(row, 9)),
+                                ("line_id", _cell(row, 10))):
+                if value is not None:
+                    fields[attr] = value
+            updates.append((current, fields, subject_objs if subj_field else None))
+            continue
+
         teacher = Teacher(
             semester_id=semester_id, name=name, id_last4=id_last4,
-            base_periods=base_periods, admin_title=_cell(row, 4),
-            admin_reduction=admin_reduction, is_external=is_external,
+            base_periods=base_periods_cell or 0, admin_title=_cell(row, 4),
+            admin_reduction=admin_reduction_cell or 0,
+            is_external=(external_cell or "否") == "是",
             email=email, phone=_cell(row, 9), line_id=_cell(row, 10),
             subjects=subject_objs,
         )
@@ -346,8 +385,14 @@ def _import_teachers(
                 must_change_password=True,
                 roles=[UserRole(role=Role.teacher.value)],
             )
+    for teacher, fields, new_subjects in updates:
+        for attr, value in fields.items():
+            setattr(teacher, attr, value)
+        if new_subjects is not None:
+            teacher.subjects = new_subjects
     db.commit()
     result.imported = len(pending)
+    result.updated = len(updates)
     return result
 
 
@@ -467,14 +512,19 @@ def _import_assignments(db: Session, semester_id: int, file_bytes: bytes) -> Imp
 
 
 def run_import(
-    db: Session, entity: str, semester_id: int, file_bytes: bytes, create_accounts: bool = False
+    db: Session,
+    entity: str,
+    semester_id: int,
+    file_bytes: bytes,
+    create_accounts: bool = False,
+    update_existing: bool = False,
 ) -> ImportResult:
     if entity == "subjects":
         return _import_subjects(db, semester_id, file_bytes)
     if entity == "classes":
         return _import_classes(db, semester_id, file_bytes)
     if entity == "teachers":
-        return _import_teachers(db, semester_id, file_bytes, create_accounts)
+        return _import_teachers(db, semester_id, file_bytes, create_accounts, update_existing)
     if entity == "assignments":
         return _import_assignments(db, semester_id, file_bytes)
     raise ValueError(f"未知的匯入類型:{entity}")

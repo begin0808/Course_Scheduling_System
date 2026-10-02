@@ -43,6 +43,8 @@ async def upload_import(
     entity: str,
     semester_id: int = Query(...),
     create_accounts: bool = Query(False),
+    # 既有教師(姓名＋末四碼相同)改為更新而非報錯;只覆蓋有填的欄位(使用者回報 #18)
+    update_existing: bool = Query(False),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     _: object = Depends(editor),
@@ -52,10 +54,11 @@ async def upload_import(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到學期")
     content = await file.read()
     try:
-        result = importer.run_import(db, entity, semester_id, content, create_accounts)
+        result = importer.run_import(
+            db, entity, semester_id, content, create_accounts, update_existing)
     except Exception:
         db.rollback()
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "無法讀取檔案,請確認為有效的 Excel 檔"
         ) from None
-    return {"imported": result.imported, "errors": result.errors}
+    return {"imported": result.imported, "updated": result.updated, "errors": result.errors}

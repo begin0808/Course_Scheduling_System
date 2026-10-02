@@ -4,6 +4,7 @@ export type ImportEntity = 'subjects' | 'teachers' | 'classes' | 'assignments'
 
 export interface ImportResult {
   imported: number
+  updated: number // 更新既有教師的筆數
   errors: string[]
 }
 
@@ -33,11 +34,13 @@ export async function uploadImport(
   semesterId: number,
   file: File,
   createAccounts = false,
+  updateExisting = false,
 ): Promise<ImportResult> {
   const form = new FormData()
   form.append('file', file)
   let url = `/api/import/${entity}?semester_id=${semesterId}`
   if (createAccounts) url += '&create_accounts=true'
+  if (updateExisting) url += '&update_existing=true'
   const resp = await fetch(url, { method: 'POST', credentials: 'include', body: form })
   if (!resp.ok) {
     let detail = '匯入失敗'

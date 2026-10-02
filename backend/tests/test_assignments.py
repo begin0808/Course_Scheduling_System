@@ -310,7 +310,7 @@ def test_import_assignments(env2):
         f"/api/import/assignments?semester_id={sid}",
         files={"file": ("a.xlsx", _xlsx(rows), XLSX_MIME)},
     )
-    assert r.json() == {"imported": 1, "errors": []}
+    assert r.json() == {"imported": 1, "updated": 0, "errors": []}
     items = client.get(f"/api/assignments?semester_id={sid}").json()
     assert len(items) == 1
     a = items[0]
