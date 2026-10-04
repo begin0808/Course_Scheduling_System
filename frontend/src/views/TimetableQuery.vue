@@ -4,6 +4,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
+import { crossTableNote } from '@/components/timetable/crossTable'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import type { GridEntry, PeriodCell } from '@/components/timetable/types'
 import { getMyTeacher, getPublishedTimetable, publishedSemesters } from '@/api/timetables'
@@ -128,6 +129,9 @@ const entries = computed<GridEntry[]>(() => {
     subject: e.subject,
     teacher: view.value === 'class' ? e.teachers.join('、') : e.classes.join('、'),
     room: e.room ?? undefined,
+    // 教師/場地視角照預設節次表畫格線;另一套節次表的課要標出實際時間
+    note: view.value === 'class' ? undefined : crossTableNote(
+      e, data.value?.classes ?? [], data.value?.period_tables ?? [], activeTable.value),
   }))
 })
 </script>

@@ -4,6 +4,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { crossTableNote } from '@/components/timetable/crossTable'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import type { DragData, DropFeedback, GridEntry, PeriodCell } from '@/components/timetable/types'
 import type { ApiError } from '@/api/client'
@@ -32,6 +33,7 @@ const classes = ref<ClassUnit[]>([])
 const teachers = ref<Teacher[]>([])
 const rooms = ref<Room[]>([])
 const defaultTable = ref<PeriodTable | null>(null)
+const allTables = ref<PeriodTable[]>([])
 const periods = ref<PeriodCell[]>([])
 const numWeekdays = ref(5)
 
@@ -59,6 +61,7 @@ async function loadSemester(id: number) {
   classes.value = cs
   teachers.value = ts
   rooms.value = rs
+  allTables.value = sem.period_tables
   defaultTable.value = sem.period_tables.find((p) => p.is_default) ?? sem.period_tables[0] ?? null
 
   drafts.value = await listTimetables(id)
@@ -127,6 +130,9 @@ const visibleEntries = computed<GridEntry[]>(() => {
     subject: e.subject,
     teacher: view.value === 'class' ? e.teachers.join('、') : e.classes.join('、'),
     room: e.room ?? undefined,
+    // 教師/場地視角照預設節次表畫格線;另一套節次表的課要標出實際時間
+    note: view.value === 'class' ? undefined
+      : crossTableNote(e, classes.value, allTables.value, defaultTable.value),
   }))
 })
 

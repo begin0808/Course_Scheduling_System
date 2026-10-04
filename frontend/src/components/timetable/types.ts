@@ -17,6 +17,7 @@ export interface GridEntry {
   subject: string
   teacher?: string
   room?: string
+  note?: string // 補充說明,如跨節次表的實際上課時間「11:10–11:50」
   locked?: boolean
   span?: number // 連堂長度(佔用連續節數),預設 1
 }
