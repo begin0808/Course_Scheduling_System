@@ -191,6 +191,18 @@ def _grid_from(
     by_no: dict[int, Period] = {}
     for p in periods:
         by_no.setdefault(p.period_no, p)
+    # 另一套節次表才有的節次(國中七節、高中八節的完全中學,跨部老師的第八節):
+    # 這套格線沒有那一列,不補的話那堂課會整個從課表上消失。只補用得到的列。
+    for e in entries:
+        own = (tables or {}).get(e.table_id) if e.table_id is not None else None
+        for k in range(e.span):
+            pno = e.period_no + k
+            if pno in by_no or own is None:
+                continue
+            extra = next((p for p in sorted(own.periods, key=lambda p: p.weekday)
+                          if p.period_no == pno), None)
+            if extra is not None:
+                by_no[pno] = extra
     order = sorted(by_no)
 
     # (weekday, period_no) → entry

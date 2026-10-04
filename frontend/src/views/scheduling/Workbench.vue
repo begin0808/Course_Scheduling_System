@@ -4,7 +4,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { crossTableNote } from '@/components/timetable/crossTable'
+import { crossTableNote, extraRows } from '@/components/timetable/crossTable'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import type { DragData, DropFeedback, GridEntry, PeriodCell } from '@/components/timetable/types'
 import type { ApiError } from '@/api/client'
@@ -119,13 +119,20 @@ async function onDraftChange(id: number) {
 }
 
 // ── 格位 → 元件資料 ──
-const visibleEntries = computed<GridEntry[]>(() => {
+const shownEntries = computed(() => {
   const all = tt.value?.entries ?? []
-  let list = all
-  if (view.value === 'class') list = classId.value ? all.filter((e) => e.class_ids.includes(classId.value!)) : []
-  else if (view.value === 'teacher') list = teacherId.value ? all.filter((e) => e.teacher_ids.includes(teacherId.value!)) : []
-  else list = roomId.value ? all.filter((e) => e.room_id === roomId.value) : []
-  return list.map((e) => ({
+  if (view.value === 'class') return classId.value ? all.filter((e) => e.class_ids.includes(classId.value!)) : []
+  if (view.value === 'teacher') return teacherId.value ? all.filter((e) => e.teacher_ids.includes(teacherId.value!)) : []
+  return roomId.value ? all.filter((e) => e.room_id === roomId.value) : []
+})
+/** 教師/場地視角:預設表沒有、但這位老師(這間場地)用得到的節次列要補上(如高中部的第八節)。 */
+const gridPeriods = computed<PeriodCell[]>(() => {
+  if (view.value === 'class') return periods.value
+  return [...periods.value, ...extraRows(
+    shownEntries.value, classes.value, allTables.value, defaultTable.value) as PeriodCell[]]
+})
+const visibleEntries = computed<GridEntry[]>(() => {
+  return shownEntries.value.map((e) => ({
     id: e.id, weekday: e.weekday, period_no: e.period_no, span: e.span, locked: e.locked,
     subject: e.subject,
     teacher: view.value === 'class' ? e.teachers.join('、') : e.classes.join('、'),
@@ -374,7 +381,7 @@ function onKey(ev: KeyboardEvent) {
           <n-empty v-if="periods.length === 0" description="此學期尚無節次表" />
           <TimetableGrid
             v-else
-            :periods="periods" :num-weekdays="numWeekdays" :entries="visibleEntries"
+            :periods="gridPeriods" :num-weekdays="numWeekdays" :entries="visibleEntries"
             :dragging="dragging" :feedback="feedback" :readonly="readonly"
             @dragstart="onGridDragStart" @dragend="clearDrag"
             @check="onCheck" @drop="onDrop" @select="onSelect"

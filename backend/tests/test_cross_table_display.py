@@ -102,3 +102,68 @@ def test_substitute_slip_marks_the_real_time_of_other_table_lessons(k9):
 
     for slip in (s for s in body["slips"] if s["kind"] == "class"):
         assert all(c["time_note"] == "" for c in slip["weeks"][0]["cells"])   # 班級單照自己的格線
+
+
+# ── 完全中學:兩部節數不同(國中七節、高中八節)──────────────────
+@pytest.fixture
+def k12(env):
+    """預設國中節次表(七節)+ 高中部節次表(八節);林師在 901 與高一甲都有英語。"""
+    client, db = env
+    make_user(db, "s", PW, roles=[Role.scheduler])
+    client.post("/api/auth/login", json={"username": "s", "password": PW})
+    sid = client.post("/api/semesters", json={
+        "academic_year": 115, "term": 1, "template_key": "junior_high",
+        "start_date": SEM_START.isoformat(), "end_date": SEM_END.isoformat(),
+    }).json()["id"]
+    w = _World(client, db, sid)
+    table = client.post(f"/api/semesters/{sid}/period-tables",
+                        json={"name": "高中部節次表", "template_key": "senior_high"}).json()
+    w.classes["高一甲"] = client.post(f"/api/class-units{w.q}", json={
+        "grade": 10, "name": "高一甲", "track": "senior_high", "period_table_id": table["id"],
+    }).json()["id"]
+    w.teacher("林師", ["英語"])
+    w.teacher("陳師", ["英語"])
+    w.place("林師", "英語", "901", 0)      # 國中第一節
+    w.place("林師", "英語", "高一甲", 7)   # 高中第八節 16:20–17:10:國中節次表沒有這一列
+    w.publish()
+    return w
+
+
+def test_teacher_timetable_adds_the_row_the_default_table_lacks(k12):
+    """高中第八節的課不能因為國中格線只有七列就從教師課表上消失。"""
+    w = k12
+    r = w.client.get(
+        f"/api/export/timetable{w.q}&view=teacher&target_id={w.teachers['林師']}&fmt=xlsx")
+    assert r.status_code == 200, r.text
+    cells = [str(v) for row in load_workbook(io.BytesIO(r.content)).active.iter_rows(
+        values_only=True) for v in row if v]
+    assert "第八節" in cells
+    eighth = next(c for c in cells if "高一甲" in c)
+    assert "16:20–17:10" in eighth
+
+
+def test_teacher_without_cross_table_lessons_gets_no_extra_row(k12):
+    """只在國中上課的老師,課表維持七列,不會多一列空的第八節。"""
+    w = k12
+    w2_teacher = w.teachers["陳師"]
+    r = w.client.get(f"/api/export/timetable{w.q}&view=teacher&target_id={w2_teacher}&fmt=xlsx")
+    cells = [str(v) for row in load_workbook(io.BytesIO(r.content)).active.iter_rows(
+        values_only=True) for v in row if v]
+    assert "第七節" in cells and "第八節" not in cells
+
+
+def test_substitute_slip_uses_the_table_with_more_rows(k12):
+    """教師代課單的格線照節數多的那套(高中八節)畫,第八節那格才有地方放。"""
+    w = k12
+    affected = w.leave("林師")
+    for ap in affected:
+        status, _ = w.assign(ap["id"], type="substitute", handler_teacher_id=w.teachers["陳師"])
+        assert status == 200
+    q = "&".join(f"affected_period_ids={ap['id']}" for ap in affected)
+    body = w.client.get(f"/api/substitute-slips{w.q}&{q}").json()
+
+    teacher = next(s for s in body["slips"] if s["kind"] == "teacher")
+    assert len(teacher["rows"]) == 8
+    cells = {c["actor"]: (c["ordinal"], c["time_note"]) for c in teacher["weeks"][0]["cells"]}
+    # 格線是高中的:高中那格不必標時間,國中那格標實際時間
+    assert cells == {"901[代]": (1, "08:20–09:05"), "高一甲[代]": (8, "")}
