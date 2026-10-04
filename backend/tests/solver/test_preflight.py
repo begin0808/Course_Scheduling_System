@@ -214,6 +214,15 @@ def test_slots_overlap_cross_table_uses_wall_clock():
     assert not slots_overlap(elem, _slot(2, 3, 10 * 60 + 10, 11 * 60), same_table=False)
 
 
+def test_slots_overlap_cross_table_without_times_falls_back_to_period_no():
+    """跨表但有一方沒填時間:無從比較,保守地當成同節次號就是同時段。"""
+    timed = _slot(1, 10, 16 * 60 + 20, 17 * 60 + 10)
+    untimed = _slot(1, 10, None, None)
+    assert slots_overlap(timed, untimed, same_table=False)
+    assert not slots_overlap(
+        timed, _slot(1, 9, None, None), same_table=False)
+
+
 def test_max_non_overlapping_dedups_cross_table_slots():
     same_day = [
         _slot(1, 1, 480, 530),   # 08:00–08:50

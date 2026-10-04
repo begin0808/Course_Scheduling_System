@@ -167,3 +167,75 @@ def test_substitute_slip_uses_the_table_with_more_rows(k12):
     cells = {c["actor"]: (c["ordinal"], c["time_note"]) for c in teacher["weeks"][0]["cells"]}
     # 格線是高中的:高中那格不必標時間,國中那格標實際時間
     assert cells == {"901[代]": (1, "08:20–09:05"), "高一甲[代]": (8, "")}
+
+
+# ── 第八節:有的學校有、有的沒有,國中/高中各種組合 ──────────────
+def _add_eighth_period(w, table, start, end):
+    """在節次表最後加一列第八節(等同「編輯節次表 → 新增節次列」)。時間可以不填。"""
+    periods = [{k: p[k] for k in ("weekday", "period_no", "name", "start_time", "end_time", "type")}
+               for p in table["periods"]]
+    for wd in range(1, 6):
+        periods.append({"weekday": wd, "period_no": 10, "name": "第八節",
+                        "start_time": start, "end_time": end, "type": "regular"})
+    r = w.client.put(f"/api/period-tables/{table['id']}/periods", json=periods)
+    assert r.status_code == 200, r.text
+
+
+def _k12_with_junior_eighth(env, start, end):
+    client, db = env
+    make_user(db, "s", PW, roles=[Role.scheduler])
+    client.post("/api/auth/login", json={"username": "s", "password": PW})
+    sem = client.post("/api/semesters", json={
+        "academic_year": 115, "term": 1, "template_key": "junior_high",
+        "start_date": SEM_START.isoformat(), "end_date": SEM_END.isoformat(),
+    }).json()
+    w = _World(client, db, sem["id"])
+    _add_eighth_period(w, sem["period_tables"][0], start, end)
+    table = client.post(f"/api/semesters/{sem['id']}/period-tables",
+                        json={"name": "高中部節次表", "template_key": "senior_high"}).json()
+    w.classes["高一甲"] = client.post(f"/api/class-units{w.q}", json={
+        "grade": 10, "name": "高一甲", "track": "senior_high", "period_table_id": table["id"],
+    }).json()["id"]
+    w.teacher("林師", ["英語"])
+    return w
+
+
+def _try_place(w, klass, period_idx, weekday=3):
+    slots = [p for p in w.client.get(
+        f"/api/class-units/{w.klass(klass)}/period-table").json()["periods"]
+        if p["weekday"] == weekday and p["type"] == "regular"]
+    a = w.client.post(f"/api/assignments{w.q}", json={
+        "class_id": w.klass(klass), "subject_id": w.subject("英語"), "periods_per_week": 1,
+        "teachers": [{"teacher_id": w.teachers["林師"]}], "block_rules": [],
+    }).json()
+    return w.client.post(f"/api/timetables/{w.tt}/entries", json={
+        "course_assignment_id": a["id"], "weekday": weekday,
+        "period_no": slots[period_idx]["period_no"], "span": 1})
+
+
+def test_both_divisions_have_an_eighth_period(env):
+    """國中、高中都有第八節(16:05–16:50 與 16:20–17:10):同一天會擋,課表只有一列第八節。"""
+    w = _k12_with_junior_eighth(env, "16:05:00", "16:50:00")
+    assert _try_place(w, "901", 7).status_code == 201
+    r = _try_place(w, "高一甲", 7)
+    assert r.status_code == 409
+    assert "901 班英語(16:05–16:50)" in r.json()["detail"]["conflicts"][0]["message"]
+    assert _try_place(w, "高一甲", 7, weekday=4).status_code == 201   # 換一天就可以
+
+    w.publish()
+    r = w.client.get(
+        f"/api/export/timetable{w.q}&view=teacher&target_id={w.teachers['林師']}&fmt=xlsx")
+    cells = [str(v) for row in load_workbook(io.BytesIO(r.content)).active.iter_rows(
+        values_only=True) for v in row if v]
+    assert cells.count("第八節") == 1
+    assert "16:20–17:10" in next(c for c in cells if "高一甲" in c)
+    assert "–" not in next(c for c in cells if "901" in c)
+
+
+def test_period_without_times_still_blocks_the_same_period_number(env):
+    """學校自己加的第八節沒填起訖時間:無從比時間,退回節次號——不能讓老師同時段兩堂課。"""
+    w = _k12_with_junior_eighth(env, None, None)
+    assert _try_place(w, "901", 7).status_code == 201
+    r = _try_place(w, "高一甲", 7)
+    assert r.status_code == 409, r.json()
+    assert _try_place(w, "高一甲", 6).status_code == 201   # 不同節次號照常可排
