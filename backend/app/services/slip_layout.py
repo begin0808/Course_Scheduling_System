@@ -43,6 +43,7 @@ class SlipCell:
     subject_name: str
     actor: str                # 第三行:調課單寫實際上課的老師;代課單寫「班級[代]」或「老師[代]」
     code: str                 # 調課單的「調09-15_25」(與 9/15 星期二第 5 節對調);代課單沒有
+    time_note: str = ""       # 這一格屬於另一套節次表、時間與所在列不同時,寫實際時間
 
 
 @dataclass
@@ -122,6 +123,24 @@ class Tables:
                 return i
         return period_no  # 節次表查不到:退回內部節次號,至少不會印空白
 
+    def time_note(self, shown: int | None, own: int | None, weekday: int, period_no: int) -> str:
+        """`own` 節次表的這一節,若與 `shown`(紙本格線用的那套)同一列的時間不同,回實際時間。
+
+        國中小、完全中學的老師可能同一張單子上有兩部的課;格線只能照一套畫,
+        另一部的課不標時間的話,老師會照格線上的時間去上課。
+        """
+        if shown is None or own is None or shown == own:
+            return ""
+        mine = next((p for p in self.regular(own, weekday) if p.period_no == period_no), None)
+        if mine is None or mine.start_time is None or mine.end_time is None:
+            return ""
+        ordinal = self.ordinal(own, weekday, period_no)
+        rows = self.regular(shown, weekday)
+        row = rows[ordinal - 1] if 0 < ordinal <= len(rows) else None
+        if row and (row.start_time, row.end_time) == (mine.start_time, mine.end_time):
+            return ""
+        return f"{mine.start_time:%H:%M}–{mine.end_time:%H:%M}"
+
     def weekdays(self, table_id: int | None) -> int:
         if table_id is None:
             return 5
@@ -172,6 +191,7 @@ def assemble(
             date=m.date, weekday=m.date.isoweekday(),
             ordinal=tables.ordinal(m.table_id, m.date.isoweekday(), m.period_no),
             subject_name=m.subject_name, actor=actor_of(m), code=m.code,
+            time_note=tables.time_note(table_id, m.table_id, m.date.isoweekday(), m.period_no),
         ))
     slip.weeks = [weeks[k] for k in sorted(weeks)]
     return slip

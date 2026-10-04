@@ -96,6 +96,7 @@ class SlipCellOut(BaseModel):
     subject_name: str
     actor: str  # 第三行:調課單寫上課老師;代課單寫「班級[代]」或「老師[代]」
     code: str
+    time_note: str = ""  # 跨節次表的格子:實際上課時間(與格線那一列不同時才有)
 
 
 class SlipWeekOut(BaseModel):

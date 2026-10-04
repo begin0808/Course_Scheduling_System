@@ -144,6 +144,7 @@ onMounted(async () => {
               >
                 {{ c.date }}<br>{{ c.subject_name }}<br>{{ c.actor }}
                 <template v-if="c.code"><br>[{{ c.code }}]</template>
+                <template v-if="c.time_note"><br><b data-testid="slip-time-note">{{ c.time_note }}</b></template>
               </div>
             </td>
           </tr>

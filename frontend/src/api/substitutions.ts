@@ -108,6 +108,7 @@ export interface SlipCell {
   subject_name: string
   actor: string // 第三行:調課單寫上課老師;代課單寫「班級[代]」或「老師[代]」
   code: string // 「調09-15_25」:與 9/15 星期二第 5 節對調;代課單沒有
+  time_note?: string // 跨節次表的格子:實際上課時間(與格線那一列不同時才有)
 }
 
 export interface SlipWeek {

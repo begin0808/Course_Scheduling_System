@@ -77,6 +77,7 @@ class _EntryView:
     teacher_ids: frozenset[int]
     class_ids: frozenset[int]
     room_id: int | None
+    table_id: int | None = None   # 這一格所屬的節次表(取第一個班級的)
 
 
 class _Published:
@@ -140,7 +141,35 @@ def _view(e: ScheduleEntry) -> _EntryView:
         teacher_ids=frozenset(at.teacher_id for at in a.teachers),
         class_ids=frozenset(m.class_unit_id for m in su.members),
         room_id=e.effective_room_id,
+        # 沒指定節次表的班級是 None(=學期預設表,也就是教師課表格線用的那套)
+        table_id=su.members[0].class_unit.period_table_id if su.members else None,
     )
+
+
+def _hhmm(p: Period) -> str:
+    return f"{p.start_time:%H:%M}–{p.end_time:%H:%M}" if p.start_time and p.end_time else ""
+
+
+def _time_note(e: _EntryView, shown: PeriodTable, tables: dict[int, PeriodTable]) -> str:
+    """這一格的實際上課時間——只有它屬於另一套節次表、且時間與所在列不同時才回傳。
+
+    教師/場地課表只能照一套節次表畫格線。國中小、完全中學的跨部教師,
+    另一部的課排在「同節次號」那一列,但實際時間不一樣(國小 40 分、國中 45 分);
+    不標出來的話,課表上的時間就是錯的。
+    """
+    own = tables.get(e.table_id) if e.table_id is not None else None
+    if own is None or own.id == shown.id:
+        return ""
+
+    def at(t: PeriodTable) -> Period | None:
+        return next(
+            (p for p in t.periods if p.weekday == e.weekday and p.period_no == e.period_no), None)
+    mine, row = at(own), at(shown)
+    if mine is None or not _hhmm(mine):
+        return ""
+    if row is not None and (row.start_time, row.end_time) == (mine.start_time, mine.end_time):
+        return ""
+    return _hhmm(mine)
 
 
 def _grid_from(
@@ -148,8 +177,12 @@ def _grid_from(
     title: str,
     entries: list[_EntryView],
     lines_of,
+    tables: dict[int, PeriodTable] | None = None,
 ) -> Grid:
-    """把某對象的格位排進節次表格線。`lines_of(entry)` 決定每格顯示哪幾行。"""
+    """把某對象的格位排進節次表格線。`lines_of(entry)` 決定每格顯示哪幾行。
+
+    給了 `tables`(教師/場地課表)就會在跨節次表的格子多一行實際時間。
+    """
     if table is None:
         return Grid(title=title, num_weekdays=5, rows=[])
     num_weekdays = table.num_weekdays
@@ -179,7 +212,11 @@ def _grid_from(
                 row.cells.append(Cell(covered=True))
             elif (wd, pno) in placed:
                 e = placed[(wd, pno)]
-                row.cells.append(Cell(lines=tuple(lines_of(e)), span=e.span))
+                lines = list(lines_of(e))
+                note = _time_note(e, table, tables) if tables else ""
+                if note:
+                    lines.append(note)
+                row.cells.append(Cell(lines=tuple(lines), span=e.span))
             else:
                 row.cells.append(Cell())
         grid.rows.append(row)
@@ -206,12 +243,13 @@ def class_grid(pub: _Published, cls: ClassUnit) -> Grid:
 
 def teacher_grid(pub: _Published, teacher: Teacher) -> Grid:
     entries = [e for e in pub.entries if teacher.id in e.teacher_ids]
-    return _grid_from(pub.default_table(), f"{teacher.name} 課表", entries, _teacher_lines)
+    return _grid_from(
+        pub.default_table(), f"{teacher.name} 課表", entries, _teacher_lines, pub.tables)
 
 
 def room_grid(pub: _Published, room: Room) -> Grid:
     entries = [e for e in pub.entries if e.room_id == room.id]
-    return _grid_from(pub.default_table(), f"{room.name} 課表", entries, _room_lines)
+    return _grid_from(pub.default_table(), f"{room.name} 課表", entries, _room_lines, pub.tables)
 
 
 def build_grid(db: Session, semester_id: int, view: str, target_id: int) -> tuple[Grid, Meta]:

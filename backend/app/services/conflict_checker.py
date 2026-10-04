@@ -126,6 +126,17 @@ class _Checker:
         p = pmap.get((weekday, pno))
         return f"{_wd(weekday)}{p.name}" if p else f"{_wd(weekday)}第{pno}節"
 
+    @staticmethod
+    def _occ_desc(occ: _Occ, table_id: int) -> str:
+        """對方那一節的說明;跨節次表時補上它實際的時間。
+
+        跨表是以牆鐘重疊判定的,兩邊的節次名稱對不起來(國小第五節 13:30 會撞到
+        國中第六節 14:05)——只寫「第五節已有課」使用者會找不到那堂課在哪裡。
+        """
+        if occ.table_id != table_id and occ.start and occ.end:
+            return f"{occ.desc}({occ.start:%H:%M}–{occ.end:%H:%M})"
+        return occ.desc
+
     def _overlap(
         self, occ: _Occ, weekday: int, table_id: int, pno: int, start: time | None, end: time | None
     ) -> bool:
@@ -278,7 +289,8 @@ class _Checker:
                     for occ in teacher_occ.get(at.teacher_id, []):
                         if self._overlap(occ, wd, table_id, pno, s, e):
                             conflicts.append(Conflict(
-                                "H2", f"教師{t.name} {label} 已有 {occ.desc}"))
+                                "H2",
+                                f"教師{t.name} {label} 已有 {self._occ_desc(occ, table_id)}"))
                     for occ in batch_teacher.get(at.teacher_id, []):
                         if self._overlap(occ, wd, table_id, pno, s, e):
                             conflicts.append(Conflict(
@@ -293,7 +305,8 @@ class _Checker:
                             conflicts.append(Conflict(
                                 "H3",
                                 f"場地 {self._room_name(room_id)} "
-                                f"{self._slot(pmap, wd, pno)} 已有 {occ.desc}"))
+                                f"{self._slot(pmap, wd, pno)} "
+                                f"已有 {self._occ_desc(occ, table_id)}"))
 
             # H10 同班同科目每日上限。連堂(span>1)是一次上完的整塊,不計亦不受限;
             # 但連堂課剩下的單節仍受限——定義以 solver/validator.py 為準。

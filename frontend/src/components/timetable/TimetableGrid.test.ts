@@ -44,6 +44,13 @@ describe('TimetableGrid', () => {
     expect(cell(w, 2, 1).find('.tg-card').attributes('draggable')).toBe('true')
   })
 
+  it('格位有補充說明(跨節次表的實際時間)時顯示在卡片上;沒有就不佔位置', () => {
+    const noted: GridEntry[] = [...entries, { id: 3, weekday: 3, period_no: 1, subject: '英語', teacher: '601', note: '08:30–09:10' }]
+    const w = mount(TimetableGrid, { props: { periods, entries: noted } })
+    expect(cell(w, 3, 1).find('[data-testid="tg-note"]').text()).toBe('08:30–09:10')
+    expect(cell(w, 1, 1).find('[data-testid="tg-note"]').exists()).toBe(false)
+  })
+
   it('點擊卡片觸發 select', async () => {
     const w = mount(TimetableGrid, { props: { periods, entries } })
     await cell(w, 2, 1).find('.tg-card').trigger('click')

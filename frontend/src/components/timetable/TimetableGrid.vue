@@ -195,6 +195,7 @@ function onCellDrop(w: number, p: number, ev: DragEvent) {
               <div class="tg-subject">{{ entryAt(w, p)!.subject }}</div>
               <div v-if="entryAt(w, p)!.teacher" class="tg-teacher">{{ entryAt(w, p)!.teacher }}</div>
               <div v-if="entryAt(w, p)!.room" class="tg-room">{{ entryAt(w, p)!.room }}</div>
+              <div v-if="entryAt(w, p)!.note" class="tg-note" data-testid="tg-note">{{ entryAt(w, p)!.note }}</div>
             </div>
             <div v-else-if="!isRegular(w, p)" class="tg-blocked-label">
               {{ periodAt(w, p)?.name ?? '—' }}
@@ -249,4 +250,5 @@ function onCellDrop(w: number, p: number, ev: DragEvent) {
 .tg-subject { font-weight: 600; font-size: 13px; }
 .tg-teacher { font-size: 12px; opacity: 0.85; }
 .tg-room { font-size: 11px; opacity: 0.65; }
+.tg-note { font-size: 11px; font-weight: 600; color: #b45309; }
 </style>
