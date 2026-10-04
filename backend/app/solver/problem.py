@@ -286,13 +286,15 @@ def slots_overlap(a: Slot, b: Slot, *, same_table: bool) -> bool:
 
     同一節次表退化為節次號相等(常見情形,零額外成本);
     跨表則以牆鐘時間區間重疊判定——節次號相同不代表時間相同。
+    任一方沒填起訖時間就無從比較時間,保守地退回節次號相等:寧可多擋,
+    也不能讓老師被排到同一時段的兩堂課(與 services.availability.Interval 一致)。
     """
     if a.weekday != b.weekday:
         return False
     if same_table:
         return a.period_no == b.period_no
     if not (a.has_time and b.has_time):
-        return False
+        return a.period_no == b.period_no
     assert a.start_min is not None and a.end_min is not None
     assert b.start_min is not None and b.end_min is not None
     return a.start_min < b.end_min and b.start_min < a.end_min

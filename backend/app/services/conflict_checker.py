@@ -147,7 +147,9 @@ class _Checker:
         # 跨節次表:牆鐘時間區間重疊(D7)
         if occ.start and occ.end and start and end:
             return start < occ.end and occ.start < end
-        return False
+        # 任一方沒填起訖時間(學校自己新增的節次列,時間預設是空的):無從比較時間,
+        # 保守地退回節次號相等。先前這裡回 False,老師會被排到同一時段的兩堂課。
+        return occ.period_no == pno
 
     def _build_occupancy(self, ignore_entry_ids: set[int]):
         """以欄位查詢(非 ORM 實體)建立既有格位的佔用索引。
