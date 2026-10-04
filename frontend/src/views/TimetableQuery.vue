@@ -4,7 +4,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
-import { crossTableNote } from '@/components/timetable/crossTable'
+import { crossTableNote, extraRows } from '@/components/timetable/crossTable'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import type { GridEntry, PeriodCell } from '@/components/timetable/types'
 import { getMyTeacher, getPublishedTimetable, publishedSemesters } from '@/api/timetables'
@@ -115,16 +115,25 @@ const activeTable = computed(() => {
   }
   return defaultTable.value
 })
-const periods = computed<PeriodCell[]>(() => (activeTable.value?.periods ?? []) as PeriodCell[])
 const numWeekdays = computed(() => activeTable.value?.num_weekdays ?? 5)
 
-const entries = computed<GridEntry[]>(() => {
+const shownEntries = computed(() => {
   const all = data.value?.entries ?? []
-  let list = all
-  if (view.value === 'class') list = classId.value ? all.filter((e) => e.class_ids.includes(classId.value!)) : []
-  else if (view.value === 'teacher') list = teacherId.value ? all.filter((e) => e.teacher_ids.includes(teacherId.value!)) : []
-  else list = roomId.value ? all.filter((e) => e.room_id === roomId.value) : []
-  return list.map((e) => ({
+  if (view.value === 'class') return classId.value ? all.filter((e) => e.class_ids.includes(classId.value!)) : []
+  if (view.value === 'teacher') return teacherId.value ? all.filter((e) => e.teacher_ids.includes(teacherId.value!)) : []
+  return roomId.value ? all.filter((e) => e.room_id === roomId.value) : []
+})
+/** 教師/場地視角:預設表沒有、但這位老師(這間場地)用得到的節次列要補上(如高中部的第八節)。 */
+const periods = computed<PeriodCell[]>(() => {
+  const base = (activeTable.value?.periods ?? []) as PeriodCell[]
+  if (view.value === 'class') return base
+  return [...base, ...extraRows(
+    shownEntries.value, data.value?.classes ?? [], data.value?.period_tables ?? [], activeTable.value,
+  ) as PeriodCell[]]
+})
+
+const entries = computed<GridEntry[]>(() => {
+  return shownEntries.value.map((e) => ({
     id: e.id, weekday: e.weekday, period_no: e.period_no, span: e.span, locked: false,
     subject: e.subject,
     teacher: view.value === 'class' ? e.teachers.join('、') : e.classes.join('、'),

@@ -174,7 +174,10 @@ def assemble(
     actor_of: Callable[[Move], str],
 ) -> Slip:
     """把異動格排進週課表:跨週會產生多個 `SlipWeek`(列印頁一週一頁)。"""
-    table_id = moves[0].table_id
+    # 格線照「節數最多」的那套節次表畫:國中七節、高中八節的完全中學,
+    # 跨部老師的單子若照國中畫,高中第八節那一格會沒有列可以放、印不出來。
+    table_id = max(
+        dict.fromkeys(m.table_id for m in moves), key=lambda t: len(tables.rows(t)))
     n_days = tables.weekdays(table_id)
     classes = list(dict.fromkeys(m.class_names for m in moves))
     slip = Slip(
