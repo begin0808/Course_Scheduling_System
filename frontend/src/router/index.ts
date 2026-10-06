@@ -38,6 +38,12 @@ const routes = [
     component: () => import('@/views/substitution/SlipsPrint.vue'),
   },
   {
+    // 巡堂表列印頁(A4 橫式),不套側邊欄
+    path: '/patrol-sheets/print',
+    name: 'patrol-sheets-print',
+    component: () => import('@/views/substitution/PatrolPrint.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     children: [

@@ -40,6 +40,52 @@ class LogEntryOut(BaseModel):
     row_kind: str = "leave"  # leave / swap_makeup(調課補課日被換來的那一節)
 
 
+class PatrolCellOut(BaseModel):
+    subject: str
+    teacher: str
+    room: str
+    note: str
+
+
+class PatrolRowOut(BaseModel):
+    ordinal: int
+    name: str
+    cells: list[PatrolCellOut]
+
+
+class PatrolPageOut(BaseModel):
+    date: _Date
+    table_name: str
+    first_ordinal: int
+    last_ordinal: int
+    classes: list[str]
+    rows: list[PatrolRowOut]
+
+
+class PatrolGroupItemOut(BaseModel):
+    no: int
+    subject: str
+    teacher: str
+    room: str
+    note: str
+
+
+class PatrolGroupListOut(BaseModel):
+    date: _Date
+    group_name: str
+    period_name: str
+    items: list[PatrolGroupItemOut]
+
+
+class PatrolSheetsOut(BaseModel):
+    """巡堂表列印資料:巡堂紀錄(班級為欄)+ 分組巡堂單(社團等大型跑班群組)。"""
+
+    title: str
+    legend: str
+    pages: list[PatrolPageOut]
+    group_lists: list[PatrolGroupListOut]
+
+
 class DailyBoardOut(BaseModel):
     """今日看板:表頭(校名/日期/學期)供列印通知單直接使用。"""
 

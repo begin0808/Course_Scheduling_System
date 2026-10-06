@@ -4,14 +4,14 @@ import { iso, onOrAfter } from './dates'
 
 // 操作手冊補圖產生器(不是驗收測試,CI 不跑)。對示範站逐頁截圖 → docs/manual-img/。
 //
-// 重拍全部 13 張(整套流程約 1 分鐘):
+// 重拍全部 14 張(整套流程約 1 分鐘):
 //   1) 起一套**全新**的棧(空資料庫),.env 設 ADMIN_PASSWORD=DemoSetup2026!,例如
 //        docker compose -p manual --env-file <你的.env> up -d
 //   2) E2E_BASE_URL=http://localhost:<port> npm run e2e:manual
 //
 // 兩支測試對站台狀態的要求不同,故分開(執行順序即檔案順序,workers=1):
 //   01–02:需**精靈尚未完成**的全新站台。
-//   03–13:自己把示範資料備齊(冪等),再逐頁截圖。
+//   03–14:自己把示範資料備齊(冪等),再逐頁截圖。
 //
 // 示範資料與改密都刻意做在這支 spec 裡、不靠外部腳本:上一次是臨時手動灌的,
 // 結果要重拍時沒人知道當初的資料長什麼樣子,只好整套重猜一遍。
@@ -197,7 +197,7 @@ test('產生操作手冊截圖(01–02,需全新未設定站台)', async ({ page
   await page.screenshot({ path: `${SHOTS}/02-wizard.png` })
 })
 
-test('產生操作手冊截圖(03–13)', async ({ page }) => {
+test('產生操作手冊截圖(03–14)', async ({ page }) => {
   test.setTimeout(300_000)
 
   await loginAsAdmin(page)
@@ -341,4 +341,10 @@ test('產生操作手冊截圖(03–13)', async ({ page }) => {
   await subSlips.waitForTimeout(700)
   await subSlips.screenshot({ path: `${SHOTS}/13-substitute-slips.png` })
   await subSlips.close()
+
+  // ── 14 巡堂表(08.8 列印):王大明請假那天,代課老師與備註由系統帶出 ──
+  await page.goto(`/patrol-sheets/print?semester_id=${sid}&from=${leaveDay}&to=${leaveDay}`)
+  await expect(page.getByTestId('patrol-page').first()).toBeVisible({ timeout: 20_000 })
+  await page.waitForTimeout(700)
+  await page.screenshot({ path: `${SHOTS}/14-patrol-sheet.png` })
 })

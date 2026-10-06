@@ -17,6 +17,7 @@ import {
   saveSchedulingSettings, saveSchoolSettings,
 } from '@/api/assignments'
 import { getSmtp, saveSmtp } from '@/api/notifications'
+import { getPatrolSettings, savePatrolSettings } from '@/api/substitutionLog'
 import { RELEASES_URL, UPGRADE_GUIDE_URL, getUpdateStatus } from '@/api/system'
 import type { UpdateStatus } from '@/api/system'
 import { resetWizard } from '@/api/wizard'
@@ -153,6 +154,22 @@ const maxOvertime = ref(8)
 const savingScheduling = ref(false)
 
 const schoolName = ref('')
+
+// ── 巡堂表的記錄說明(各校的代碼不同)──
+const patrolLegend = ref('')
+const savingPatrol = ref(false)
+async function onSavePatrol() {
+  savingPatrol.value = true
+  try {
+    // 留空送出 = 恢復預設;後端會回傳實際生效的文字
+    patrolLegend.value = (await savePatrolSettings({ legend: patrolLegend.value })).legend
+    message.success('已儲存巡堂表設定')
+  } catch (e) {
+    message.error((e as ApiError).message || '儲存失敗')
+  } finally {
+    savingPatrol.value = false
+  }
+}
 const savingSchool = ref(false)
 
 async function onSaveSchool() {
@@ -178,6 +195,7 @@ onMounted(async () => {
   hasPassword.value = s.has_password
   maxOvertime.value = (await getSchedulingSettings()).max_overtime
   schoolName.value = (await getSchoolSettings()).school_name
+  patrolLegend.value = (await getPatrolSettings()).legend
   const demo = await demoDataStatus()
   demoAvailable.value = demo.available
   demoReason.value = demo.reason
@@ -479,6 +497,26 @@ async function onResetWizard() {
             @click="onSaveScheduling"
           >
             儲存排課設定
+          </n-button>
+        </div>
+      </n-space>
+    </n-card>
+
+    <n-card v-if="isAdmin()" title="巡堂表" data-testid="patrol-card">
+      <n-space vertical>
+        <n-text depth="3">
+          印在巡堂表下方的「記錄說明」。授課情形、學生學習的代碼各校不同,請改成貴校的寫法;
+          一行一項。清空後儲存會恢復預設內容。巡堂表在「今日調代課看板」列印。
+        </n-text>
+        <n-input
+          v-model:value="patrolLegend" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }"
+          maxlength="500" show-count data-testid="patrol-legend-input"
+        />
+        <div>
+          <n-button
+            type="primary" :loading="savingPatrol" data-testid="patrol-save" @click="onSavePatrol"
+          >
+            儲存巡堂表設定
           </n-button>
         </div>
       </n-space>

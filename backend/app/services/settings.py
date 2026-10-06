@@ -22,6 +22,15 @@ SCHOOL_NAME = "school_name"
 MAX_OVERTIME = "max_overtime_periods"
 DEFAULT_MAX_OVERTIME = 8
 
+# 巡堂表下方的「記錄說明」。授課情形/學生學習的代碼各校不同(有的是 1~3,有的是優良可),
+# 寫死就只有一所學校能用;預設值取自使用學校的紙本,可在系統管理修改。
+PATROL_LEGEND = "patrol_legend"
+DEFAULT_PATROL_LEGEND = (
+    "一、授課情形(填寫代碼):1. 融入媒體教學 2. 雙語教學 3. 正常教學\n"
+    "二、學生學習狀況(填寫代碼):1. 態度積極 2. 秩序良好 3. 未能專心\n"
+    "三、註記事項部分請記錄巡堂時臨時狀況"
+)
+
 # SMTP 設定的 key
 SMTP_HOST = "smtp_host"
 SMTP_PORT = "smtp_port"
@@ -72,6 +81,15 @@ def school_name(db: Session) -> str:
 
 def save_school_name(db: Session, value: str) -> None:
     set_value(db, SCHOOL_NAME, value.strip())
+
+
+def patrol_legend(db: Session) -> str:
+    """巡堂表的記錄說明;未設定時用預設值。"""
+    return get(db, PATROL_LEGEND).strip() or DEFAULT_PATROL_LEGEND
+
+
+def save_patrol_legend(db: Session, value: str) -> None:
+    set_value(db, PATROL_LEGEND, value.strip())
 
 
 def max_overtime(db: Session) -> int:

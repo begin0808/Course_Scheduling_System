@@ -28,6 +28,11 @@ class SchedulingSettings(BaseModel):
     )
 
 
+class PatrolSettings(BaseModel):
+    # app_settings.value 欄位長度 500
+    legend: str = Field(max_length=500, description="巡堂表下方的記錄說明;留空則恢復預設")
+
+
 def _smtp_out(db: Session) -> SmtpSettingsOut:
     cfg = app_settings.smtp_config(db)
     return SmtpSettingsOut(
@@ -96,6 +101,24 @@ def put_scheduling(
     ))
     db.commit()
     return SchedulingSettings(max_overtime=app_settings.max_overtime(db))
+
+
+@router.get("/settings/patrol", response_model=PatrolSettings)
+def get_patrol(db: Session = Depends(get_db), _: User = Depends(admin_only)):
+    return PatrolSettings(legend=app_settings.patrol_legend(db))
+
+
+@router.put("/settings/patrol", response_model=PatrolSettings)
+def put_patrol(
+    body: PatrolSettings, db: Session = Depends(get_db), user: User = Depends(admin_only)
+):
+    app_settings.save_patrol_legend(db, body.legend)
+    db.add(AuditLog(
+        user_id=user.id, username=user.username, action="update_patrol_settings",
+        target_type="app_setting", target_id=None, detail="修改巡堂表的記錄說明",
+    ))
+    db.commit()
+    return PatrolSettings(legend=app_settings.patrol_legend(db))
 
 
 @router.post("/settings/smtp/test", status_code=status.HTTP_200_OK)
