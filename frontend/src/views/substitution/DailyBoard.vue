@@ -2,7 +2,7 @@
 import { NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getDailyBoard } from '@/api/substitutionLog'
+import { getDailyBoard, openPatrolSheets } from '@/api/substitutionLog'
 import type { DailyBoard, LogEntry } from '@/api/substitutionLog'
 import { listSemesters } from '@/api/semesters'
 
@@ -66,6 +66,16 @@ function openPrint() {
   window.open(url, '_blank')
 }
 
+/** 巡堂表:當天一份,或選定日期那一週(週一到週日;沒課的日子後端會略過) */
+function openPatrol(week: boolean) {
+  if (sid.value === null) return
+  if (!week) return openPatrolSheets(sid.value, toISODate(dateTs.value))
+  const d = new Date(dateTs.value)
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6)
+  openPatrolSheets(sid.value, toISODate(monday.getTime()), toISODate(sunday.getTime()))
+}
+
 function dispositionText(e: LogEntry): string {
   if (!e.disposed) return '待安排'
   if (e.row_kind === 'swap_makeup') {
@@ -102,6 +112,12 @@ function statusType(e: LogEntry): string {
         @click="openPrint"
       >
         列印通知單
+      </n-button>
+      <n-button v-if="sid !== null" data-testid="board-patrol" @click="openPatrol(false)">
+        列印巡堂表
+      </n-button>
+      <n-button v-if="sid !== null" data-testid="board-patrol-week" @click="openPatrol(true)">
+        列印整週巡堂表
       </n-button>
     </n-space>
 

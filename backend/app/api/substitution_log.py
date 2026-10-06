@@ -3,6 +3,7 @@
 看板/日誌是行政的當日排課與歷史查詢工具,限教學組長/教務主任。
 """
 
+from dataclasses import asdict
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,7 +13,8 @@ from app.core.auth import require_roles
 from app.core.db import get_db
 from app.models.semester import Semester
 from app.models.user import Role, User
-from app.schemas.substitution_log import DailyBoardOut, LogEntryOut
+from app.schemas.substitution_log import DailyBoardOut, LogEntryOut, PatrolSheetsOut
+from app.services import patrol_sheets
 from app.services import settings as app_settings
 from app.services import substitution_log as log_service
 
@@ -50,6 +52,24 @@ def daily_board(
         semester_label=sem.label,
         entries=[_entry_out(e) for e in entries],
     )
+
+
+@router.get("/patrol-sheets", response_model=PatrolSheetsOut)
+def get_patrol_sheets(
+    semester_id: int = Query(...),
+    date_from: date | None = Query(default=None, description="預設為學校時區的今天"),
+    date_to: date | None = Query(default=None, description="預設同 date_from(只印一天)"),
+    db: Session = Depends(get_db),
+    _: User = Depends(viewer),
+):
+    """巡堂表的列印資料:已發布課表疊上當天的調代課,一天分上午/下午各一張。"""
+    _get_semester(db, semester_id)
+    start = date_from or log_service.school_today()
+    try:
+        sheets = patrol_sheets.build(db, semester_id, start, date_to or start)
+    except patrol_sheets.PatrolError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return PatrolSheetsOut.model_validate(asdict(sheets))
 
 
 @router.get("/substitution-log", response_model=list[LogEntryOut])

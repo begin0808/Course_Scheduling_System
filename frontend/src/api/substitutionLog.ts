@@ -1,6 +1,6 @@
 // 今日調代課看板與調代課日誌(M4-4)。
 
-import { apiGet } from '@/api/client'
+import { apiGet, apiPut } from '@/api/client'
 
 export interface LogEntry {
   affected_period_id: number
@@ -63,3 +63,46 @@ export const getSubstitutionLog = (
   if (f.leaveType) p.set('leave_type', f.leaveType)
   return apiGet(`/substitution-log?${p.toString()}`)
 }
+
+// ── 巡堂表(v1.2.12)──
+export interface PatrolCell {
+  subject: string
+  teacher: string
+  room: string
+  note: string // 代課/調課/併班/自習/停課/請假待處理;大型群組為「見分組巡堂單」
+}
+export interface PatrolPage {
+  date: string
+  table_name: string // 全校只有一套節次表時為空
+  first_ordinal: number
+  last_ordinal: number
+  classes: string[]
+  rows: { ordinal: number; name: string; cells: PatrolCell[] }[]
+}
+export interface PatrolGroupList {
+  date: string
+  group_name: string
+  period_name: string
+  items: { no: number; subject: string; teacher: string; room: string; note: string }[]
+}
+export interface PatrolSheets {
+  title: string
+  legend: string
+  pages: PatrolPage[]
+  group_lists: PatrolGroupList[]
+}
+
+export const getPatrolSheets = (semesterId: number, from: string, to: string): Promise<PatrolSheets> =>
+  apiGet(`/patrol-sheets?semester_id=${semesterId}&date_from=${from}&date_to=${to}`)
+
+/** 在新分頁開啟巡堂表列印頁(不套側邊欄) */
+export function openPatrolSheets(semesterId: number, from: string, to: string = from) {
+  window.open(`/patrol-sheets/print?semester_id=${semesterId}&from=${from}&to=${to}`, '_blank')
+}
+
+export interface PatrolSettings {
+  legend: string
+}
+export const getPatrolSettings = () => apiGet<PatrolSettings>('/settings/patrol')
+export const savePatrolSettings = (body: PatrolSettings) =>
+  apiPut<PatrolSettings>('/settings/patrol', body)
