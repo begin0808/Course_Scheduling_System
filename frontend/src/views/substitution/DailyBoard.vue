@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText } from 'naive-ui'
+import {
+  NButton, NButtonGroup, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText, useMessage,
+} from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getDailyBoard, openPatrolSheets } from '@/api/substitutionLog'
+import { exportPatrolSheets, getDailyBoard, openPatrolSheets } from '@/api/substitutionLog'
 import type { DailyBoard, LogEntry } from '@/api/substitutionLog'
 import { listSemesters } from '@/api/semesters'
 
@@ -26,6 +28,7 @@ function parseISODate(iso: string): number {
 }
 
 const route = useRoute()
+const message = useMessage()
 const semesters = ref<{ id: number; label: string }[]>([])
 const sid = ref<number | null>(null)
 const dateTs = ref<number>(
@@ -66,14 +69,32 @@ function openPrint() {
   window.open(url, '_blank')
 }
 
-/** 巡堂表:當天一份,或選定日期那一週(週一到週日;沒課的日子後端會略過) */
-function openPatrol(week: boolean) {
-  if (sid.value === null) return
-  if (!week) return openPatrolSheets(sid.value, toISODate(dateTs.value))
+/** 巡堂表的範圍:當天,或選定日期那一週(週一到週日;沒課的日子後端會略過) */
+function patrolRange(week: boolean): [string, string] {
+  if (!week) return [toISODate(dateTs.value), toISODate(dateTs.value)]
   const d = new Date(dateTs.value)
   const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
   const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6)
-  openPatrolSheets(sid.value, toISODate(monday.getTime()), toISODate(sunday.getTime()))
+  return [toISODate(monday.getTime()), toISODate(sunday.getTime())]
+}
+
+function openPatrol(week: boolean) {
+  if (sid.value === null) return
+  openPatrolSheets(sid.value, ...patrolRange(week))
+}
+
+// 匯出 Excel:列印頁印出來就不能改,學校常要再加欄位、填巡堂人員
+const exportingPatrol = ref(false)
+async function exportPatrol(week: boolean) {
+  if (sid.value === null) return
+  exportingPatrol.value = true
+  try {
+    await exportPatrolSheets(sid.value, ...patrolRange(week))
+  } catch (e) {
+    message.error((e as Error).message || '匯出失敗')
+  } finally {
+    exportingPatrol.value = false
+  }
 }
 
 function dispositionText(e: LogEntry): string {
@@ -113,12 +134,25 @@ function statusType(e: LogEntry): string {
       >
         列印通知單
       </n-button>
-      <n-button v-if="sid !== null" data-testid="board-patrol" @click="openPatrol(false)">
-        列印巡堂表
-      </n-button>
-      <n-button v-if="sid !== null" data-testid="board-patrol-week" @click="openPatrol(true)">
-        列印整週巡堂表
-      </n-button>
+      <template v-if="sid !== null">
+        <n-text depth="3">巡堂表:</n-text>
+        <n-button-group>
+          <n-button data-testid="board-patrol" @click="openPatrol(false)">列印當天</n-button>
+          <n-button data-testid="board-patrol-week" @click="openPatrol(true)">列印整週</n-button>
+        </n-button-group>
+        <n-button-group>
+          <n-button
+            :loading="exportingPatrol" data-testid="board-patrol-xlsx" @click="exportPatrol(false)"
+          >
+            當天 Excel
+          </n-button>
+          <n-button
+            :loading="exportingPatrol" data-testid="board-patrol-week-xlsx" @click="exportPatrol(true)"
+          >
+            整週 Excel
+          </n-button>
+        </n-button-group>
+      </template>
     </n-space>
 
     <n-text v-if="board" depth="3" data-testid="board-datelabel">{{ dateLabel }}</n-text>

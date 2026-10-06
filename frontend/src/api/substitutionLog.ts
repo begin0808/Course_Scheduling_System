@@ -1,6 +1,7 @@
 // 今日調代課看板與調代課日誌(M4-4)。
 
 import { apiGet, apiPut } from '@/api/client'
+import { download } from '@/api/exports'
 
 export interface LogEntry {
   affected_period_id: number
@@ -99,6 +100,10 @@ export const getPatrolSheets = (semesterId: number, from: string, to: string): P
 export function openPatrolSheets(semesterId: number, from: string, to: string = from) {
   window.open(`/patrol-sheets/print?semester_id=${semesterId}&from=${from}&to=${to}`, '_blank')
 }
+
+/** 巡堂表 Excel:內容與列印頁相同,下載後可自行增減欄位、填巡堂人員 */
+export const exportPatrolSheets = (semesterId: number, from: string, to: string = from): Promise<void> =>
+  download(`/patrol-sheets.xlsx?semester_id=${semesterId}&date_from=${from}&date_to=${to}`, '巡堂表.xlsx')
 
 export interface PatrolSettings {
   legend: string

@@ -5,8 +5,9 @@
 
 from dataclasses import asdict
 from datetime import date
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
@@ -14,7 +15,7 @@ from app.core.db import get_db
 from app.models.semester import Semester
 from app.models.user import Role, User
 from app.schemas.substitution_log import DailyBoardOut, LogEntryOut, PatrolSheetsOut
-from app.services import patrol_sheets
+from app.services import patrol_sheets, patrol_xlsx
 from app.services import settings as app_settings
 from app.services import substitution_log as log_service
 
@@ -70,6 +71,32 @@ def get_patrol_sheets(
     except patrol_sheets.PatrolError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return PatrolSheetsOut.model_validate(asdict(sheets))
+
+
+@router.get("/patrol-sheets.xlsx")
+def export_patrol_sheets(
+    semester_id: int = Query(...),
+    date_from: date | None = Query(default=None, description="預設為學校時區的今天"),
+    date_to: date | None = Query(default=None, description="預設同 date_from(只匯出一天)"),
+    db: Session = Depends(get_db),
+    _: User = Depends(viewer),
+) -> Response:
+    """巡堂表的 Excel 版:內容與列印頁相同,給學校下載後自行增減欄位、填巡堂人員。"""
+    _get_semester(db, semester_id)
+    start = date_from or log_service.school_today()
+    end = date_to or start
+    try:
+        sheets = patrol_sheets.build(db, semester_id, start, end)
+    except patrol_sheets.PatrolError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    name = f"巡堂表_{start:%Y-%m-%d}" + (f"_{end:%m-%d}" if end != start else "")
+    # 中文檔名以 RFC 5987 filename* 表達;filename 提供 ASCII 後備(與課表匯出一致)
+    disposition = f"attachment; filename=\"patrol.xlsx\"; filename*=UTF-8''{quote(name)}.xlsx"
+    return Response(
+        content=patrol_xlsx.to_xlsx(sheets),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": disposition},
+    )
 
 
 @router.get("/substitution-log", response_model=list[LogEntryOut])

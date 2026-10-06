@@ -8,7 +8,7 @@ function filenameFrom(cd: string | null, fallback: string): string {
   return m ? decodeURIComponent(m[1]) : fallback
 }
 
-async function download(path: string, fallback: string): Promise<void> {
+export async function download(path: string, fallback: string): Promise<void> {
   const resp = await fetch(`/api${path}`, { credentials: 'include' })
   if (!resp.ok) {
     let detail: string | undefined
