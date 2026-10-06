@@ -203,94 +203,99 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
 </script>
 
 <template>
-  <n-space vertical size="large">
-    <h1 style="margin: 0">學期與節次表</h1>
+  <div>
+    <n-space vertical size="large">
+      <h1 style="margin: 0">學期與節次表</h1>
 
-    <n-card title="建立學期">
-      <n-space align="center" :wrap="true">
-        <n-text>學年度</n-text>
-        <n-input-number v-model:value="form.academic_year" :min="100" :max="200" style="width: 120px" />
-        <n-select v-model:value="form.term" :options="termOptions" style="width: 130px" />
-        <n-text>學制範本</n-text>
-        <n-select
-          v-model:value="form.template_key"
-          :options="templateOptions"
-          placeholder="選擇學制範本"
-          style="width: 220px"
-        />
-        <n-text>起訖日期</n-text>
-        <n-date-picker
-          v-model:formatted-value="form.start_date" value-format="yyyy-MM-dd"
-          type="date" placeholder="開學日" style="width: 150px" data-testid="sem-start"
-        />
-        <n-text>~</n-text>
-        <n-date-picker
-          v-model:formatted-value="form.end_date" value-format="yyyy-MM-dd"
-          type="date" placeholder="結業日" style="width: 150px" data-testid="sem-end"
-        />
-        <n-button type="primary" data-testid="sem-create" @click="onCreateSemester">建立</n-button>
-      </n-space>
-      <n-text depth="3" style="font-size: 13px">
-        起訖日期依貴校校曆填寫;請假展開節次、今日看板與調代課都以它為準。
-      </n-text>
-    </n-card>
-
-    <n-empty v-if="!loading && semesters.length === 0" description="尚未建立任何學期" />
-
-    <n-card v-for="sem in semesters" :key="sem.id">
-      <n-space justify="space-between" align="center">
-        <n-space align="center">
-          <strong>{{ sem.label }}</strong>
-          <n-tag :type="statusType[sem.status]" size="small">{{ STATUS_LABELS[sem.status] }}</n-tag>
-          <n-text v-if="sem.start_date && sem.end_date" depth="3" data-testid="sem-range">
-            {{ sem.start_date }} ~ {{ sem.end_date }}
-          </n-text>
-          <n-tag v-else type="warning" size="small" data-testid="sem-no-range">
-            尚未設定起訖日期(無法登記請假)
-          </n-tag>
+      <n-card title="建立學期">
+        <n-space align="center" :wrap="true">
+          <n-text>學年度</n-text>
+          <n-input-number v-model:value="form.academic_year" :min="100" :max="200" style="width: 120px" />
+          <n-select v-model:value="form.term" :options="termOptions" style="width: 130px" />
+          <n-text>學制範本</n-text>
+          <n-select
+            v-model:value="form.template_key"
+            :options="templateOptions"
+            placeholder="選擇學制範本"
+            style="width: 220px"
+          />
+          <n-text>起訖日期</n-text>
+          <n-date-picker
+            v-model:formatted-value="form.start_date" value-format="yyyy-MM-dd"
+            type="date" placeholder="開學日" style="width: 150px" data-testid="sem-start"
+          />
+          <n-text>~</n-text>
+          <n-date-picker
+            v-model:formatted-value="form.end_date" value-format="yyyy-MM-dd"
+            type="date" placeholder="結業日" style="width: 150px" data-testid="sem-end"
+          />
+          <n-button type="primary" data-testid="sem-create" @click="onCreateSemester">建立</n-button>
         </n-space>
-        <n-space>
-          <n-button size="tiny" data-testid="sem-edit" @click="openEdit(sem)">編輯學期</n-button>
-          <n-button size="tiny" data-testid="copy-semester" @click="openCopy(sem)">
-            複製到新學期
-          </n-button>
-          <n-popconfirm @positive-click="onDeleteSemester(sem.id)">
-            <template #trigger>
-              <n-button size="tiny" type="error" ghost>刪除學期</n-button>
-            </template>
-            確定刪除此學期?其節次表將一併移除。
-          </n-popconfirm>
-        </n-space>
-      </n-space>
+        <n-text depth="3" style="font-size: 13px">
+          起訖日期依貴校校曆填寫;請假展開節次、今日看板與調代課都以它為準。
+        </n-text>
+      </n-card>
 
-      <n-divider style="margin: 12px 0" />
+      <n-empty v-if="!loading && semesters.length === 0" description="尚未建立任何學期" />
 
-      <n-space vertical size="small">
-        <n-space
-          v-for="table in sem.period_tables"
-          :key="table.id"
-          align="center"
-          justify="space-between"
-        >
+      <n-card v-for="sem in semesters" :key="sem.id">
+        <n-space justify="space-between" align="center">
           <n-space align="center">
-            <n-text>{{ table.name }}</n-text>
-            <n-tag v-if="table.is_default" type="success" size="tiny">預設</n-tag>
-            <n-text depth="3">共 {{ table.periods.length }} 格</n-text>
+            <strong>{{ sem.label }}</strong>
+            <n-tag :type="statusType[sem.status]" size="small">{{ STATUS_LABELS[sem.status] }}</n-tag>
+            <n-text v-if="sem.start_date && sem.end_date" depth="3" data-testid="sem-range">
+              {{ sem.start_date }} ~ {{ sem.end_date }}
+            </n-text>
+            <n-tag v-else type="warning" size="small" data-testid="sem-no-range">
+              尚未設定起訖日期(無法登記請假)
+            </n-tag>
           </n-space>
           <n-space>
-            <n-button size="tiny" @click="editTable(table.id)">編輯節次表</n-button>
-            <n-popconfirm @positive-click="onDeleteTable(table.id)">
+            <n-button size="tiny" data-testid="sem-edit" @click="openEdit(sem)">編輯學期</n-button>
+            <n-button size="tiny" data-testid="copy-semester" @click="openCopy(sem)">
+              複製到新學期
+            </n-button>
+            <n-popconfirm @positive-click="onDeleteSemester(sem.id)">
               <template #trigger>
-                <n-button size="tiny" type="error" ghost>刪除</n-button>
+                <n-button size="tiny" type="error" ghost>刪除學期</n-button>
               </template>
-              確定刪除此節次表?
+              確定刪除此學期?其節次表將一併移除。
             </n-popconfirm>
           </n-space>
         </n-space>
-        <n-button size="small" dashed @click="openAddTable(sem.id)">+ 新增節次表</n-button>
-      </n-space>
-    </n-card>
 
+        <n-divider style="margin: 12px 0" />
+
+        <n-space vertical size="small">
+          <n-space
+            v-for="table in sem.period_tables"
+            :key="table.id"
+            align="center"
+            justify="space-between"
+          >
+            <n-space align="center">
+              <n-text>{{ table.name }}</n-text>
+              <n-tag v-if="table.is_default" type="success" size="tiny">預設</n-tag>
+              <n-text depth="3">共 {{ table.periods.length }} 格</n-text>
+            </n-space>
+            <n-space>
+              <n-button size="tiny" @click="editTable(table.id)">編輯節次表</n-button>
+              <n-popconfirm @positive-click="onDeleteTable(table.id)">
+                <template #trigger>
+                  <n-button size="tiny" type="error" ghost>刪除</n-button>
+                </template>
+                確定刪除此節次表?
+              </n-popconfirm>
+            </n-space>
+          </n-space>
+          <n-button size="small" dashed @click="openAddTable(sem.id)">+ 新增節次表</n-button>
+        </n-space>
+      </n-card>
+    </n-space>
+
+    <!-- 視窗放在排版容器外面:n-space 會把每個子節點包一層沒有 key 的 div,
+         學期卡片數量一變(載入完成、新增、刪除)視窗就跟著換位置重掛,
+         正式建置下會變成關不掉(X、Esc、點視窗外都沒反應)。 -->
     <n-modal
       v-model:show="showEdit" preset="card" style="max-width: 420px"
       :title="`編輯學期:${editing?.label ?? ''}`"
@@ -394,5 +399,5 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
         </n-button>
       </n-space>
     </n-modal>
-  </n-space>
+  </div>
 </template>
