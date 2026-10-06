@@ -353,6 +353,7 @@ def placements_for(
         sibs = list(
             db.scalars(
                 select(CourseAssignment).where(CourseAssignment.scheduling_unit_id == su.id)
+                .order_by(CourseAssignment.id)   # 順序固定:格位依配課建立的先後寫入
             )
         )
         return [

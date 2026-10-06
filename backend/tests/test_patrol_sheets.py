@@ -171,6 +171,31 @@ def test_big_group_gets_its_own_list(w):
     assert listing["items"][0]["room"] == "體育館"
 
 
+def test_group_list_order_follows_the_assignments_not_the_entries(w):
+    """分組單的編號照配課建立的順序,與格位寫入資料庫的順序無關。
+
+    群組的格位是整批寫入的,順序取決於資料庫怎麼回傳配課(PostgreSQL 不保證);
+    這裡刻意倒著寫入,重現 CI 上「第一列變成棒球社」的情況。
+    """
+    from app.models.timetable import ScheduleEntry
+
+    clubs = ["羽球社", "桌球社", "棒球社", "漫畫社"]
+    unit = _group(w, "社團", ["701", "702"])
+    ids = []
+    for i, club in enumerate(clubs):
+        w.teacher(f"師{i}", [club])
+        ids.append(_group_course(w, unit, club, f"師{i}"))
+    for assignment_id in reversed(ids):
+        w.db.add(ScheduleEntry(
+            timetable_id=w.tt, course_assignment_id=assignment_id, weekday=3,
+            period_no=w.wed[5]["period_no"], span=1))
+    w.db.commit()
+    w.publish()
+
+    listing = _sheets(w).json()["group_lists"][0]
+    assert [i["subject"] for i in listing["items"]] == clubs
+
+
 def test_many_classes_are_split_across_pages(w):
     """班級超過一頁的欄數時自動分頁,每頁上午/下午各一張。"""
     w.teacher("王師", ["國文"])
