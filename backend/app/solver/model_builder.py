@@ -22,6 +22,7 @@ from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
 
+from app.solver.preflight import duplicate_group_teachers
 from app.solver.problem import (
     MAX_WEIGHT,
     MORNING_END_MIN,
@@ -248,6 +249,13 @@ def _build_courses(problem: Problem) -> list[_Course]:
             if len(shapes) > 1:
                 raise SolverInputError(
                     f"跑班群組「{unit.name}」的各門課節數/連堂結構不一致,無法同時段開課"
+                )
+            # 下面把群組的教師合併成集合,重複的人會被當成一次——H2 就看不出他同一節上兩堂
+            for tid, count in duplicate_group_teachers(members).items():
+                teacher = problem.teachers.get(tid)
+                raise SolverInputError(
+                    f"跑班群組「{unit.name}」裡,教師{teacher.name if teacher else tid} 有 "
+                    f"{count} 筆配課,同一節無法上 {count} 堂課"
                 )
             courses.append(_Course(
                 key=("unit", unit.id), unit=unit, assignments=tuple(members), table=table,

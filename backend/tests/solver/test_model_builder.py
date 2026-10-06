@@ -207,6 +207,51 @@ def test_group_with_mismatched_periods_is_rejected(db):
         solve(problem, SolveOptions(max_seconds=5.0), config=HARD)
 
 
+def _alternating_weeks(db, rows: list[tuple[str, str]]):
+    """兩班單雙週對開(用跑班群組代替):甲、丙是兩班導師教國語,乙師教兩班美術。"""
+    b = Builder(db, 131, 1, "junior_high")
+    for name in ("甲師", "乙師", "丙師"):
+        b.teacher(name, base_periods=40)
+    b.klass("101", grade=1, track=ClassTrack.junior_high.value)
+    b.klass("102", grade=1, track=ClassTrack.junior_high.value)
+    b.group("國語美術對開", ["101", "102"])
+    b.subject("國語")
+    b.subject("美術")
+    for subject, teacher in rows:
+        b.assign(subject=subject, teachers=[teacher], periods=1, group="國語美術對開")
+    return load_problem(db, b.build().semester_id)
+
+
+def test_group_with_same_teacher_twice_is_rejected(db):
+    """同群組內同一位教師兩筆配課 = 同一節上兩堂(使用者回報)。
+
+    手動放入本來就會擋(H2「與同群組另一門課撞課」),自動排課卻排得出來、還能發布:
+    求解器把群組當成一門課、教師合併成集合,重複的人只算一次。
+    """
+    problem = _alternating_weeks(
+        db, [("國語", "甲師"), ("美術", "乙師"), ("美術", "乙師"), ("國語", "丙師")])
+
+    report = preflight.run(problem)
+    issue = next(i for i in report.errors if i.code == "group_teacher_duplicate")
+    assert "國語美術對開" in issue.message and "乙師" in issue.message
+    assert "2 筆配課" in issue.message
+    # 不是「少排幾節」能解決的問題:允許部分排課時一樣要擋
+    assert issue in preflight.blocking_errors(report, allow_partial=True)
+
+    with pytest.raises(SolverInputError, match="乙師 有 2 筆配課"):
+        solve(problem, SolveOptions(max_seconds=5.0), config=HARD)
+
+
+def test_group_with_each_teacher_once_still_solves(db):
+    """正確的建法:照「這一節有哪幾位老師在上課」各建一筆。"""
+    problem = _alternating_weeks(db, [("國語", "甲師"), ("美術", "乙師"), ("國語", "丙師")])
+
+    assert "group_teacher_duplicate" not in {i.code for i in preflight.run(problem).issues}
+    result = solve(problem, SolveOptions(max_seconds=5.0), config=HARD)
+    assert not validate(problem, result.entries)
+    assert len({(e.weekday, e.period_no) for e in result.entries}) == 1
+
+
 def test_daily_subject_cap_counts_single_periods_only(db):
     """H10:連堂不計入每日上限,但連堂課剩下的單節仍受限。"""
     b = Builder(db, 132, 1, "junior_high")

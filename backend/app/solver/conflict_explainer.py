@@ -312,6 +312,7 @@ _PREFLIGHT_SUGGESTIONS = {
     "block_infeasible": "縮短連堂長度,或調整節次表讓連續的一般課更長",
     "block_exceeds_periods": "調整連堂設定,使連堂節數不超過每週節數",
     "group_shape_mismatch": "讓跑班群組內各門課的每週節數與連堂結構一致",
+    "group_teacher_duplicate": "同一個跑班群組內,每位教師只留一筆配課",
     "no_period_table": "為該班級指派節次表",
     "assignment_without_class": "為該配課指定班級或跑班群組",
 }
