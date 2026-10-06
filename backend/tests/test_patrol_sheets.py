@@ -1,8 +1,10 @@
 """巡堂表(v1.2.12):已發布課表疊上當天的調代課,印出那一天每班每節真正的樣子。"""
 
+import io
 from datetime import timedelta
 
 import pytest
+from openpyxl import load_workbook
 
 from app.models.user import Role
 from tests.conftest import make_user
@@ -234,3 +236,84 @@ def test_legend_can_be_changed_by_admin(env):
     r = client.put("/api/settings/patrol", json={"legend": "優、良、可"})
     assert r.json()["legend"] == "優、良、可"
     assert "授課情形" in client.put("/api/settings/patrol", json={"legend": ""}).json()["legend"]
+
+
+# ── v1.2.14:匯出 Excel ──────────────────────────────────────
+def _xlsx(w, day=WED, to=None):
+    q = f"{w.q}&date_from={day.isoformat()}" + (f"&date_to={to.isoformat()}" if to else "")
+    r = w.client.get(f"/api/patrol-sheets.xlsx{q}")
+    assert r.status_code == 200, r.text
+    assert "spreadsheetml" in r.headers["content-type"]
+    return r, load_workbook(io.BytesIO(r.content))
+
+
+def _texts(ws) -> list[str]:
+    return [str(v) for row in ws.iter_rows(values_only=True) for v in row if v is not None]
+
+
+def test_xlsx_has_a_sheet_per_half_day_with_the_same_content_as_the_print_page(w):
+    """上午、下午各一個分頁;代課老師與備註跟列印頁一致,請假的老師不在表上。"""
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["國文"])
+    w.place("王師", "國文", "701", 0)
+    w.publish()
+    affected = w.leave("王師")
+    status, _ = w.assign(affected[0]["id"], type="substitute",
+                         handler_teacher_id=w.teachers["陳師"])
+    assert status == 200
+
+    r, wb = _xlsx(w)
+    day = f"{WED:%m-%d}"
+    assert wb.sheetnames == [f"{day} 上午", f"{day} 下午"]
+    assert f"UTF-8''%E5%B7%A1%E5%A0%82%E8%A1%A8_{WED.isoformat()}.xlsx" in (
+        r.headers["content-disposition"])
+
+    ws = wb[f"{day} 上午"]
+    texts = _texts(ws)
+    assert "巡堂紀錄" in texts[0] and "第 1~4 節" in texts[0]
+    assert f"{WED.year - 1911}年{WED.month}月{WED.day}日" in texts[0]
+    header = [c.value for c in ws[2]]
+    assert header[0] == "節次" and "701" in header and "巡堂" in header[-1]
+    col = header.index("701") + 1
+    # 第一節那一塊:科目/教師、教室、授課情形、學生學習、備註
+    assert [ws.cell(row=r_, column=2).value for r_ in range(3, 8)] == [
+        "科目\n教師", "教室", "授課情形", "學生學習", "備註"]
+    assert ws.cell(row=3, column=col).value == "國文\n陳師"
+    assert ws.cell(row=7, column=col).value == "代課"
+    assert ws.cell(row=5, column=col).value is None        # 授課情形留白給人填
+    assert not any("王師" in t for t in texts)
+    assert any("授課情形(填寫代碼)" in t for t in texts)     # 記錄說明
+    assert ws.page_setup.orientation == "landscape"         # 下載後不改也能直接印
+
+
+def test_xlsx_puts_each_group_list_on_its_own_sheet(w):
+    clubs = ["羽球社", "桌球社", "棒球社", "漫畫社"]
+    unit = _group(w, "社團", ["701", "702"])
+    ids = []
+    for i, club in enumerate(clubs):
+        w.teacher(f"師{i}", [club])
+        ids.append(_group_course(w, unit, club, f"師{i}"))
+    _place_group(w, ids[0], 5)
+    w.publish()
+
+    _, wb = _xlsx(w)
+    day = f"{WED:%m-%d}"
+    assert wb.sheetnames == [f"{day} 上午", f"{day} 下午", f"{day} 社團 第六節"]
+    ws = wb[f"{day} 社團 第六節"]
+    assert [c.value for c in ws[3]] == ["編號", "名稱", "教師", "地點", "上課狀況", "學生表現"]
+    assert [(ws.cell(row=4 + i, column=1).value, ws.cell(row=4 + i, column=2).value)
+            for i in range(4)] == list(enumerate(clubs, start=1))
+    # 主表那一格只寫群組與組數
+    assert any("社團\n共 4 組" == t for t in _texts(wb[f"{day} 下午"]))
+
+
+def test_xlsx_week_export_and_errors(w):
+    w.teacher("王師", ["國文"])
+    w.place("王師", "國文", "701", 0)
+    assert w.client.get(f"/api/patrol-sheets.xlsx{w.q}&date_from={WED}").status_code == 404
+    w.publish()
+
+    mon, sun = WED - timedelta(days=2), WED + timedelta(days=4)
+    r, wb = _xlsx(w, mon, sun)
+    assert len(wb.sheetnames) == 2                          # 只有週三排了課
+    assert f"_{mon.isoformat()}_{sun:%m-%d}.xlsx" in r.headers["content-disposition"]

@@ -106,6 +106,19 @@ test('巡堂表:看板開啟列印頁,代課與社團分組單都正確帶出', 
   await expect(list.getByTestId('patrol-group-item').first()).toContainText('體育館')
   await sheet.screenshot({ path: 'e2e/screenshots/patrol-1-sheet.png', fullPage: true })
   await sheet.close()
+
+  // v1.2.14:同一份內容可匯出 Excel(當天、整週),下載後自行增減欄位
+  for (const [testid, name] of [
+    ['board-patrol-xlsx', `巡堂表_${WED}.xlsx`],
+    ['board-patrol-week-xlsx', /^巡堂表_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.xlsx$/],
+  ] as [string, string | RegExp][]) {
+    const [file] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId(testid).click(),
+    ])
+    if (typeof name === 'string') expect(file.suggestedFilename()).toBe(name)
+    else expect(file.suggestedFilename()).toMatch(name)
+  }
   } finally {
     await deleteSemesterByYearTerm(page, YEAR, 1)
   }
