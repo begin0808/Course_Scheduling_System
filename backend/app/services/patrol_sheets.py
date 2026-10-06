@@ -237,13 +237,17 @@ class _Day:
         )
 
     def lessons(self, class_id: int, period_no: int) -> list[_Lesson]:
-        """這一班這一節的課;跑班時會有好幾門(每一組一門)。"""
+        """這一班這一節的課;跑班時會有好幾門(每一組一門),依配課建立的順序排列。
+
+        順序不能看格位:群組的格位是一次整批寫入的,寫入順序取決於資料庫怎麼回傳配課,
+        PostgreSQL 並不保證。分組巡堂單的編號要每次都對到同一個社團,故以配課 id 為準。
+        """
         out = []
         for e in self.entries:
             if not (e.period_no <= period_no < e.period_no + e.span):
                 continue
             if any(m.class_unit_id == class_id for m in e.assignment.scheduling_unit.members):
-                out.append((e.id, self._lesson(e, period_no)))
+                out.append((e.course_assignment_id, self._lesson(e, period_no)))
         return [lesson for _, lesson in sorted(out, key=lambda x: x[0])]
 
 

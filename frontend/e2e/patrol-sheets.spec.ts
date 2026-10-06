@@ -22,6 +22,8 @@ test('巡堂表:看板開啟列印頁,代課與社團分組單都正確帶出', 
   await page.request.patch('/api/wizard/state', { data: { completed: true } })
   await deleteSemesterByYearTerm(page, YEAR, 1)
 
+  // 失敗時也要清掉測試學期:殘留的學期會讓後面的設定精靈、教師端測試看到非預期的畫面
+  try {
   const sem = await post(page, '/api/semesters', {
     academic_year: YEAR, term: 1, template_key: 'junior_high', start_date: SEM_START, end_date: SEM_END,
   })
@@ -104,6 +106,7 @@ test('巡堂表:看板開啟列印頁,代課與社團分組單都正確帶出', 
   await expect(list.getByTestId('patrol-group-item').first()).toContainText('體育館')
   await sheet.screenshot({ path: 'e2e/screenshots/patrol-1-sheet.png', fullPage: true })
   await sheet.close()
-
-  await deleteSemesterByYearTerm(page, YEAR, 1)
+  } finally {
+    await deleteSemesterByYearTerm(page, YEAR, 1)
+  }
 })
