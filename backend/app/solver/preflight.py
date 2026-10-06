@@ -8,6 +8,7 @@
 訊息一律用教務語言與具體數字,不是「排不出來」。
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -85,6 +86,7 @@ STRUCTURAL_CODES = frozenset({
     "assignment_without_class",
     "no_period_table",
     "group_shape_mismatch",
+    "group_teacher_duplicate",
     "block_infeasible",
     "block_exceeds_periods",
     "room_no_candidate",  # 沒有任何一間場地適用此科目 → _make_room_vars 直接失敗
@@ -154,6 +156,30 @@ def _check_groups(problem: Problem, issues: list[Issue]) -> None:
                 "semester", problem.semester_id,
                 {"unit_id": unit.id, "periods": periods},
             ))
+        for teacher_id, count in duplicate_group_teachers(members).items():
+            teacher = problem.teachers.get(teacher_id)
+            name = teacher.name if teacher else str(teacher_id)
+            issues.append(Issue(
+                "error", "group_teacher_duplicate",
+                f"跑班群組「{unit.name}」裡,教師{name} 有 {count} 筆配課,同一節無法上 "
+                f"{count} 堂課;請只留一筆(群組內的課是同一節一起上)",
+                "teacher", teacher_id,
+                {"unit_id": unit.id, "count": count},
+            ))
+
+
+def duplicate_group_teachers(members: Sequence[AssignmentSpec]) -> dict[int, int]:
+    """同一個跑班群組內,出現在兩筆以上配課的教師 → 筆數。
+
+    群組內的課同時段開課(H7),同一位教師有兩筆就是同一節上兩堂。求解器把整個群組
+    當成一門課、教師合併成集合,自己看不出來(使用者回報:手動放入會擋、自動排課卻排得出來),
+    所以要在這裡與建模前擋下。
+    """
+    counts: dict[int, int] = {}
+    for a in members:
+        for tid in set(a.teacher_ids):
+            counts[tid] = counts.get(tid, 0) + 1
+    return {tid: n for tid, n in sorted(counts.items()) if n > 1}
 
 
 def _check_teachers(problem: Problem, issues: list[Issue]) -> None:
