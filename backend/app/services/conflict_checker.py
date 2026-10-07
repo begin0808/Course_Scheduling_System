@@ -203,6 +203,7 @@ class _Checker:
         ).all():
             teachers_by_a.setdefault(aid, []).append(tid)
 
+        subj_slots: set[tuple[int, int, int, int]] = set()
         for _e_id, wd, pno0, span, a_id, subject_id, room_id, unit_id, subj_name in rows:
             classes = classes_by_unit.get(unit_id, [])
             if not classes:
@@ -225,9 +226,14 @@ class _Checker:
                     teacher_occ.setdefault(t_id, []).append(occ)
                 if room_id:
                     room_occ.setdefault(room_id, []).append(occ)
-            # H10 只計單節:連堂是一次上完的整塊,本來就不受每日上限限制
+            # H10 只計單節:連堂是一次上完的整塊,本來就不受每日上限限制。
+            # 以「格位」計而不是以配課計:跑班群組同一格可以有好幾筆同科目的課(英語分組、
+            # 兩班對開的兩筆國語),對學生來說那是一節課——自動排課本來就這樣算(使用者回報)。
             if span == 1:
                 for cid, _cname, _ct in classes:
+                    if (cid, wd, subject_id, pno0) in subj_slots:
+                        continue
+                    subj_slots.add((cid, wd, subject_id, pno0))
                     key = (cid, wd, subject_id)
                     subj_count[key] = subj_count.get(key, 0) + 1
         return class_occ, teacher_occ, room_occ, subj_count

@@ -553,6 +553,30 @@ def test_h10_leftover_single_periods_still_capped(env2):
     assert _check(client, tid, a["id"], 2, 1)["ok"] is True       # 換一天 → 可
 
 
+def test_h10_group_same_subject_in_one_slot_counts_once(env2):
+    """跑班群組同一格的多筆同科目配課,每日上限只算一節(使用者回報)。
+
+    兩班國語、美術對開:群組裡兩筆國語(兩位導師)+ 一筆美術,各 2 節。原本一筆配課算一節,
+    排進第一格就被算成「已排國語 2 節」,同一天的第二節排不進去——但自動排課一直是算一節。
+    """
+    client, sid, tid, _ = env2
+    cids = [_class(client, sid, 1, f"10{i}")["id"] for i in (1, 2)]
+    g = client.post(f"/api/scheduling-units?semester_id={sid}",
+                    json={"name": "國語美術對開", "class_ids": cids}).json()
+    chinese, art = _subject(client, sid, "國語文"), _subject(client, sid, "美術")
+    rows = [(chinese, "甲師"), (art, "乙師"), (chinese, "丙師")]
+    aids = [_assign(client, sid, unit_id=g["id"], subject_id=s["id"],
+                    teacher_ids=[_teacher(client, sid, name)["id"]], periods=3)["id"]
+            for s, name in rows]
+
+    assert _place(client, tid, aids[0], 1, 1).status_code == 201
+    assert _place(client, tid, aids[0], 1, 2).status_code == 201  # 同一天第二節:原本被擋
+    assert len(_entries(client, tid)) == 6
+    # 上限仍然有效:同一天第三節國語照樣擋下
+    assert "H10" in _codes(_check(client, tid, aids[0], 1, 3))
+    assert _place(client, tid, aids[0], 2, 1).status_code == 201
+
+
 # ── 每週節數守恆(放入面)──────────────
 def test_cannot_exceed_periods_per_week(env2):
     client, sid, tid, _ = env2
