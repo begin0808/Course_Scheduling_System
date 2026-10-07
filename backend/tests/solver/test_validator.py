@@ -155,6 +155,23 @@ def test_h9_locked_entry_moved(db):
     assert "H9" in _codes(validate(pinned, [SolvedEntry(a.id, 1, 3, 1, None)]))
 
 
+def test_h10_group_same_subject_in_one_slot_counts_once(db):
+    """跑班群組同一格的多筆同科目配課只算一節——與求解器把群組當成一門課的算法一致。"""
+    b = _base(db, 153)
+    b.group("英語分組", ["301", "302"])
+    a1 = b.assign(subject="英語", teachers=["甲師"], periods=3, group="英語分組")[0]
+    a2 = b.assign(subject="英語", teachers=["乙師"], periods=3, group="英語分組")[0]
+    fx = b.build()
+    problem = load_problem(db, fx.semester_id)
+
+    def day(periods):
+        return [SolvedEntry(a.id, 1, p, 1, None) for p in periods for a in (a1, a2)]
+
+    assert "H10" not in _codes(validate(problem, day((2, 3))))   # 兩格 = 2 節,未超過
+    v = validate(problem, day((2, 3, 4)))                        # 三格 = 3 節
+    assert "3 節" in next(x for x in v if x.code == "H10").message
+
+
 def test_h10_daily_cap_counts_single_periods_only(db):
     b = _base(db, 149)
     single = b.assign(subject="國文", teachers=["甲師"], periods=3, classes=["301"])[0]

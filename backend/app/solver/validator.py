@@ -264,15 +264,22 @@ def _h10_daily_cap(
     cap: int,
     v: list[Violation],
 ) -> None:
-    """同班同科目每日至多 N 節。連堂本來就是一次上完,不計入。"""
-    counts: dict[tuple[int, int, int], int] = {}
+    """同班同科目每日至多 N 節。連堂本來就是一次上完,不計入。
+
+    以格位計:跑班群組同一格的多筆同科目配課(英語分組等)對學生是一節課,只算一次
+    ——與 model_builder 把整個群組當成一門課的算法一致。
+    """
+    slots: set[tuple[int, int, int, int]] = set()
     for e in entries:
         if e.span != 1:
             continue
         a = by_id[e.assignment_id]
         for cls in problem.classes_of(a):
-            key = (cls.id, e.weekday, a.subject_id)
-            counts[key] = counts.get(key, 0) + 1
+            slots.add((cls.id, e.weekday, a.subject_id, e.period_no))
+    counts: dict[tuple[int, int, int], int] = {}
+    for class_id, weekday, subject_id, _period_no in slots:
+        key = (class_id, weekday, subject_id)
+        counts[key] = counts.get(key, 0) + 1
 
     for (class_id, weekday, _subject_id), n in counts.items():
         if n > cap:
