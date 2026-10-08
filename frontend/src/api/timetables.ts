@@ -63,6 +63,18 @@ export interface Completeness {
   unplaced: UnplacedItem[]
 }
 
+/** 課表檢查出來的一項硬約束違規(教師衝堂、落在不可排時段…)。未排完不在此列。 */
+export interface CheckIssue {
+  code: string
+  label: string
+  message: string
+}
+export interface TimetableCheck {
+  ok: boolean
+  issues: CheckIssue[]
+  completeness: Completeness
+}
+
 // ── 全員唯讀查詢 ──
 export interface PublicSemester { id: number; label: string }
 export interface NamedBrief { id: number; name: string }
@@ -135,6 +147,7 @@ export const duplicateTimetable = (id: number, name: string) =>
   apiPost<Timetable>(`/timetables/${id}/duplicate`, { name })
 export const getCompleteness = (id: number) =>
   apiGet<Completeness>(`/timetables/${id}/completeness`)
+export const checkTimetable = (id: number) => apiGet<TimetableCheck>(`/timetables/${id}/check`)
 export const publishTimetable = (id: number, force = false) =>
   apiPost<Timetable>(`/timetables/${id}/publish${force ? '?force=true' : ''}`)
 
@@ -150,6 +163,14 @@ export function publishReport(detail: unknown): Completeness | null {
     return (detail as { completeness: Completeness }).completeness
   }
   return null
+}
+
+/** 發布被擋(409)時,detail 內的違規清單(沒有違規、只是未排完時為空陣列)。 */
+export function publishIssues(detail: unknown): CheckIssue[] {
+  if (detail && typeof detail === 'object' && 'issues' in detail) {
+    return (detail as { issues: CheckIssue[] }).issues ?? []
+  }
+  return []
 }
 
 /** place/move 失敗時後端回 409,detail 可能是字串或 { message, conflicts }。 */

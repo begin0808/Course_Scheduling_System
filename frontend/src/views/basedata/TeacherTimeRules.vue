@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { NButton, NSpace, NSpin, NText, useMessage } from 'naive-ui'
+import { NAlert, NButton, NSpace, NSpin, NText, useMessage } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
-import { RULE_TYPE_LABELS, getTimeRules, replaceTimeRules } from '@/api/basedata'
-import type { TeacherRuleType } from '@/api/basedata'
+import {
+  RULE_TYPE_LABELS, getTimeRuleConflicts, getTimeRules, replaceTimeRules,
+} from '@/api/basedata'
+import type { TeacherRuleType, TimeRuleConflict } from '@/api/basedata'
 import { getAvailableSlots, getSemester } from '@/api/semesters'
 import type { AvailableSlot } from '@/api/semesters'
 
@@ -13,6 +15,22 @@ const message = useMessage()
 
 const loading = ref(true)
 const saving = ref(false)
+// 儲存後:這位老師已經排在「不可排」時段的課(規則常在課表排好後才改,兩邊會矛盾)
+const conflicts = ref<TimeRuleConflict[]>([])
+const STATUS: Record<string, string> = { draft: '草稿', published: '已發布' }
+const conflictGroups = computed(() => {
+  const groups: { id: number; title: string; items: string[] }[] = []
+  for (const c of conflicts.value) {
+    let g = groups.find((x) => x.id === c.timetable_id)
+    if (!g) {
+      const status = STATUS[c.timetable_status] ?? c.timetable_status
+      g = { id: c.timetable_id, title: `${c.timetable_name}(${status})`, items: [] }
+      groups.push(g)
+    }
+    g.items.push(c.text)
+  }
+  return groups
+})
 const slots = ref<AvailableSlot[]>([])
 const noTable = ref(false)
 // (weekday_period_no) → 規則;無 key 表示無規則
@@ -76,7 +94,9 @@ async function save() {
     })
     await replaceTimeRules(props.teacherId, rules)
     message.success('時段規則已儲存')
-    emit('saved')
+    // 規則已經存好了;查衝突只是提醒,查不到(例如網路問題)不該讓使用者以為沒存成功
+    conflicts.value = await getTimeRuleConflicts(props.teacherId).catch(() => [])
+    if (conflicts.value.length === 0) emit('saved')
   } catch (e) {
     message.error((e as ApiError).detail || '儲存失敗')
   } finally {
@@ -123,8 +143,25 @@ async function save() {
             </tbody>
           </table>
         </div>
+        <n-alert
+          v-if="conflicts.length" type="warning" :show-icon="true"
+          title="規則已儲存,但目前課表有課排在「不可排」時段" data-testid="tr-conflicts"
+        >
+          <div v-for="g in conflictGroups" :key="g.id" class="conflict-group">
+            <b>{{ g.title }}</b>
+            <ul>
+              <li v-for="(t, k) in g.items" :key="k" data-testid="tr-conflict">{{ t }}</li>
+            </ul>
+          </div>
+          系統不會自動調動這些課;請到「排課工作台」調整,或回來修改規則。
+        </n-alert>
         <n-space justify="end">
-          <n-button type="primary" :loading="saving" @click="save">儲存規則</n-button>
+          <n-button v-if="conflicts.length" data-testid="tr-close" @click="emit('saved')">
+            知道了
+          </n-button>
+          <n-button type="primary" :loading="saving" data-testid="tr-save" @click="save">
+            儲存規則
+          </n-button>
         </n-space>
       </template>
     </n-space>
@@ -132,6 +169,7 @@ async function save() {
 </template>
 
 <style scoped>
+.conflict-group ul { margin: 2px 0 6px; padding-left: 20px; }
 .rule-grid { border-collapse: collapse; }
 .rule-grid th, .rule-grid td { border: 1px solid var(--n-border-color, #e0e0e0); padding: 6px 10px; text-align: center; min-width: 64px; }
 .rule-grid th { background: rgba(128,128,128,0.08); }
