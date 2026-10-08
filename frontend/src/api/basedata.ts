@@ -142,6 +142,18 @@ export const getTimeRules = (id: number) => apiGet<TeacherTimeRule[]>(`/teachers
 export const replaceTimeRules = (id: number, rules: TeacherTimeRule[]) =>
   request<TeacherTimeRule[]>('PUT', `/teachers/${id}/time-rules`, rules)
 
+/** 這位教師在草稿/已發布課表中,落在「不可排」時段的一節課。 */
+export interface TimeRuleConflict {
+  timetable_id: number
+  timetable_name: string
+  timetable_status: string
+  weekday: number
+  period_no: number
+  text: string // 「週三第二節 701 國文」
+}
+export const getTimeRuleConflicts = (id: number) =>
+  apiGet<TimeRuleConflict[]>(`/teachers/${id}/time-rules/conflicts`)
+
 // ── 場地 ──
 export const listRooms = (semesterId: number, q?: string) =>
   apiGet<Room[]>(`/rooms?semester_id=${semesterId}${q ? `&q=${encodeURIComponent(q)}` : ''}`)

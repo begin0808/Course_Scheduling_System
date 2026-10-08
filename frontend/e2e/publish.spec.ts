@@ -53,7 +53,7 @@ test('版本與發布:未排完出現警告清單,確認後強制發布;發布�
   await page.reload()
   await selectSemester(page, YEAR)
 
-  // 完整性檢查提示
+  // 檢查課表:只是未排完時顯示摘要,不開衝突清單
   await page.locator('[data-testid="v-row-草稿A"]').getByTestId('v-check').click()
   await expect(page.getByText('尚有 3 節未排')).toBeVisible()
 

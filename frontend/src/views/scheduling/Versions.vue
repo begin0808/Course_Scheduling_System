@@ -8,10 +8,10 @@ import type { ApiError } from '@/api/client'
 import { listSemesters } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import {
-  STATUS_LABELS, createTimetable, deleteTimetable, duplicateTimetable, getCompleteness,
-  listTimetables, publishReport, publishTimetable, renameTimetable,
+  STATUS_LABELS, checkTimetable, createTimetable, deleteTimetable, duplicateTimetable,
+  listTimetables, publishIssues, publishReport, publishTimetable, renameTimetable,
 } from '@/api/timetables'
-import type { Completeness, TimetableBrief } from '@/api/timetables'
+import type { CheckIssue, Completeness, TimetableBrief } from '@/api/timetables'
 
 const message = useMessage()
 
@@ -70,10 +70,28 @@ async function onRename() {
   await reload()
 }
 
-// 發布(未排完 → 警告清單 → 可強制發布)
+// 發布(未排完或有衝突 → 警告清單 → 可強制發布);「檢查課表」共用同一個視窗,只是沒有發布鈕
 const warnShow = ref(false)
+const warnMode = ref<'publish' | 'check'>('publish')
 const report = ref<Completeness | null>(null)
+const issues = ref<CheckIssue[]>([])
 const publishTarget = ref<TimetableBrief | null>(null)
+const incomplete = computed(() => !!report.value && !report.value.complete)
+const warnTitle = computed(() => {
+  const name = publishTarget.value ? `「${publishTarget.value.name}」` : ''
+  if (issues.value.length && incomplete.value) return `${name}課表有衝突,且尚有課務未排完`
+  return issues.value.length ? `${name}課表有衝突` : `${name}尚有課務未排完`
+})
+/** 違規依類別(教師衝堂、教師不可排時段…)分組,後端已排好順序。 */
+const issueGroups = computed(() => {
+  const groups: { label: string; items: CheckIssue[] }[] = []
+  for (const i of issues.value) {
+    const last = groups[groups.length - 1]
+    if (last && last.label === i.label) last.items.push(i)
+    else groups.push({ label: i.label, items: [i] })
+  }
+  return groups
+})
 
 function warnStale(n?: number) {
   if (n && n > 0) {
@@ -94,6 +112,8 @@ async function onPublish(t: TimetableBrief) {
     const r = publishReport((e as ApiError).detail)
     if (r) {
       report.value = r
+      issues.value = publishIssues((e as ApiError).detail)
+      warnMode.value = 'publish'
       warnShow.value = true
     } else {
       message.error((e as ApiError).detail as string || '發布失敗')
@@ -105,7 +125,9 @@ async function onForcePublish() {
   try {
     const r = await publishTimetable(publishTarget.value.id, true)
     warnShow.value = false
-    message.success('已強制發布(仍有未排完課務)')
+    const left = [issues.value.length ? '衝突' : '', incomplete.value ? '未排完課務' : '']
+      .filter(Boolean).join('與')
+    message.success(`已強制發布(仍有${left})`)
     warnStale(r.stale_affected)
     await reload()
   } catch (e) {
@@ -113,13 +135,25 @@ async function onForcePublish() {
   }
 }
 
-/** 發布前預覽完整性(不改狀態)。 */
+/** 檢查課表(不改狀態):課務有沒有排完、有沒有衝堂等違規。有違規就開清單。 */
 const checkText = ref('')
+const checkOk = ref(false)
 async function onCheck(t: TimetableBrief) {
-  const r = await getCompleteness(t.id)
-  checkText.value = r.complete
-    ? `「${t.name}」課務已排完(${r.placed}/${r.required} 節)`
-    : `「${t.name}」尚有 ${r.remaining} 節未排(${r.placed}/${r.required})`
+  const r = await checkTimetable(t.id)
+  const c = r.completeness
+  const done = c.complete
+    ? `課務已排完(${c.placed}/${c.required} 節)`
+    : `尚有 ${c.remaining} 節未排(${c.placed}/${c.required})`
+  const clash = r.issues.length ? `,有 ${r.issues.length} 項衝突` : ',沒有衝突'
+  checkText.value = `「${t.name}」${done}${clash}`
+  checkOk.value = r.ok
+  if (r.issues.length) {
+    publishTarget.value = t
+    report.value = c
+    issues.value = r.issues
+    warnMode.value = 'check'
+    warnShow.value = true
+  }
 }
 </script>
 
@@ -139,7 +173,12 @@ async function onCheck(t: TimetableBrief) {
       已發布/已封存的課表為快照,不可再編輯;要修改請先複製為新草稿。
     </n-alert>
 
-    <n-alert v-if="checkText" type="default" closable @close="checkText = ''">{{ checkText }}</n-alert>
+    <n-alert
+      v-if="checkText" :type="checkOk ? 'success' : 'warning'" closable
+      data-testid="v-check-text" @close="checkText = ''"
+    >
+      {{ checkText }}
+    </n-alert>
 
     <n-card size="small">
       <n-empty v-if="items.length === 0" description="尚無課表版本" />
@@ -158,7 +197,7 @@ async function onCheck(t: TimetableBrief) {
             <td>{{ t.entry_count }}</td>
             <td>
               <n-space>
-                <n-button size="tiny" data-testid="v-check" @click="onCheck(t)">完整性檢查</n-button>
+                <n-button size="tiny" data-testid="v-check" @click="onCheck(t)">檢查課表</n-button>
                 <n-button
                   v-if="t.status === 'draft'" size="tiny" type="primary"
                   data-testid="v-publish" @click="onPublish(t)"
@@ -186,15 +225,30 @@ async function onCheck(t: TimetableBrief) {
     </n-modal>
 
     <n-modal
-      v-model:show="warnShow" preset="card" title="尚有課務未排完"
-      style="max-width: 620px"
+      v-model:show="warnShow" preset="card" :title="warnTitle"
+      style="max-width: 680px"
     >
       <n-space vertical>
-        <n-alert type="warning" :show-icon="true">
+        <!-- 衝突:課表排好之後又改了規則或配課(不可排時段、任課教師、每日上限…)才會出現 -->
+        <template v-if="issues.length">
+          <n-alert type="error" :show-icon="true">
+            共 {{ issues.length }} 項衝突。通常是課表排好之後,又改了教師的不可排時段、配課的教師或節數。
+            <template v-if="warnMode === 'publish'">仍可強制發布,但課表會照現在的樣子公布。</template>
+          </n-alert>
+          <div data-testid="v-issues" class="issues">
+            <div v-for="g in issueGroups" :key="g.label" class="issue-group">
+              <div class="issue-label">{{ g.label }}({{ g.items.length }})</div>
+              <ul>
+                <li v-for="(i, k) in g.items" :key="k" data-testid="v-issue">{{ i.message }}</li>
+              </ul>
+            </div>
+          </div>
+        </template>
+        <n-alert v-if="incomplete" type="warning" :show-icon="true">
           共 {{ report?.remaining }} 節未排入(已排 {{ report?.placed }} / 應排 {{ report?.required }} 節)。
-          仍可強制發布,未排課務將不出現在課表上。
+          <template v-if="warnMode === 'publish'">仍可強制發布,未排課務將不出現在課表上。</template>
         </n-alert>
-        <table class="data-table" data-testid="v-unplaced">
+        <table v-if="incomplete" class="data-table" data-testid="v-unplaced">
           <thead>
             <tr><th>班級</th><th>科目</th><th>教師</th><th>未排節數</th><th>原因</th></tr>
           </thead>
@@ -210,8 +264,13 @@ async function onCheck(t: TimetableBrief) {
           </tbody>
         </table>
         <n-space justify="end">
-          <n-button @click="warnShow = false">取消</n-button>
-          <n-button type="warning" data-testid="v-force-publish" @click="onForcePublish">
+          <n-button data-testid="v-warn-close" @click="warnShow = false">
+            {{ warnMode === 'publish' ? '取消' : '關閉' }}
+          </n-button>
+          <n-button
+            v-if="warnMode === 'publish'" type="warning"
+            data-testid="v-force-publish" @click="onForcePublish"
+          >
             仍要發布
           </n-button>
         </n-space>
@@ -221,6 +280,10 @@ async function onCheck(t: TimetableBrief) {
 </template>
 
 <style scoped>
+.issues { max-height: 320px; overflow-y: auto; }
+.issue-group + .issue-group { margin-top: 8px; }
+.issue-label { font-weight: 600; }
+.issues ul { margin: 4px 0 0; padding-left: 20px; }
 .data-table { border-collapse: collapse; width: 100%; }
 .data-table th, .data-table td { border: 1px solid var(--n-border-color, #e0e0e0); padding: 8px 10px; text-align: left; }
 .data-table th { background: rgba(128,128,128,0.08); font-weight: 600; }

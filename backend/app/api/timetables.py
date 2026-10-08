@@ -17,6 +17,7 @@ from app.models.semester import Semester
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import Role, User
 from app.schemas.timetable import (
+    CheckIssueOut,
     CheckRequest,
     CheckResponse,
     CompletenessOut,
@@ -29,11 +30,13 @@ from app.schemas.timetable import (
     PublishedTimetableOut,
     ScheduleEntryOut,
     TimetableBrief,
+    TimetableCheckOut,
     TimetableCreate,
     TimetableOut,
     TimetableRename,
 )
 from app.services import conflict_checker as cc
+from app.services import timetable_check
 from app.services import timetable_publish as pub
 from app.services.teachers import current_teacher
 
@@ -224,6 +227,21 @@ def timetable_completeness(
     return pub.completeness(db, tt)
 
 
+@router.get("/timetables/{timetable_id}/check", response_model=TimetableCheckOut)
+def timetable_check_all(
+    timetable_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+):
+    """檢查課表:衝堂等硬約束違規 + 未排完的課務。草稿、已發布、已封存皆可檢查,不改狀態。"""
+    tt = _get_timetable(db, timetable_id)
+    report = pub.completeness(db, tt)
+    issues = timetable_check.check(db, tt)
+    return TimetableCheckOut(
+        ok=report["complete"] and not issues,
+        issues=[CheckIssueOut(code=i.code, label=i.label, message=i.message) for i in issues],
+        completeness=report,
+    )
+
+
 @router.post("/timetables/{timetable_id}/publish", response_model=TimetableOut)
 def publish_timetable(
     timetable_id: int,
@@ -231,15 +249,33 @@ def publish_timetable(
     db: Session = Depends(get_db),
     user: User = Depends(editor),
 ):
-    """draft → published;同學期原 published 轉 archived。未排完時需 force=true 才可發布。"""
+    """draft → published;同學期原 published 轉 archived。
+
+    未排完、或課表有衝堂等違規時,需 force=true 才可發布(列出來讓使用者自己決定)。
+    """
     tt = _require_draft(_get_timetable(db, timetable_id))
     report = pub.completeness(db, tt)
-    if not report["complete"] and not force:
+    issues = timetable_check.check(db, tt)
+    blocked = not report["complete"] or bool(issues)
+    if blocked and not force:
+        if issues and not report["complete"]:
+            text = "課表有衝突,且尚有課務未排完;確認後可強制發布"
+        elif issues:
+            text = "課表有衝突,確認後可強制發布"
+        else:
+            text = "尚有課務未排完,確認後可強制發布"
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail={"message": "尚有課務未排完,確認後可強制發布", "completeness": report},
+            detail={
+                "message": text,
+                "completeness": report,
+                "issues": [
+                    CheckIssueOut(code=i.code, label=i.label, message=i.message).model_dump()
+                    for i in issues
+                ],
+            },
         )
-    pub.publish(db, tt, user, forced=not report["complete"])
+    pub.publish(db, tt, user, forced=blocked)
     db.commit()
     # 條件 D:重新發布後,提醒仍有多少「今日之後」的調代課是依舊課表展開的
     out = get_timetable(timetable_id, db, None)

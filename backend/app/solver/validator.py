@@ -43,6 +43,12 @@ def _wd(weekday: int) -> str:
     return names[weekday - 1] if 1 <= weekday <= 7 else f"星期{weekday}"
 
 
+def _lesson(problem: Problem, a: AssignmentSpec) -> str:
+    """「701 國文」:只寫科目的話,同一位老師教好幾班同一科時看不出是哪兩堂。"""
+    classes = "、".join(c.name for c in problem.classes_of(a))
+    return f"「{classes} {a.subject_name}」" if classes else f"「{a.subject_name}」"
+
+
 def _effective_room(problem: Problem, entry: SolvedEntry, a: AssignmentSpec) -> int | None:
     return entry.room_id if entry.room_id is not None else a.room_id
 
@@ -151,7 +157,7 @@ def _pairwise_resource_clash(
                 v.append(Violation(
                     code,
                     f"{label} {name_of(rid)} {_wd(a.slot.weekday)}{a.slot.name} 同時有"
-                    f"「{a.assignment.subject_name}」與「{b.assignment.subject_name}」",
+                    f"{_lesson(problem, a.assignment)}與{_lesson(problem, b.assignment)}",
                     {"resource_id": rid, "weekday": a.slot.weekday},
                 ))
 
@@ -186,7 +192,8 @@ def _h4_unavailable(problem: Problem, occ: list[_Occurrence], v: list[Violation]
             if teacher and o.slot.key in teacher.unavailable:
                 v.append(Violation(
                     "H4",
-                    f"教師{teacher.name} {_wd(o.slot.weekday)}{o.slot.name} 為不可排時段",
+                    f"教師{teacher.name} {_wd(o.slot.weekday)}{o.slot.name} 為不可排時段,"
+                    f"卻排了{_lesson(problem, o.assignment)}",
                     {"teacher_id": tid, "weekday": o.slot.weekday,
                      "period_no": o.slot.period_no},
                 ))
@@ -280,13 +287,15 @@ def _h10_daily_cap(
     for class_id, weekday, subject_id, _period_no in slots:
         key = (class_id, weekday, subject_id)
         counts[key] = counts.get(key, 0) + 1
+    subject_names = {a.subject_id: a.subject_name for a in problem.assignments}
 
-    for (class_id, weekday, _subject_id), n in counts.items():
+    for (class_id, weekday, subject_id), n in counts.items():
         if n > cap:
             cls = problem.classes[class_id]
             v.append(Violation(
                 "H10",
-                f"班級 {cls.name} {_wd(weekday)} 同一科目排了 {n} 節,超過每日上限 {cap} 節",
+                f"班級 {cls.name} {_wd(weekday)}「{subject_names.get(subject_id, '')}」"
+                f"排了 {n} 節,超過每日上限 {cap} 節",
                 {"class_id": class_id, "weekday": weekday, "count": n},
             ))
 

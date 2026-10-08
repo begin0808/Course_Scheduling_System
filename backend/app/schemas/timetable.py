@@ -104,6 +104,32 @@ class CompletenessOut(BaseModel):
     unplaced: list[UnplacedItem] = []
 
 
+class CheckIssueOut(BaseModel):
+    code: str     # H1..H10 / room_type
+    label: str    # 「教師衝堂」等分組標題
+    message: str
+
+
+class TimetableCheckOut(BaseModel):
+    """課表檢查:硬約束違規 + 完整性(未排完)。兩者都沒有才算 ok。"""
+
+    ok: bool
+    issues: list[CheckIssueOut] = []
+    completeness: CompletenessOut
+
+
+class UnavailableHitOut(BaseModel):
+    timetable_id: int
+    timetable_name: str
+    timetable_status: str
+    weekday: int
+    period_no: int
+    period_name: str
+    subject: str
+    classes: str
+    text: str
+
+
 # ── 全員唯讀課表查詢 ──────────────────
 class PublicSemester(BaseModel):
     id: int

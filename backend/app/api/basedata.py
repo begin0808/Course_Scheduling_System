@@ -46,7 +46,9 @@ from app.schemas.basedata import (
     TeacherTimeRuleOut,
 )
 from app.schemas.semester import AvailableSlot, PeriodTableOut
+from app.schemas.timetable import UnavailableHitOut
 from app.services import period_tables as pt_service
+from app.services import timetable_check
 
 router = APIRouter(tags=["basedata"])
 
@@ -494,6 +496,26 @@ def replace_time_rules(
     db.commit()
     db.refresh(teacher)
     return teacher.time_rules
+
+
+@router.get(
+    "/teachers/{teacher_id}/time-rules/conflicts", response_model=list[UnavailableHitOut]
+)
+def time_rule_conflicts(
+    teacher_id: int, db: Session = Depends(get_db), _: object = Depends(viewer)
+):
+    """這位教師在草稿/已發布課表中,落在「不可排」時段的課。儲存時段規則後由畫面查一次。"""
+    teacher = db.get(Teacher, teacher_id)
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    return [
+        UnavailableHitOut(
+            timetable_id=h.timetable_id, timetable_name=h.timetable_name,
+            timetable_status=h.timetable_status, weekday=h.weekday, period_no=h.period_no,
+            period_name=h.period_name, subject=h.subject, classes=h.classes, text=h.text,
+        )
+        for h in timetable_check.unavailable_hits(db, teacher)
+    ]
 
 
 # ── 場地 ──────────────────────────────
