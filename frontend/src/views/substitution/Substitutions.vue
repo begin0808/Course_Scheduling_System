@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  NAlert, NButton, NCard, NEmpty, NSelect, NSpace, NSwitch, NTag, NText, useMessage,
+  NAlert, NButton, NCard, NEmpty, NModal, NSelect, NSpace, NSwitch, NTag, NText, useMessage,
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
@@ -10,11 +10,11 @@ import { listSemesters } from '@/api/semesters'
 import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
 import {
-  assignSubstitution, clearSubstitution, getRecommendations, getSwapOptions,
-  listFundingSources, listSubstitutionTypes, openSlips,
+  assignSubstitution, assignSubstitutionBatch, clearSubstitution, getRecommendations,
+  getSwapOptions, listFundingSources, listSubstitutionTypes, openSlips,
 } from '@/api/substitutions'
 import type {
-  Candidate, Recommendation, SwapOption, SwapOptions, SwapPartner,
+  BatchSkip, Candidate, Recommendation, SwapOption, SwapOptions, SwapPartner,
 } from '@/api/substitutions'
 
 const message = useMessage()
@@ -234,6 +234,72 @@ async function assignSwap(
   }
 }
 
+// 整批指派代課:導師請整天或好幾天假,同一位代課老師接下所有節次(日薪代課常見)。
+// 逐節點要點幾十次;這裡一次派完,派不成的節次(代課老師那節有課)列出來另外找人。
+const batchShow = ref(false)
+const batchLeave = ref<LeaveRequest | null>(null)
+const batchTeacher = ref<number | null>(null)
+const batchFunding = ref('')
+const batchDate = ref('') // 空字串 = 整張假單
+const batchBusy = ref(false)
+const batchSkipped = ref<BatchSkip[]>([])
+const batchDone = ref<number | null>(null)
+
+function pendingOf(l: LeaveRequest): AffectedPeriod[] {
+  return l.affected_periods.filter((p) => p.status === 'pending')
+}
+const batchTeacherOptions = computed(() =>
+  teachers.value
+    .filter((t) => t.id !== batchLeave.value?.teacher_id && t.is_active)
+    .map((t) => ({ label: t.name, value: t.id })))
+const batchDateOptions = computed(() => {
+  const l = batchLeave.value
+  if (!l) return []
+  const days = [...new Set(pendingOf(l).map((p) => p.date))].sort()
+  return [
+    { label: `整張假單(待處理 ${pendingOf(l).length} 節)`, value: '' },
+    ...days.map((d) => ({
+      label: `只派 ${withWeekday(d)}(${pendingOf(l).filter((p) => p.date === d).length} 節)`,
+      value: d,
+    })),
+  ]
+})
+function openBatch(l: LeaveRequest) {
+  batchLeave.value = l
+  batchTeacher.value = null
+  batchFunding.value = defaultFunding(l)
+  batchDate.value = ''
+  batchSkipped.value = []
+  batchDone.value = null
+  batchShow.value = true
+}
+async function runBatch() {
+  if (!batchLeave.value || batchTeacher.value === null) return
+  batchBusy.value = true
+  try {
+    const r = await assignSubstitutionBatch(batchLeave.value.id, {
+      handler_teacher_id: batchTeacher.value,
+      funding_source: batchFunding.value,
+      date: batchDate.value || null,
+    })
+    batchDone.value = r.assigned
+    batchSkipped.value = r.skipped
+    openId.value = null
+    await reload()
+    // 視窗還開著(列出沒派成的節次)時,範圍選單上的「待處理 N 節」要跟著更新
+    const id = batchLeave.value.id
+    batchLeave.value = leaves.value.find((l) => l.id === id) ?? batchLeave.value
+    if (r.skipped.length === 0) {
+      message.success(`已指派 ${r.assigned} 節代課`)
+      batchShow.value = false
+    }
+  } catch (e) {
+    message.error((e as ApiError).message || '指派失敗')
+  } finally {
+    batchBusy.value = false
+  }
+}
+
 async function undo(p: AffectedPeriod) {
   await clearSubstitution(p.id)
   message.info('已撤回處置,退回待處理')
@@ -255,233 +321,306 @@ function candidateTagType(c: Candidate): string {
 </script>
 
 <template>
-  <n-space vertical size="large">
-    <n-space align="center">
-      <h2 style="margin: 0">調代課處理</h2>
-      <n-select
-        :value="sid" :options="semesterOptions" style="width: 220px"
-        placeholder="選擇學期" @update:value="onSemesterChange"
-      />
-    </n-space>
+  <!-- 視窗要放在 n-space 外面:n-space 會把每個子節點包一層沒有 key 的 div,假單卡片數量一變,
+       視窗就跟著換位置重掛,正式建置下會關不掉(v1.2.14 在「學期與節次表」踩過)。 -->
+  <div>
+    <n-space vertical size="large">
+      <n-space align="center">
+        <h2 style="margin: 0">調代課處理</h2>
+        <n-select
+          :value="sid" :options="semesterOptions" style="width: 220px"
+          placeholder="選擇學期" @update:value="onSemesterChange"
+        />
+      </n-space>
 
-    <n-empty v-if="!sid" description="請先建立學期" />
-    <n-empty v-else-if="!activeLeaves.length" description="目前沒有待處理的請假" />
+      <n-empty v-if="!sid" description="請先建立學期" />
+      <n-empty v-else-if="!activeLeaves.length" description="目前沒有待處理的請假" />
 
-    <template v-else>
-      <n-card
-        v-for="l in activeLeaves" :key="l.id" size="small" data-testid="sub-leave"
-        :title="`${l.teacher_name} · ${l.leave_type_label} · 待處理 ${l.pending_count} 節`"
-      >
-        <template v-if="swapIds(l).length || substituteIds(l).length" #header-extra>
-          <n-space size="small">
-            <n-button
-              v-if="swapIds(l).length" size="small" data-testid="sub-print-leave"
-              @click="printSlips('swap', swapIds(l))"
-            >
-              列印調課單({{ swapIds(l).length }} 節)
-            </n-button>
-            <n-button
-              v-if="substituteIds(l).length" size="small" data-testid="sub-print-leave-sub"
-              @click="printSlips('substitute', substituteIds(l))"
-            >
-              列印代課單({{ substituteIds(l).length }} 節)
-            </n-button>
-          </n-space>
-        </template>
-        <n-space vertical size="small">
-          <div v-for="p in l.affected_periods" :key="p.id" data-testid="sub-period">
-            <n-space align="center" :wrap="false">
-              <n-tag size="small" :type="STATUS[p.status].type as never">
-                {{ STATUS[p.status].label }}
-              </n-tag>
-              <n-text style="min-width: 260px">
-                {{ withWeekday(p.date) }} {{ p.period_name }} ·
-                {{ p.class_names }} {{ p.subject_name }}
-                <n-text v-if="p.room_name" depth="3">@{{ p.room_name }}</n-text>
-              </n-text>
-              <n-text
-                v-if="p.sub_type || p.handler_name" type="success" data-testid="sub-handler"
-              >
-                {{ dispositionText(l, p) }}
-              </n-text>
+      <template v-else>
+        <n-card
+          v-for="l in activeLeaves" :key="l.id" size="small" data-testid="sub-leave"
+          :title="`${l.teacher_name} · ${l.leave_type_label} · 待處理 ${l.pending_count} 節`"
+        >
+          <template
+            v-if="pendingOf(l).length > 1 || swapIds(l).length || substituteIds(l).length"
+            #header-extra
+          >
+            <n-space size="small">
               <n-button
-                v-if="p.status === 'pending'" size="small" type="primary"
-                data-testid="sub-handle" @click="openPeriod(p)"
+                v-if="pendingOf(l).length > 1" size="small" type="primary" ghost
+                data-testid="sub-batch-open" @click="openBatch(l)"
               >
-                {{ openId === p.id ? '收合' : '處理' }}
+                整批指派代課
               </n-button>
               <n-button
-                v-else-if="p.status === 'resolved'" size="small" tertiary
-                data-testid="sub-undo" @click="undo(p)"
+                v-if="swapIds(l).length" size="small" data-testid="sub-print-leave"
+                @click="printSlips('swap', swapIds(l))"
               >
-                撤回
+                列印調課單({{ swapIds(l).length }} 節)
               </n-button>
               <n-button
-                v-if="p.sub_type === 'swap' && p.status !== 'cancelled'" size="small" tertiary
-                data-testid="sub-print-slip" @click="printSlips('swap', [p.id])"
+                v-if="substituteIds(l).length" size="small" data-testid="sub-print-leave-sub"
+                @click="printSlips('substitute', substituteIds(l))"
               >
-                列印調課單
-              </n-button>
-              <n-button
-                v-if="(p.sub_type === 'substitute' || p.sub_type === 'merge')
-                  && p.status !== 'cancelled'"
-                size="small" tertiary
-                data-testid="sub-print-slip-sub" @click="printSlips('substitute', [p.id])"
-              >
-                列印代課單
+                列印代課單({{ substituteIds(l).length }} 節)
               </n-button>
             </n-space>
+          </template>
+          <n-space vertical size="small">
+            <div v-for="p in l.affected_periods" :key="p.id" data-testid="sub-period">
+              <n-space align="center" :wrap="false">
+                <n-tag size="small" :type="STATUS[p.status].type as never">
+                  {{ STATUS[p.status].label }}
+                </n-tag>
+                <n-text style="min-width: 260px">
+                  {{ withWeekday(p.date) }} {{ p.period_name }} ·
+                  {{ p.class_names }} {{ p.subject_name }}
+                  <n-text v-if="p.room_name" depth="3">@{{ p.room_name }}</n-text>
+                </n-text>
+                <n-text
+                  v-if="p.sub_type || p.handler_name" type="success" data-testid="sub-handler"
+                >
+                  {{ dispositionText(l, p) }}
+                </n-text>
+                <n-button
+                  v-if="p.status === 'pending'" size="small" type="primary"
+                  data-testid="sub-handle" @click="openPeriod(p)"
+                >
+                  {{ openId === p.id ? '收合' : '處理' }}
+                </n-button>
+                <n-button
+                  v-else-if="p.status === 'resolved'" size="small" tertiary
+                  data-testid="sub-undo" @click="undo(p)"
+                >
+                  撤回
+                </n-button>
+                <n-button
+                  v-if="p.sub_type === 'swap' && p.status !== 'cancelled'" size="small" tertiary
+                  data-testid="sub-print-slip" @click="printSlips('swap', [p.id])"
+                >
+                  列印調課單
+                </n-button>
+                <n-button
+                  v-if="(p.sub_type === 'substitute' || p.sub_type === 'merge')
+                    && p.status !== 'cancelled'"
+                  size="small" tertiary
+                  data-testid="sub-print-slip-sub" @click="printSlips('substitute', [p.id])"
+                >
+                  列印代課單
+                </n-button>
+              </n-space>
 
-            <!-- 展開:代課推薦 + 其他處置 -->
-            <n-card
-              v-if="openId === p.id" size="small" embedded style="margin: 8px 0 8px 40px"
-              data-testid="sub-panel"
-            >
-              <n-space vertical size="small">
-                <n-text v-if="loadingRec" depth="3">計算可代教師中…</n-text>
+              <!-- 展開:代課推薦 + 其他處置 -->
+              <n-card
+                v-if="openId === p.id" size="small" embedded style="margin: 8px 0 8px 40px"
+                data-testid="sub-panel"
+              >
+                <n-space vertical size="small">
+                  <n-text v-if="loadingRec" depth="3">計算可代教師中…</n-text>
 
-                <template v-else-if="rec">
-                  <n-alert
-                    v-if="!rec.candidates.length" type="warning" :bordered="false"
-                    data-testid="sub-nocandidate"
-                  >
-                    {{ rec.no_candidate_hint }}
-                  </n-alert>
-
-                  <template v-else>
-                    <n-space align="center">
-                      <n-text depth="3">代課鐘點</n-text>
-                      <n-switch v-model:value="countsHours" size="small" />
-                      <n-text depth="3">{{ countsHours ? '計入' : '不計' }}</n-text>
-                      <n-text depth="3">計費方式</n-text>
-                      <n-select
-                        v-model:value="funding" size="small" style="width: 150px"
-                        filterable tag :options="fundingOptions"
-                        data-testid="sub-funding"
-                      />
-                    </n-space>
-                    <div
-                      v-for="c in rec.candidates" :key="c.teacher_id"
-                      data-testid="sub-candidate"
+                  <template v-else-if="rec">
+                    <n-alert
+                      v-if="!rec.candidates.length" type="warning" :bordered="false"
+                      data-testid="sub-nocandidate"
                     >
-                      <n-space align="center" :wrap="false">
-                        <n-button
-                          size="small" type="primary" ghost
-                          data-testid="sub-pick" @click="assign(p, 'substitute', c)"
-                        >
-                          指派 {{ c.teacher_name }}
-                        </n-button>
-                        <n-tag size="small" :type="candidateTagType(c) as never">
-                          {{ c.reasons.join(' · ') }}
-                        </n-tag>
+                      {{ rec.no_candidate_hint }}
+                    </n-alert>
+
+                    <template v-else>
+                      <n-space align="center">
+                        <n-text depth="3">代課鐘點</n-text>
+                        <n-switch v-model:value="countsHours" size="small" />
+                        <n-text depth="3">{{ countsHours ? '計入' : '不計' }}</n-text>
+                        <n-text depth="3">計費方式</n-text>
+                        <n-select
+                          v-model:value="funding" size="small" style="width: 150px"
+                          filterable tag :options="fundingOptions"
+                          data-testid="sub-funding"
+                        />
                       </n-space>
-                    </div>
-                  </template>
-                </template>
-
-                <n-space size="small" style="margin-top: 8px">
-                  <n-text depth="3">或改採:</n-text>
-                  <n-button
-                    size="tiny" :type="swapOpen ? 'primary' : 'default'"
-                    data-testid="sub-swap" @click="toggleSwap(p)"
-                  >
-                    調課
-                  </n-button>
-                  <n-button size="tiny" data-testid="sub-merge" @click="assign(p, 'merge')">
-                    併班
-                  </n-button>
-                  <n-button
-                    size="tiny" data-testid="sub-selfstudy" @click="assign(p, 'self_study')"
-                  >
-                    自習
-                  </n-button>
-                  <n-button size="tiny" data-testid="sub-cancel" @click="assign(p, 'cancel')">
-                    不處理
-                  </n-button>
-                </n-space>
-
-                <!-- 調課:乙來上這一節,甲在往後幾週內補回乙的一節 -->
-                <div v-if="swapOpen" class="swap" data-testid="sub-swap-panel">
-                  <n-text depth="3" class="swap-intro">
-                    調課 = 請另一位老師來上這一節,{{ l.teacher_name }}再找一天補回對方的一節(不計代課鐘點)。
-                    <template v-if="swap">
-                      以下是 {{ shortDate(swap.date_from) }} 到 {{ shortDate(swap.date_to) }}
-                      之間,雙方都有空的節次,點一下就成立。
+                      <div
+                        v-for="c in rec.candidates" :key="c.teacher_id"
+                        data-testid="sub-candidate"
+                      >
+                        <n-space align="center" :wrap="false">
+                          <n-button
+                            size="small" type="primary" ghost
+                            data-testid="sub-pick" @click="assign(p, 'substitute', c)"
+                          >
+                            指派 {{ c.teacher_name }}
+                          </n-button>
+                          <n-tag size="small" :type="candidateTagType(c) as never">
+                            {{ c.reasons.join(' · ') }}
+                          </n-tag>
+                        </n-space>
+                      </div>
                     </template>
-                  </n-text>
-                  <n-space align="center" size="small" style="margin-bottom: 6px">
-                    <n-select
-                      :value="swapTeacherId" :options="swapTeacherOptions(l)" filterable clearable
-                      size="small" style="width: 200px" placeholder="只看也教這班的老師"
-                      data-testid="sub-swap-teacher"
-                      @update:value="(v: number | null) => onSwapTeacherChange(p, v)"
-                    />
-                    <n-text depth="3">也可以指定其他老師</n-text>
-                    <n-text depth="3" style="margin-left: 12px">範圍</n-text>
-                    <n-select
-                      :value="swapWeeks" :options="SWAP_WEEK_OPTIONS" size="small"
-                      style="width: 140px" data-testid="sub-swap-weeks"
-                      @update:value="(v: number) => onSwapWeeksChange(p, v)"
-                    />
+                  </template>
+
+                  <n-space size="small" style="margin-top: 8px">
+                    <n-text depth="3">或改採:</n-text>
+                    <n-button
+                      size="tiny" :type="swapOpen ? 'primary' : 'default'"
+                      data-testid="sub-swap" @click="toggleSwap(p)"
+                    >
+                      調課
+                    </n-button>
+                    <n-button size="tiny" data-testid="sub-merge" @click="assign(p, 'merge')">
+                      併班
+                    </n-button>
+                    <n-button
+                      size="tiny" data-testid="sub-selfstudy" @click="assign(p, 'self_study')"
+                    >
+                      自習
+                    </n-button>
+                    <n-button size="tiny" data-testid="sub-cancel" @click="assign(p, 'cancel')">
+                      不處理
+                    </n-button>
                   </n-space>
 
-                  <n-text v-if="loadingSwap" depth="3">尋找可對調的節次…</n-text>
-                  <template v-else-if="swap">
-                    <n-alert
-                      v-if="!swap.partners.length" type="info" :bordered="false"
-                      data-testid="sub-swap-empty"
-                    >
-                      {{ swapTeacherId
-                        ? '這位老師目前無法對調(可能已停用)。'
-                        : '沒有其他老師也教這個班,可以從上方指定一位老師看看。' }}
-                    </n-alert>
-                    <div
-                      v-for="partner in swap.partners" :key="partner.teacher_id"
-                      class="swap-partner" data-testid="sub-swap-partner"
-                    >
-                      <n-space align="center" size="small">
-                        <b>{{ partner.teacher_name }}</b>
-                        <n-tag v-if="partner.teaches_same_class" size="small" type="success">
-                          也教這班
-                        </n-tag>
-                      </n-space>
-                      <n-text v-if="partner.blocked_reason" depth="3" class="swap-note">
-                        無法對調:{{ partner.blocked_reason }}
-                      </n-text>
-                      <n-text v-else-if="!partner.options.length" depth="3" class="swap-note">
-                        這段期間找不到雙方都有空的節次,可試著放寬週數
-                      </n-text>
-                      <n-space v-else size="small" class="swap-note">
-                        <n-button
-                          v-for="opt in visibleOptions(partner)"
-                          :key="`${opt.entry_id}-${opt.date}-${opt.period_no}`"
-                          size="small" :type="opt.same_class ? 'primary' : 'default'" ghost
-                          data-testid="sub-swap-option" @click="assignSwap(l, p, partner, opt)"
-                        >
-                          {{ shortDate(opt.date) }} {{ opt.period_name }} ·
-                          {{ opt.class_names }} {{ opt.subject_name }}
-                          <span v-if="opt.in_block" class="swap-block">(連堂之一)</span>
-                        </n-button>
-                        <n-button
-                          v-if="hiddenCount(partner)" size="small" text type="primary"
-                          data-testid="sub-swap-more" @click="expandPartner(partner)"
-                        >
-                          顯示其他班級的 {{ hiddenCount(partner) }} 個節次
-                        </n-button>
-                      </n-space>
-                    </div>
-                  </template>
-                </div>
-              </n-space>
-            </n-card>
-          </div>
+                  <!-- 調課:乙來上這一節,甲在往後幾週內補回乙的一節 -->
+                  <div v-if="swapOpen" class="swap" data-testid="sub-swap-panel">
+                    <n-text depth="3" class="swap-intro">
+                      調課 = 請另一位老師來上這一節,{{ l.teacher_name }}再找一天補回對方的一節(不計代課鐘點)。
+                      <template v-if="swap">
+                        以下是 {{ shortDate(swap.date_from) }} 到 {{ shortDate(swap.date_to) }}
+                        之間,雙方都有空的節次,點一下就成立。
+                      </template>
+                    </n-text>
+                    <n-space align="center" size="small" style="margin-bottom: 6px">
+                      <n-select
+                        :value="swapTeacherId" :options="swapTeacherOptions(l)" filterable clearable
+                        size="small" style="width: 200px" placeholder="只看也教這班的老師"
+                        data-testid="sub-swap-teacher"
+                        @update:value="(v: number | null) => onSwapTeacherChange(p, v)"
+                      />
+                      <n-text depth="3">也可以指定其他老師</n-text>
+                      <n-text depth="3" style="margin-left: 12px">範圍</n-text>
+                      <n-select
+                        :value="swapWeeks" :options="SWAP_WEEK_OPTIONS" size="small"
+                        style="width: 140px" data-testid="sub-swap-weeks"
+                        @update:value="(v: number) => onSwapWeeksChange(p, v)"
+                      />
+                    </n-space>
+
+                    <n-text v-if="loadingSwap" depth="3">尋找可對調的節次…</n-text>
+                    <template v-else-if="swap">
+                      <n-alert
+                        v-if="!swap.partners.length" type="info" :bordered="false"
+                        data-testid="sub-swap-empty"
+                      >
+                        {{ swapTeacherId
+                          ? '這位老師目前無法對調(可能已停用)。'
+                          : '沒有其他老師也教這個班,可以從上方指定一位老師看看。' }}
+                      </n-alert>
+                      <div
+                        v-for="partner in swap.partners" :key="partner.teacher_id"
+                        class="swap-partner" data-testid="sub-swap-partner"
+                      >
+                        <n-space align="center" size="small">
+                          <b>{{ partner.teacher_name }}</b>
+                          <n-tag v-if="partner.teaches_same_class" size="small" type="success">
+                            也教這班
+                          </n-tag>
+                        </n-space>
+                        <n-text v-if="partner.blocked_reason" depth="3" class="swap-note">
+                          無法對調:{{ partner.blocked_reason }}
+                        </n-text>
+                        <n-text v-else-if="!partner.options.length" depth="3" class="swap-note">
+                          這段期間找不到雙方都有空的節次,可試著放寬週數
+                        </n-text>
+                        <n-space v-else size="small" class="swap-note">
+                          <n-button
+                            v-for="opt in visibleOptions(partner)"
+                            :key="`${opt.entry_id}-${opt.date}-${opt.period_no}`"
+                            size="small" :type="opt.same_class ? 'primary' : 'default'" ghost
+                            data-testid="sub-swap-option" @click="assignSwap(l, p, partner, opt)"
+                          >
+                            {{ shortDate(opt.date) }} {{ opt.period_name }} ·
+                            {{ opt.class_names }} {{ opt.subject_name }}
+                            <span v-if="opt.in_block" class="swap-block">(連堂之一)</span>
+                          </n-button>
+                          <n-button
+                            v-if="hiddenCount(partner)" size="small" text type="primary"
+                            data-testid="sub-swap-more" @click="expandPartner(partner)"
+                          >
+                            顯示其他班級的 {{ hiddenCount(partner) }} 個節次
+                          </n-button>
+                        </n-space>
+                      </div>
+                    </template>
+                  </div>
+                </n-space>
+              </n-card>
+            </div>
+          </n-space>
+        </n-card>
+      </template>
+    </n-space>
+
+    <n-modal
+      v-model:show="batchShow" preset="card" style="max-width: 560px"
+      :title="`整批指派代課:${batchLeave?.teacher_name ?? ''}`" data-testid="sub-batch"
+    >
+      <n-space vertical>
+        <n-text depth="3">
+          把這張假單還沒處理的節次,一次指派給同一位代課老師。已經處理過的節次不會更動;
+          代課老師自己有課的節次會跳過,並列出來讓你另外找人。
+        </n-text>
+        <n-space align="center">
+          <n-text style="min-width: 70px">代課老師</n-text>
+          <n-select
+            v-model:value="batchTeacher" :options="batchTeacherOptions" filterable
+            placeholder="選擇教師" style="width: 240px" data-testid="sub-batch-teacher"
+          />
         </n-space>
-      </n-card>
-    </template>
-  </n-space>
+        <n-space align="center">
+          <n-text style="min-width: 70px">計費方式</n-text>
+          <n-select
+            v-model:value="batchFunding" :options="fundingOptions" filterable tag
+            style="width: 240px" data-testid="sub-batch-funding"
+          />
+        </n-space>
+        <n-space align="center">
+          <n-text style="min-width: 70px">範圍</n-text>
+          <n-select
+            v-model:value="batchDate" :options="batchDateOptions"
+            style="width: 320px" data-testid="sub-batch-date"
+          />
+        </n-space>
+
+        <n-alert
+          v-if="batchSkipped.length" type="warning" :show-icon="true"
+          :title="`已指派 ${batchDone} 節;有 ${batchSkipped.length} 節沒有派成`"
+          data-testid="sub-batch-skipped"
+        >
+          <ul class="batch-skips">
+            <li v-for="s in batchSkipped" :key="s.affected_period_id" data-testid="sub-batch-skip">
+              {{ withWeekday(s.date) }} {{ s.period_name }} · {{ s.class_names }} {{ s.subject_name }}
+              ——{{ s.reason }}
+            </li>
+          </ul>
+          這幾節仍是「待處理」,請關閉視窗後個別處理。
+        </n-alert>
+
+        <n-space justify="end">
+          <n-button data-testid="sub-batch-close" @click="batchShow = false">
+            {{ batchSkipped.length ? '關閉' : '取消' }}
+          </n-button>
+          <n-button
+            v-if="!batchSkipped.length" type="primary" :loading="batchBusy"
+            :disabled="batchTeacher === null" data-testid="sub-batch-run" @click="runBatch"
+          >
+            指派
+          </n-button>
+        </n-space>
+      </n-space>
+    </n-modal>
+  </div>
 </template>
 
 <style scoped>
+.batch-skips { margin: 4px 0 6px; padding-left: 20px; }
 .swap { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(128, 128, 128, 0.35); }
 .swap-intro { display: block; margin-bottom: 6px; }
 .swap-partner { margin: 6px 0; }

@@ -7,6 +7,7 @@
 調課(swap)要驗兩位教師交換後都無衝突,拒絕時說出是誰在哪一節撞課。
 """
 
+from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy import select
@@ -15,7 +16,13 @@ from sqlalchemy.orm import Session
 from app.core import clock
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.basedata import Subject, Teacher
-from app.models.leave import AffectedPeriod, AffectedStatus, LeaveStatus, LeaveType
+from app.models.leave import (
+    AffectedPeriod,
+    AffectedStatus,
+    LeaveRequest,
+    LeaveStatus,
+    LeaveType,
+)
 from app.models.notification import NotificationType
 from app.models.substitution import (
     SUBSTITUTION_TYPE_CN,
@@ -110,6 +117,67 @@ def assign(
     if handler is not None:
         _notify_handler(db, affected, sub, handler)
     return sub
+
+
+@dataclass(frozen=True, slots=True)
+class BatchSkip:
+    """整批指派時沒派成的一節,以及原因(代課老師那節有課、節次已結束…)。"""
+
+    affected_period_id: int
+    date: date
+    period_name: str
+    class_names: str
+    subject_name: str
+    reason: str
+
+
+def assign_batch(
+    db: Session,
+    leave: LeaveRequest,
+    *,
+    handler_teacher_id: int,
+    funding_source: str,
+    counts_toward_hours: bool | None,
+    on_date: date | None,
+    created_by_user_id: int | None,
+    created_by_name: str,
+) -> tuple[list[Substitution], list[BatchSkip]]:
+    """把一張假單(或其中一天)還沒處理的節次,一次指派給同一位代課老師(#36)。
+
+    導師請整天或好幾天假時,一節一節點同一位代課老師要點幾十次。這裡逐節沿用 `assign`
+    ——檢查規則完全一樣——派得成的就派,派不成的(代課老師那一節自己有課、節次已結束)
+    跳過並回報原因,由組長另外找人。已經處理過的節次不動。呼叫端負責 commit。
+    """
+    pending = sorted(
+        (
+            ap for ap in leave.affected_periods
+            if ap.status == AffectedStatus.pending.value
+            and (on_date is None or ap.date == on_date)
+        ),
+        key=lambda ap: (ap.date, ap.period_no),
+    )
+    if not pending:
+        raise SubstitutionError(
+            "這一天沒有待處理的節次" if on_date else "這張假單沒有待處理的節次")
+
+    done: list[Substitution] = []
+    skipped: list[BatchSkip] = []
+    for ap in pending:
+        try:
+            done.append(assign(
+                db, ap,
+                sub_type=SubstitutionType.substitute.value,
+                handler_teacher_id=handler_teacher_id,
+                counts_toward_hours=counts_toward_hours, funding_source=funding_source,
+                swap_entry_id=None, swap_date=None,
+                created_by_user_id=created_by_user_id, created_by_name=created_by_name,
+            ))
+        except SubstitutionError as exc:
+            skipped.append(BatchSkip(
+                affected_period_id=ap.id, date=ap.date, period_name=ap.period_name,
+                class_names=ap.class_names, subject_name=ap.subject_name, reason=str(exc),
+            ))
+    return done, skipped
 
 
 def _resolve_handler(
