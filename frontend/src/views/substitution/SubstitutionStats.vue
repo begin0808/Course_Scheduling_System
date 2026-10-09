@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText } from 'naive-ui'
+import {
+  NAlert, NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText,
+} from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { listTeachers } from '@/api/basedata'
@@ -53,6 +55,16 @@ const periodLabel = computed(() => {
 })
 const totalBillable = computed(() =>
   (report.value?.summaries ?? []).reduce((n, s) => n + s.billable_count, 0))
+// 日薪代課(國小常見)按日計酬:沒有用到日薪的學校,畫面和原本完全一樣
+const totalDailyDays = computed(() =>
+  (report.value?.summaries ?? []).reduce((n, s) => n + s.daily_days, 0))
+const hasDaily = computed(() => (report.value?.details ?? []).some((d) => d.pay_kind === 'daily'))
+const hasShared = computed(() => (report.value?.details ?? []).some((d) => d.daily_shared))
+const PAY: Record<string, { label: string; type: 'success' | 'info' | 'default' }> = {
+  hourly: { label: '計費', type: 'success' },
+  daily: { label: '日薪', type: 'info' },
+  none: { label: '不計', type: 'default' },
+}
 
 async function reload() {
   if (sid.value === null) return
@@ -122,7 +134,18 @@ onMounted(async () => {
       <n-tag v-if="report" type="info" data-testid="stats-total">
         計費合計 {{ totalBillable }} 節
       </n-tag>
+      <n-tag v-if="hasDaily" type="info" data-testid="stats-total-daily">
+        日薪合計 {{ totalDailyDays }} 天
+      </n-tag>
     </n-space>
+
+    <n-alert v-if="hasDaily" type="info" :show-icon="true" data-testid="stats-daily-note">
+      計費方式為「日薪代課」的節次按日計酬:列在「日薪天數」,不計入鐘點計費節數。
+      <template v-if="hasShared">
+        標示「分擔」的日子,同一位請假教師的課由兩位以上日薪代課老師分擔,每位各算 1 天,
+        實際如何給付請依學校規定核對。
+      </template>
+    </n-alert>
 
     <n-empty
       v-if="report && !report.details.length && !loading"
@@ -133,13 +156,26 @@ onMounted(async () => {
       <!-- 彙總:每位教師 -->
       <table v-if="canManage" class="data-table" data-testid="stats-summary">
         <thead>
-          <tr><th>教師</th><th>代課節數</th><th>計費節數</th></tr>
+          <tr>
+            <th>教師</th><th>代課節數</th><th>{{ hasDaily ? '鐘點計費節數' : '計費節數' }}</th>
+            <th v-if="hasDaily">日薪天數</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-for="s in report.summaries" :key="s.teacher_id" data-testid="stats-summary-row">
             <td>{{ s.teacher_name }}</td>
             <td>{{ s.handled_count }}</td>
             <td>{{ s.billable_count }}</td>
+            <td v-if="hasDaily" data-testid="stats-daily-cell">
+              <template v-if="s.daily_days">
+                {{ s.daily_days }} 天
+                <n-text depth="3">(共 {{ s.daily_periods }} 節)</n-text>
+                <n-tag v-if="s.daily_shared_days" size="tiny" type="warning">
+                  其中 {{ s.daily_shared_days }} 天分擔
+                </n-tag>
+              </template>
+              <template v-else>—</template>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -164,9 +200,10 @@ onMounted(async () => {
             <td>{{ d.leave_type_label }}</td>
             <td>{{ d.sub_type_label }}</td>
             <td>
-              <n-tag size="tiny" :type="d.counts_toward_hours ? 'success' : 'default'">
-                {{ d.counts_toward_hours ? '計費' : '不計' }}
+              <n-tag size="tiny" :type="PAY[d.pay_kind].type" data-testid="stats-pay">
+                {{ PAY[d.pay_kind].label }}
               </n-tag>
+              <n-tag v-if="d.daily_shared" size="tiny" type="warning">分擔</n-tag>
             </td>
           </tr>
         </tbody>

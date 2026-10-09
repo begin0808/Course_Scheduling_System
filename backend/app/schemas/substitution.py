@@ -4,6 +4,9 @@ from datetime import date, time
 
 from pydantic import BaseModel, Field
 
+# 欄位名 date 會遮蔽同名型別,故以別名標註
+_Date = date
+
 
 class CandidateOut(BaseModel):
     teacher_id: int
@@ -31,6 +34,29 @@ class AssignRequest(BaseModel):
     swap_entry_id: int | None = None
     swap_date: date | None = None
     swap_period_no: int | None = None  # 連堂格位換其中哪一節;空 = 第一節
+
+
+class BatchAssignRequest(BaseModel):
+    """整批指派代課:一張假單(或其中一天)還沒處理的節次,全部派給同一位老師。"""
+
+    handler_teacher_id: int
+    funding_source: str = Field(default="", max_length=32)
+    counts_toward_hours: bool | None = None
+    date: _Date | None = None  # 空 = 整張假單
+
+
+class BatchSkipOut(BaseModel):
+    affected_period_id: int
+    date: _Date
+    period_name: str
+    class_names: str
+    subject_name: str
+    reason: str
+
+
+class BatchAssignOut(BaseModel):
+    assigned: int
+    skipped: list[BatchSkipOut] = []
 
 
 class SubstitutionOut(BaseModel):
@@ -77,9 +103,6 @@ class SwapOptionsOut(BaseModel):
     date_to: date
     partners: list[SwapPartnerOut] = []
 
-
-# 欄位名 date 會遮蔽同名型別,故以別名標註
-_Date = date
 
 
 class SlipRowOut(BaseModel):

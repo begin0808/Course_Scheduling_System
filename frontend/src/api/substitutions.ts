@@ -1,6 +1,6 @@
 // 調代課處理:代課推薦、指派處置(M4-2)、可對調節次(v1.2.1)、通知單(v1.2.2/v1.2.5)。
 
-import { apiDelete, apiGet, apiPut } from '@/api/client'
+import { apiDelete, apiGet, apiPost, apiPut } from '@/api/client'
 
 export interface Candidate {
   teacher_id: number
@@ -79,6 +79,29 @@ export const getRecommendations = (affectedId: number): Promise<Recommendation> 
 
 export const assignSubstitution = (affectedId: number, body: AssignBody): Promise<Substitution> =>
   apiPut(`/affected-periods/${affectedId}/substitution`, body)
+
+/** 整批指派代課:一張假單(或其中一天)還沒處理的節次,全部派給同一位老師。 */
+export interface BatchAssignBody {
+  handler_teacher_id: number
+  funding_source?: string
+  counts_toward_hours?: boolean | null
+  date?: string | null // 空 = 整張假單
+}
+export interface BatchSkip {
+  affected_period_id: number
+  date: string
+  period_name: string
+  class_names: string
+  subject_name: string
+  reason: string
+}
+export interface BatchAssignResult {
+  assigned: number
+  skipped: BatchSkip[]
+}
+export const assignSubstitutionBatch = (
+  leaveId: number, body: BatchAssignBody,
+): Promise<BatchAssignResult> => apiPost(`/leaves/${leaveId}/substitutions/batch`, body)
 
 export const clearSubstitution = (affectedId: number): Promise<{ status: string }> =>
   apiDelete(`/affected-periods/${affectedId}/substitution`)

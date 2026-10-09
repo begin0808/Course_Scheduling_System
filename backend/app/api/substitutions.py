@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_roles
 from app.core.db import get_db
 from app.models.audit import AuditLog
-from app.models.leave import AffectedPeriod
+from app.models.leave import AffectedPeriod, LeaveRequest
 from app.models.substitution import (
     FUNDING_SOURCES,
     SUBSTITUTION_TYPE_CN,
@@ -22,6 +22,9 @@ from app.models.substitution import (
 from app.models.user import Role, User
 from app.schemas.substitution import (
     AssignRequest,
+    BatchAssignOut,
+    BatchAssignRequest,
+    BatchSkipOut,
     CandidateOut,
     RecommendationOut,
     SlipsOut,
@@ -175,6 +178,56 @@ def clear_substitution(
 @router.get("/substitution-types", response_model=dict[str, str])
 def substitution_types(_: User = Depends(editor)):
     return {t.value: SUBSTITUTION_TYPE_CN[t.value] for t in SubstitutionType}
+
+
+@router.post("/leaves/{leave_id}/substitutions/batch", response_model=BatchAssignOut)
+def assign_substitutions_batch(
+    leave_id: int,
+    body: BatchAssignRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(editor),
+):
+    """整批指派代課:這張假單(或其中一天)還沒處理的節次,全部派給同一位老師。
+
+    派不成的節次(代課老師那一節自己有課等)跳過並回報原因;已處理過的不動。
+    """
+    leave = db.get(LeaveRequest, leave_id)
+    if leave is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到假單")
+    try:
+        done, skipped = sub_service.assign_batch(
+            db, leave,
+            handler_teacher_id=body.handler_teacher_id,
+            funding_source=body.funding_source,
+            counts_toward_hours=body.counts_toward_hours, on_date=body.date,
+            created_by_user_id=user.id, created_by_name=user.username,
+        )
+    except sub_service.SubstitutionError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+    if done:
+        scope = body.date.isoformat() if body.date else "整張假單"
+        handler = done[0].handler
+        db.add(AuditLog(
+            user_id=user.id, username=user.username, action="assign_substitution_batch",
+            target_type="leave_request", target_id=leave.id,
+            detail=(
+                f"{leave.teacher.name} {scope} → 代課({handler.name if handler else ''})"
+                f" {len(done)} 節" + (f",{len(skipped)} 節未派" if skipped else "")
+            )[:500],
+        ))
+    db.commit()
+    return BatchAssignOut(
+        assigned=len(done),
+        skipped=[
+            BatchSkipOut(
+                affected_period_id=s.affected_period_id, date=s.date,
+                period_name=s.period_name, class_names=s.class_names,
+                subject_name=s.subject_name, reason=s.reason,
+            )
+            for s in skipped
+        ],
+    )
 
 
 @router.get("/substitution-funding-sources", response_model=list[str])
