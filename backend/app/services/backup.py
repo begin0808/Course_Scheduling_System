@@ -5,6 +5,7 @@
 
 - 檔名:`backup_YYYYMMDD_HHMMSS_<reason>.dump`,存放於共掛的 volume(config.backup_dir)。
 - 保留 config.backup_keep 份,超出者由舊而新輪替刪除。
+  「升級前自動備份」(reason=preupgrade,v1.3.0)不參與輪替,由組長自己決定何時刪除。
 - 還原前先驗證檔頭(custom 格式以 `PGDMP` 開頭),非法檔案直接拒絕、不動資料庫(驗收②)。
 """
 
@@ -95,7 +96,8 @@ def list_backups() -> list[BackupInfo]:
 def prune(keep: int | None = None) -> list[str]:
     """保留最新 keep 份,刪除其餘。回傳被刪檔名。"""
     keep = settings.backup_keep if keep is None else keep
-    backups = list_backups()
+    # 升級前備份是退回舊版的依據,每日備份滿 30 份也不能把它擠掉
+    backups = [b for b in list_backups() if b.reason != "preupgrade"]
     removed = []
     for info in backups[keep:]:
         try:

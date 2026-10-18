@@ -18,8 +18,10 @@ import {
 } from '@/api/assignments'
 import { getSmtp, saveSmtp } from '@/api/notifications'
 import { getPatrolSettings, savePatrolSettings } from '@/api/substitutionLog'
-import { RELEASES_URL, UPGRADE_GUIDE_URL, getUpdateStatus } from '@/api/system'
-import type { UpdateStatus } from '@/api/system'
+import {
+  RELEASES_URL, UPGRADE_GUIDE_URL, dismissUpgradeNotice, getUpdateStatus, getUpgradeNotice,
+} from '@/api/system'
+import type { UpdateStatus, UpgradeNotice } from '@/api/system'
 import { resetWizard } from '@/api/wizard'
 import { useAuthStore } from '@/stores/auth'
 import { useWizardStore } from '@/stores/wizard'
@@ -55,6 +57,20 @@ async function loadUpdate(refresh = false) {
   } finally {
     checkingUpdate.value = false
   }
+}
+
+// ── 結構升級後的一次性提示(v1.3.0):升級前自動備份了哪一份 ──
+const upgradeNotice = ref<UpgradeNotice | null>(null)
+async function loadUpgradeNotice() {
+  try {
+    upgradeNotice.value = await getUpgradeNotice()
+  } catch {
+    upgradeNotice.value = null // 舊資料或權限問題:不顯示即可,不影響其他功能
+  }
+}
+async function onDismissUpgradeNotice() {
+  await dismissUpgradeNotice()
+  upgradeNotice.value = null
 }
 
 // ── 備份與還原 ──
@@ -189,6 +205,7 @@ onMounted(async () => {
   if (!isAdmin()) return
   // 查新版本可能要連外等幾秒,不擋住其他設定載入
   void loadUpdate()
+  void loadUpgradeNotice()
   const s = await getSmtp()
   smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender, use_tls: s.use_tls }
   configured.value = s.configured
@@ -270,6 +287,29 @@ async function onResetWizard() {
 
     <n-card v-if="isAdmin()" title="系統版本" data-testid="version-card">
       <n-space vertical>
+        <n-alert
+          v-if="upgradeNotice" :type="upgradeNotice.error ? 'error' : 'success'"
+          :title="`系統已升級到 ${upgradeNotice.version}(${upgradeNotice.at})`"
+          data-testid="upgrade-notice"
+        >
+          <template v-if="!upgradeNotice.error">
+            升級時資料庫結構有變更,系統在升級前已<b>自動備份</b>:<code>{{ upgradeNotice.backup }}</code>。
+            這份備份在下方「資料備份與還原」的清單裡(標示「升級前自動備份」),不會被每日備份輪替刪除。
+            若要退回舊版,請先用這份備份還原,再照升級指南把版本號改回舊版。
+          </template>
+          <template v-else>
+            升級前的<b>自動備份沒有成功</b>({{ upgradeNotice.error }}),系統已照常升級、可以正常使用。
+            建議現在就按下方「立即備份」留一份。若要退回舊版,可用升級前一晚的每日自動備份還原,
+            或照升級指南的「退回指令」操作。
+          </template>
+          <div style="margin-top: 6px">
+            <a :href="UPGRADE_GUIDE_URL" target="_blank" rel="noopener">升級指南</a>
+            ・
+            <n-button text type="primary" data-testid="upgrade-notice-dismiss" @click="onDismissUpgradeNotice">
+              知道了
+            </n-button>
+          </div>
+        </n-alert>
         <n-space align="center">
           <n-text style="width: 72px">目前版本</n-text>
           <n-tag :type="update?.update_available ? 'warning' : 'success'" data-testid="version-current">

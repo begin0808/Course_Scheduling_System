@@ -10,8 +10,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# curl 供 healthcheck 使用
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# curl 供 healthcheck 使用;postgresql-client 供「結構升級前自動備份」(v1.3.0)——
+# 遷移在 api 容器啟動時執行,備份必須在同一個容器、遷移之前完成。
+RUN apt-get update && apt-get install -y --no-install-recommends curl postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # 先裝相依(利用 layer 快取)
