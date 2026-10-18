@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="排課與調代課系統 v1.2.19 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
+<title>功能總覽 · 排課與調代課系統</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📋</text></svg>">
+<style>
+  :root{
+    --bg:#faf6f0; --surface:#fffdfa; --surface-2:#f4ece2;
+    --text:#241b14; --text-soft:#5c4c3f; --text-faint:#8d7a6a;
+    --border:#e5d8c8; --accent:#b4531f; --accent-soft:#fbeade;
+    --good:#5a7d2a; --good-soft:#eef3e3; --warn:#9c6008; --warn-soft:#fdefd6;
+    --info:#3d6485; --info-soft:#e9eef3;
+    --font-sans:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-mono:"SF Mono","Cascadia Code","Consolas","Courier New",monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#16110d; --surface:#1e1813; --surface-2:#29211a;
+      --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+      --border:#3b2f25; --accent:#f0864a; --accent-soft:#37200f;
+      --good:#8fbf5c; --good-soft:#1f2a14; --warn:#e0a53c; --warn-soft:#33260f;
+      --info:#86a9cf; --info-soft:#1c242e;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#16110d; --surface:#1e1813; --surface-2:#29211a;
+    --text:#f0e7dd; --text-soft:#bcaa9a; --text-faint:#96826f;
+    --border:#3b2f25; --accent:#f0864a; --accent-soft:#37200f;
+    --good:#8fbf5c; --good-soft:#1f2a14; --warn:#e0a53c; --warn-soft:#33260f;
+    --info:#86a9cf; --info-soft:#1c242e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);
+    line-height:1.7;font-size:15.5px;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  .page{max-width:1040px;margin:0 auto;padding:40px 16px 64px}
+  header{border-bottom:2px solid var(--border);padding-bottom:20px;margin-bottom:8px}
+  .eyebrow{color:var(--accent);font-weight:700;letter-spacing:.08em;font-size:13px}
+  h1{font-size:30px;margin:6px 0 8px;line-height:1.3}
+  .lead{color:var(--text-soft);margin:0}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .chip{background:var(--surface-2);border:1px solid var(--border);border-radius:999px;
+    padding:2px 12px;font-size:13px;color:var(--text-soft)}
+  nav.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:14px 18px;margin:24px 0 8px}
+  nav.toc ol{margin:0;padding-left:20px;columns:2;column-gap:32px}
+  nav.toc li{break-inside:avoid;margin:2px 0}
+  h2{font-size:22px;margin:40px 0 4px;padding-top:8px;scroll-margin-top:12px}
+  h2 .no{color:var(--accent);font-family:var(--font-mono);margin-right:8px;font-size:18px}
+  h3{font-size:17px;margin:22px 0 6px;color:var(--text)}
+  .intro{color:var(--text-soft);margin:4px 0 12px}
+  .tbl{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;min-width:560px;background:var(--surface);
+    border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:14.5px}
+  th,td{border-bottom:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:var(--surface-2);font-weight:700;white-space:nowrap}
+  td:first-child{font-weight:600;white-space:nowrap}
+  td.ver{white-space:nowrap;color:var(--text-faint);font-family:var(--font-mono);font-size:13px}
+  tr:last-child td{border-bottom:0}
+  .note{border-left:4px solid var(--info);background:var(--info-soft);padding:10px 14px;
+    border-radius:0 8px 8px 0;margin:12px 0;font-size:14.5px}
+  .note.warn{border-color:var(--warn);background:var(--warn-soft)}
+  .note.good{border-color:var(--good);background:var(--good-soft)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .card b{display:block;margin-bottom:2px}
+  .card span{color:var(--text-soft);font-size:14px}
+  .tag{display:inline-block;font-size:12px;border-radius:4px;padding:0 6px;margin-left:4px;
+    font-weight:700;vertical-align:1px}
+  .tag.plan{background:var(--accent-soft);color:var(--accent)}
+  .tag.limit{background:var(--warn-soft);color:var(--warn)}
+  footer{margin-top:48px;border-top:1px solid var(--border);padding-top:16px;color:var(--text-faint);font-size:13px}
+  @media (max-width:640px){
+    h1{font-size:24px} nav.toc ol{columns:1}
+    td:first-child{white-space:normal}
+  }
+  @media print{
+    body{background:#fff;font-size:12px} .page{padding:0} nav.toc{display:none}
+    h2{break-after:avoid} table{break-inside:auto} tr{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="eyebrow">FEATURE OVERVIEW</div>
+  <h1>排課與調代課系統 · 功能總覽</h1>
+  <p class="lead">目前最新版 <b>v1.2.19</b>(2026-10-09)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎到 <a href="#feedback">GitHub Issues 回報</a>。</p>
+  <div class="meta">
+    <span class="chip">單校自架 · 資料不出校</span>
+    <span class="chip">開源免費(MIT)</span>
+    <span class="chip">國小/國中/普高/綜高/技高五種範本</span>
+    <span class="chip">全繁體中文 · 台灣教務用語</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="目錄">
+  <ol>
+    <li><a href="#roles">角色與權限</a></li>
+    <li><a href="#setup">開始使用與基礎資料</a></li>
+    <li><a href="#assign">配課</a></li>
+    <li><a href="#manual">手動排課工作台</a></li>
+    <li><a href="#auto">自動排課</a></li>
+    <li><a href="#publish">發布與全校查詢</a></li>
+    <li><a href="#leave">請假與調代課處理</a></li>
+    <li><a href="#print">看板、紀錄與各式通知單</a></li>
+    <li><a href="#stats">代課鐘點統計</a></li>
+    <li><a href="#patrol">巡堂表</a></li>
+    <li><a href="#export">匯出課表</a></li>
+    <li><a href="#admin">系統管理</a></li>
+    <li><a href="#ops">部署、升級與備份</a></li>
+    <li><a href="#limits">目前的限制</a></li>
+    <li><a href="#plan">規劃中</a></li>
+    <li><a href="#history">版本沿革</a></li>
+    <li><a href="#feedback">意見回報</a></li>
+  </ol>
+</nav>
+
+<h2 id="roles"><span class="no">01</span>角色與權限</h2>
+<p class="intro">登入後依角色顯示不同的選單。</p>
+<div class="tbl"><table>
+  <tr><th>角色</th><th>負責什麼</th><th>看得到的功能</th></tr>
+  <tr><td>系統管理員</td><td>安裝、帳號、備份還原、SMTP 等系統層設定</td><td>全部,含「系統管理」</td></tr>
+  <tr><td>教務主任</td><td>綜覽與審核</td><td>與教學組長幾乎相同(除系統管理)</td></tr>
+  <tr><td>教學組長</td><td>日常主力:基礎資料、配課、排課、調代課</td><td>基礎資料、排課作業、調代課</td></tr>
+  <tr><td>教師</td><td>查自己的課表、自己請假、確認代課通知</td><td>課表查詢(預設本人)、請假登記、我的代課鐘點</td></tr>
+</table></div>
+<div class="note">帳號安全:首次登入強制改密碼;登入連續失敗 5 次鎖定 15 分鐘;使用者可自行改密碼,組長可替教師重設密碼、停用或啟用登入帳號。</div>
+
+<h2 id="setup"><span class="no">02</span>開始使用與基礎資料</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>設定精靈</td><td>全新系統第一次登入自動進入五步驟:學制範本 → 學年學期與起訖日期 → 節次表 → 匯入資料 → 完成。可中途離開、下次接續,系統管理可重新啟動。</td><td class="ver">v1.0</td></tr>
+  <tr><td>一鍵示範資料</td><td>全新系統可載入一所虛構國中(18 班、48 位教師、24 科、384 筆配課),兩分鐘內就能跑自動排課、請假、代課、匯出。已有學期時不出現,避免覆蓋正式資料。</td><td class="ver">v1.2.0</td></tr>
+  <tr><td>學制範本</td><td>國小、國中、普高、綜高、技高,自動帶入該學制的節次表與常見科目。</td><td class="ver">v1.0</td></tr>
+  <tr><td>學期管理</td><td>學年度、學期別、起訖日期(請假展開節次、看板、調代課都以此為準),可在「學期與節次表」編輯。</td><td class="ver">v1.2.7</td></tr>
+  <tr><td>節次表編輯器</td><td>每一天每一節的名稱、起訖時間、類型(一般課/早自習/午休/不排課),可新增節次列(例如第八節)。</td><td class="ver">v1.0</td></tr>
+  <tr><td>多套節次表</td><td>同學期多套作息(國中小、完全中學),班級各自指定。跨部老師以「實際時間是否重疊」判斷衝堂;兩部節數不同也正確處理,課表與通知單標出實際上課時間。</td><td class="ver">v1.2.10–11</td></tr>
+  <tr><td>教師</td><td>姓名、任教科目、基本鐘點、行政職與減課、Email/手機/LINE、在職狀態;可同時建立登入帳號。離職建議「設為非在職＋停用帳號」,刪除前會列出會一併消失的紀錄。</td><td class="ver">v1.0 / v1.2.8</td></tr>
+  <tr><td>教師時段規則</td><td>每位教師每一節可設「不可排/盡量避開/偏好」。儲存不可排時段時,若那幾節已經有課會當場列出。</td><td class="ver">v1.0 / v1.2.18</td></tr>
+  <tr><td>班級</td><td>年級、班名(同學期不可重複)、學制、導師、群科、使用的節次表。</td><td class="ver">v1.0</td></tr>
+  <tr><td>科目</td><td>名稱、是否主科(自動排課會優先排上午)。</td><td class="ver">v1.0</td></tr>
+  <tr><td>場地</td><td>名稱、類型(一般/專科/實習工場/戶外)、容量、適用科目。</td><td class="ver">v1.0</td></tr>
+  <tr><td>Excel 批次匯入</td><td>科目、教師、班級、配課四種範本;錯誤會指出第幾列哪一欄。教師匯入可選「既有教師改為更新資料」,只覆蓋有填的欄位。</td><td class="ver">v1.0 / v1.2.8</td></tr>
+  <tr><td>開新學期複製精靈</td><td>從既有學期複製教師/班級/科目/場地/節次表,班級年級自動 +1,畢業年級提示移除;兩學期資料互不影響。</td><td class="ver">v1.0</td></tr>
+</table></div>
+
+<h2 id="assign"><span class="no">03</span>配課</h2>
+<p class="intro">決定哪位老師、教哪個班、哪一科、每週幾節——排課的核心輸入。</p>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>基本配課</td><td>班級 × 科目 × 任課教師 × 每週節數。</td><td class="ver">v1.0</td></tr>
+  <tr><td>連堂</td><td>設定連堂長度(2~4 節)與每週次數,例如實習 3 節連上每週 2 次;連堂不跨午休。</td><td class="ver">v1.0</td></tr>
+  <tr><td>場地需求</td><td>指定特定場地,或只指定場地類型由自動排課挑選。</td><td class="ver">v1.0</td></tr>
+  <tr><td>協同教學</td><td>同一筆配課多位教師(第一位為主教),所有教師同時被占用。</td><td class="ver">v1.0</td></tr>
+  <tr><td>跑班群組</td><td>多個班級組成群組,群組內的多筆配課同一節一起上(多元選修、英數分組、社團)。成員班級須同一套節次表、各筆節數與連堂結構一致;同一位教師在群組內只能有一筆(v1.2.15 起會擋下)。</td><td class="ver">v1.0 / v1.2.15</td></tr>
+  <tr><td>即時鐘點側欄</td><td>每位教師「配課節數 vs 應授鐘點」,超鐘點紅字標示(如 +2)。</td><td class="ver">v1.0</td></tr>
+  <tr><td>超鐘點上限</td><td>配課超過「應授 + N 節」時擋下並指名(N 預設 8,0 表示不限制;沒填基本鐘點的教師不受限)。</td><td class="ver">v1.2.0</td></tr>
+  <tr><td>班級負荷警告</td><td>某班每週配課總節數超過可排節次時警告。</td><td class="ver">v1.0</td></tr>
+</table></div>
+
+<h2 id="manual"><span class="no">04</span>手動排課工作台</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>拖拉排課</td><td>左側未排課務清單(附剩餘節數)拖進週課表;拖回清單即移除。清單很長時課表固定、清單自己捲動。</td><td class="ver">v1.0 / v1.2.6</td></tr>
+  <tr><td>即時衝突檢查</td><td>可放顯示綠框、衝突顯示紅框並用人話說明原因(教師/班級/場地衝堂、教師不可排、非上課節次、每日上限…);跨節次表以實際時間判斷。</td><td class="ver">v1.0</td></tr>
+  <tr><td>三視角同步</td><td>班級/教師/場地三種角度檢視同一份課表,彼此即時同步。</td><td class="ver">v1.0</td></tr>
+  <tr><td>鎖定格位</td><td>鎖定後自動排課不會移動(第八節課後輔導、社團都靠這招)。</td><td class="ver">v1.0</td></tr>
+  <tr><td>復原/重做、自動儲存</td><td>Ctrl+Z 復原;編輯過程自動存草稿。</td><td class="ver">v1.0</td></tr>
+  <tr><td>跑班群組連動</td><td>群組內任一門課放入、移動、刪除、鎖定,整組一起動。</td><td class="ver">v1.0</td></tr>
+</table></div>
+
+<h2 id="auto"><span class="no">05</span>自動排課</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>排課引擎</td><td>以 Google OR-Tools(CP-SAT)求解;在背景工作排程執行,不影響匯出等其他工作。結果另存新草稿「來源名 自排結果」,來源草稿不受影響。</td><td class="ver">v1.0</td></tr>
+  <tr><td>硬性規則</td><td>班級、教師、場地同一節只能一堂課(跨節次表看實際時間);教師不可排時段;只排一般課節次;連堂連續且不跨午休;跑班群組同時段;每週節數守恆;鎖定格位不動;同班同科目每日上限(預設 2 節);場地類型符合。</td><td class="ver">v1.0</td></tr>
+  <tr><td>軟性偏好(S1–S8)</td><td>教師偏好/避開時段、同科分散在不同天、教師每日節數上限、空堂集中、主科排上午、教師連續授課上限、導師的課優先排自己班第一節、全校教師偏好達成的公平性。排完附各項達成度報告。</td><td class="ver">v1.0</td></tr>
+  <tr><td>排課前檢查</td><td>先檢查資料是否可能排得出來(教師配課超過可排格數、班級超量、場地不足、連堂放不下、跑班群組節數不一致或同一教師重複…),逐項說明。</td><td class="ver">v1.0 / v1.2.15</td></tr>
+  <tr><td>進度與提前結束</td><td>即時顯示已找到幾個解、目前目標值、經過時間;可設時間上限,找到解後可提前結束取當前最佳解。</td><td class="ver">v1.0</td></tr>
+  <tr><td>衝突定位</td><td>排不出來時指出是哪幾件事湊在一起、附數字與建議(例如「301 國文 12 節單節,但每日上限 2 × 5 天 = 10」),可一鍵照建議放寬後重試。</td><td class="ver">v1.0</td></tr>
+  <tr><td>部分排課</td><td>盡量排,把真的排不下的課列成未排清單並說明原因;可勾選放寬每日上限、教師不可排時段、鎖定格位;發布後仍查得到原因。</td><td class="ver">v1.1</td></tr>
+</table></div>
+
+<h2 id="publish"><span class="no">06</span>發布與全校查詢</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>多份草稿</td><td>同學期多份草稿並存,可複製、改名、刪除;已發布/已封存為唯讀快照。</td><td class="ver">v1.0</td></tr>
+  <tr><td>檢查課表</td><td>課務有沒有排完,以及衝堂、排在不可排時段、超過每日上限、連堂或節數與配課不符等衝突(多半來自排好後又改了資料)。草稿、已發布皆可檢查。</td><td class="ver">v1.2.18</td></tr>
+  <tr><td>發布</td><td>有未排完或衝突時先列清單,確認後才可強制發布;同學期至多一份已發布,舊版自動封存。重新發布時提醒有多少日後的調代課是依舊課表安排的。</td><td class="ver">v1.0 / v1.2.18</td></tr>
+  <tr><td>全校課表查詢</td><td>唯讀,依班級/教師/場地查詢已發布課表,手機版面可用;教師登入預設顯示本人課表。</td><td class="ver">v1.0</td></tr>
+</table></div>
+
+<h2 id="leave"><span class="no">07</span>請假與調代課處理</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>請假登記</td><td>教師自登或組長代登;假別有公假、事假、病假、婚假、喪假、產假、進修等;可整天、半天(指定時段)、多天、跨週。依已發布課表自動展開每一節受影響的課。</td><td class="ver">v1.0</td></tr>
+  <tr><td>銷假</td><td>未上的節次自動取消並通知代課老師;已上完的課照常計鐘點。</td><td class="ver">v1.0</td></tr>
+  <tr><td>五種處置</td><td>代課(計鐘點)、調課(兩人互換,不計)、併班(預設不計,可改)、自習、不處理;已處置的節次寫出「怎麼處置」,可撤回。</td><td class="ver">v1.0 / v1.2.4</td></tr>
+  <tr><td>代課推薦</td><td>列出當節有空的老師,同科、當天已在校者優先,附理由與本月已代節數;排很滿的老師自動排後面;無人可代時提示改併班或自習。</td><td class="ver">v1.0</td></tr>
+  <tr><td>計費方式</td><td>公費代課、自費代課、日薪代課、課務自理、不支鐘點,也可自行輸入;預設依假別(事假自費、其餘公費)。印在代課通知單上。</td><td class="ver">v1.2.5 / v1.2.19</td></tr>
+  <tr><td>整批指派代課</td><td>整張假單或其中一天一次派給同一位老師;代課老師自己有課的節次跳過並說明原因,已處理的不動。</td><td class="ver">v1.2.19</td></tr>
+  <tr><td>調課</td><td>列出可對調的節次:預設請假當週到下週,可放寬到往後 3 或 4 週;每個選項都已檢查雙方有空、沒有請假、沒被換過。預設列「也教這個班」的老師,可指定其他老師;支援連堂中的其中一節。研習可先登公假再調課。</td><td class="ver">v1.2.1</td></tr>
+  <tr><td>通知與確認</td><td>站內鈴鐺通知(含未讀數),設定 SMTP 時同步寄 Email;老師一鍵「確認收到」;調課雙方都收到通知,撤回也會通知。</td><td class="ver">v1.0</td></tr>
+  <tr><td>通知確認看板</td><td>每一筆的確認狀態,對未確認者一鍵再次提醒。</td><td class="ver">v1.0</td></tr>
+</table></div>
+
+<h2 id="print"><span class="no">08</span>看板、紀錄與各式通知單</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>今日調代課看板</td><td>選一天,列出全部異動(代課、調課、併班、自習、教室變動);調課在請假日與補課日兩天都列出。可列印 A4 公告單。</td><td class="ver">v1.0 / v1.2.1</td></tr>
+  <tr><td>調代課紀錄</td><td>依教師、日期區間、假別篩選;查一位老師時,他「缺的課」和「代的課」都會出現。</td><td class="ver">v1.0</td></tr>
+  <tr><td>調課通知單</td><td>照學校紙本格式的教師單與班級單(A4 直式週課表),可印一節、一張假單或篩選出的一週;跨週調課印成兩頁。</td><td class="ver">v1.2.2</td></tr>
+  <tr><td>代課通知單</td><td>教師單與班級單(含計費方式),併班標「[併]」;同一位代課老師多節合併成一張。</td><td class="ver">v1.2.5</td></tr>
+</table></div>
+
+<h2 id="stats"><span class="no">09</span>代課鐘點統計</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>月結報表</td><td>依教師彙總代課節數與計費節數(併班、自習不計),附逐節明細;跨月的假單依每一節的日期自動分月;可匯出 Excel(彙總＋明細)。</td><td class="ver">v1.0</td></tr>
+  <tr><td>日薪代課</td><td>計費方式為日薪的節次不計入鐘點,改列「日薪天數」(同一天算 1 天,註明共幾節);同一位請假教師同一天由兩位以上日薪代課分擔時,各算 1 天並標示「分擔」。</td><td class="ver">v1.2.19</td></tr>
+  <tr><td>教師個人查詢</td><td>教師可查自己每月代課的明細。</td><td class="ver">v1.0</td></tr>
+</table></div>
+<div class="note">只提供節數與天數,<b>不計算金額</b>(各縣市、各學制的單價與規定不同)。</div>
+
+<h2 id="patrol"><span class="no">10</span>巡堂表</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>巡堂紀錄</td><td>已發布課表＋當天調代課疊起來的真實樣貌。A4 橫式,班級為欄、節次為列,上午、下午各一張(早自習、午休不列);代課、調課、併班、自習、停課、請假待處理都會標示;超過 12 班自動分頁。可印當天或整週。</td><td class="ver">v1.2.12</td></tr>
+  <tr><td>分組巡堂單</td><td>同一節 4 組以上的跑班群組(社團、多元選修)另列清單,一列一組,編號固定依配課建立順序。</td><td class="ver">v1.2.12–13</td></tr>
+  <tr><td>匯出 Excel</td><td>內容同列印頁,每天上午、下午各一分頁,分組單另成頁;已設 A4 橫向一頁寬,可先改再印。</td><td class="ver">v1.2.14</td></tr>
+  <tr><td>記錄說明自訂</td><td>表格下方「授課情形、學生學習」的代碼說明可在系統管理改成各校寫法。</td><td class="ver">v1.2.12</td></tr>
+</table></div>
+
+<h2 id="export"><span class="no">11</span>匯出課表</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>單一課表</td><td>班級、教師或場地課表,Excel、PDF(內嵌中文字型)、PNG 三選一;所有登入者都能匯出。</td><td class="ver">v1.0</td></tr>
+  <tr><td>全校總表</td><td>一個 Excel,每班或每位教師一個分頁(教學組長以上)。</td><td class="ver">v1.0 / v1.2.9</td></tr>
+  <tr><td>批次打包</td><td>每班或每位教師一個 Excel,打包成 zip;在職教師全部列入(沒排課也有空白課表)。</td><td class="ver">v1.0 / v1.2.9</td></tr>
+</table></div>
+
+<h2 id="admin"><span class="no">12</span>系統管理</h2>
+<div class="tbl"><table>
+  <tr><th>功能</th><th>說明</th><th>版本</th></tr>
+  <tr><td>版本與新版提醒</td><td>顯示目前版本與 GitHub 上的最新正式版,有新版時附更新內容與升級指南連結;只提醒、不自動升級,每天最多查一次,可關閉。選單底部隨時顯示版本。</td><td class="ver">v1.2.3</td></tr>
+  <tr><td>學校資訊</td><td>校名(顯示在介面、匯出課表、通知信、公告單),改完立即生效。</td><td class="ver">v1.2.0</td></tr>
+  <tr><td>排課設定</td><td>超鐘點上限(應授 + N 節)。</td><td class="ver">v1.2.0</td></tr>
+  <tr><td>巡堂表設定</td><td>記錄說明的代碼文字。</td><td class="ver">v1.2.12</td></tr>
+  <tr><td>備份與還原</td><td>每日凌晨自動備份、保留 30 份;立即備份;下載異地保存、上傳還原;還原前自動先備份現狀,還原後所有人重新登入。</td><td class="ver">v1.0</td></tr>
+  <tr><td>Email 通知(SMTP)</td><td>選填;可寄測試信驗證。未設定時只有站內通知。</td><td class="ver">v1.0</td></tr>
+  <tr><td>重新啟動設定精靈</td><td>限系統管理員。</td><td class="ver">v1.0</td></tr>
+</table></div>
+
+<h2 id="ops"><span class="no">13</span>部署、升級與備份</h2>
+<div class="cards">
+  <div class="card"><b>Docker 一鍵部署</b><span>六個容器(網頁、API、排課工作、匯出/備份工作、PostgreSQL、Redis);官方映像 amd64＋arm64 雙架構,免建置直接拉取。</span></div>
+  <div class="card"><b>升級</b><span>改 .env 的 IMAGE_TAG 後 pull、up;資料庫遷移自動執行。至今所有 1.2.x 版本都沒有資料表結構變更,退回只要改回版本號。</span></div>
+  <div class="card"><b>HTTPS</b><span>設定網域即自動申請憑證(Caddy);未設定時為校內 HTTP。</span></div>
+  <div class="card"><b>資料不出校</b><span>單校自架,不連任何雲端服務;唯一的對外連線是每天一次的版本查詢,可關閉。</span></div>
+</div>
+<div class="note good">每一版發布前都經過:後端 625 項、前端 30 項、端對端 49 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
+
+<h2 id="limits"><span class="no">14</span>目前的限制</h2>
+<p class="intro">已知、尚未處理的部分。多數有變通做法(見手冊 FAQ)。</p>
+<div class="tbl"><table>
+  <tr><th>項目</th><th>現況與變通</th></tr>
+  <tr><td>單雙週課程<span class="tag plan">開發中</span></td><td>課表每週相同,沒有單週/雙週。暫時可用「合併科目＋協同教學」或跑班群組變通,但兩位老師每週都被視為有課、請假時無法判斷當週輪到誰。<b>將於 v1.3.0 正式支援。</b></td></tr>
+  <tr><td>兼課、輔導費月結<span class="tag plan">待討論</span></td><td>月結只有代課;超鐘點(兼課)與課後輔導「當月實際上了幾節」需要學校停課日資料,尚未提供。</td></tr>
+  <tr><td>鐘點費金額<span class="tag limit">不做</span></td><td>系統只算節數與天數,金額由學校依規定計算。</td></tr>
+  <tr><td>跑班格子的顯示<span class="tag limit">限制</span></td><td>班級課表與匯出的同一格若是跑班群組(多門課同時),只顯示其中一門。</td></tr>
+  <tr><td>配課清單的場地欄<span class="tag limit">限制</span></td><td>指定了特定場地的配課,清單的「場地」欄仍只顯示類型需求。</td></tr>
+  <tr><td>跑班群組只能單節放入<span class="tag limit">限制</span></td><td>手動放入群組一律是單節;連上兩節的社團請「節數 2、不設連堂、拖兩次再鎖定」。</td></tr>
+  <tr><td>分組巡堂單順序<span class="tag limit">限制</span></td><td>固定依配課建立的順序,無法手動調整。</td></tr>
+  <tr><td>課表格子的違規標記<span class="tag limit">未做</span></td><td>衝突在「檢查課表」與發布時列出,課表格子上沒有常駐標記。</td></tr>
+  <tr><td>排課參數沒有設定畫面<span class="tag limit">限制</span></td><td>同班同科目每日上限(2 節)、教師每日節數與連續授課上限、偏好權重都使用預設值,畫面上沒有地方修改;排不出來時可在「部分排課」勾選放寬每日上限。</td></tr>
+  <tr><td>兩部之間的移動時間</td><td>跨部老師不考慮移動時間;需要的話用教師不可排時段保留。</td></tr>
+</table></div>
+
+<h2 id="plan"><span class="no">15</span>規劃中</h2>
+<div class="tbl"><table>
+  <tr><th>項目</th><th>內容</th><th>預定</th></tr>
+  <tr><td>單雙週課程</td><td>配課可建「單雙週組」:同一節單週上 A 科、雙週上 B 科(通常兩位老師,兩班交叉對開)。學期第一週為單週、之後固定輪流。課表、自動排課、請假代課、調課、看板、巡堂表、通知單、檢查課表、鐘點計算全面支援。需要資料表結構變更,升級前須先備份。</td><td class="ver">v1.3.0</td></tr>
+  <tr><td>工程改善</td><td>API 映像拆掉排課引擎(約 674MB → 200MB)、前端按需載入、科目匯入支援主科欄、配課當下擋群組節數不一致、還原上傳改串流。</td><td class="ver">之後</td></tr>
+</table></div>
+
+<h2 id="history"><span class="no">16</span>版本沿革</h2>
+<div class="tbl"><table>
+  <tr><th>版本</th><th>日期</th><th>重點</th></tr>
+  <tr><td>v1.0.0</td><td class="ver">2026-07-12</td><td>首次公開發行:基礎資料、配課、手動與自動排課、發布、調代課、匯出、備份全流程</td></tr>
+  <tr><td>v1.1.0–1.1.2</td><td class="ver">2026-07-14</td><td>加固:排課不堵匯出、部分排課、班名不重複</td></tr>
+  <tr><td>v1.2.0</td><td class="ver">2026-08-02</td><td>一鍵示範資料、校名可在系統內設定、超鐘點上限</td></tr>
+  <tr><td>v1.2.1–1.2.5</td><td class="ver">2026-09-17~26</td><td>調課、調課通知單、版本提醒、處置寫清楚、代課通知單與計費方式</td></tr>
+  <tr><td>v1.2.6–1.2.9</td><td class="ver">2026-10-01~02</td><td>外部使用者回報修正、學期起訖可編輯、教師批次更新與帳號停用、全校教師課表匯出</td></tr>
+  <tr><td>v1.2.10–1.2.11</td><td class="ver">2026-10-04</td><td>國中小、完全中學:跨部老師的實際上課時間與節數不同</td></tr>
+  <tr><td>v1.2.12–1.2.14</td><td class="ver">2026-10-06</td><td>巡堂表列印、分組巡堂單、匯出 Excel</td></tr>
+  <tr><td>v1.2.15–1.2.16</td><td class="ver">2026-10-07</td><td>跑班群組:重複教師檢查、每日節數算法</td></tr>
+  <tr><td>v1.2.17–1.2.18</td><td class="ver">2026-10-08</td><td>登入重複送出修正、檢查課表</td></tr>
+  <tr><td>v1.2.19</td><td class="ver">2026-10-09</td><td>日薪代課、整批指派代課</td></tr>
+</table></div>
+
+<h2 id="feedback"><span class="no">17</span>意見回報</h2>
+<p class="intro">這一版的多數改進都來自老師們的回報。遇到問題、學校有特別的做法,或想要什麼功能,都歡迎告訴我們。</p>
+<div class="note good">
+  <b>GitHub Issues:</b><a href="https://github.com/begin0808/Course_Scheduling_System/issues">github.com/begin0808/Course_Scheduling_System/issues</a><br>
+  按右上角「New issue」就能留言(需要免費的 GitHub 帳號)。回報問題時附上<b>系統版本</b>(選單底部)、<b>操作步驟</b>和<b>畫面截圖</b>,會更快找到原因;截圖請先遮住老師姓名等個人資料。
+</div>
+
+<footer>排課與調代課系統 · 功能總覽 · 對應 v1.2.19 · 開源免費(MIT)· 單校自架</footer>
+</div>
+</body>
+</html>
