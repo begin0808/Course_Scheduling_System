@@ -86,6 +86,7 @@ def _serialize_entry(e: ScheduleEntry) -> ScheduleEntryOut:
         teacher_ids=[at.teacher_id for at in a.teachers],
         class_ids=[m.class_unit_id for m in su.members],
         room_id=e.effective_room_id,
+        week_parity=a.week_parity,
     )
 
 

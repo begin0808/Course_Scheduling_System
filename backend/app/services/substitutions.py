@@ -252,6 +252,9 @@ def _validate_swap(
             f"{swap_date} 是 {_wd(swap_date.isoweekday())},"
             f"但對調的課在 {_wd(entry.weekday)},補課日期與該節課星期不符"
         )
+    if not av.entry_runs_on(entry, swap_date):
+        week = "單週" if av.week_of(swap_date) == "odd" else "雙週"
+        raise SubstitutionError(f"{swap_date} 是{week},那一週沒有這堂課(單雙週的課)")
     period_no = entry.period_no if swap_period_no is None else swap_period_no
     if period_no not in block_periods(av, entry):
         raise SubstitutionError("指定的節次不在這堂課的時段內")

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="排課與調代課系統 v1.2.19 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
+<meta name="description" content="排課與調代課系統 v1.3.0 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
 <title>功能總覽 · 排課與調代課系統</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📋</text></svg>">
 <style>
@@ -90,7 +90,7 @@
 <header>
   <div class="eyebrow">FEATURE OVERVIEW</div>
   <h1>排課與調代課系統 · 功能總覽</h1>
-  <p class="lead">目前最新版 <b>v1.2.19</b>(2026-10-09)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">寫信或到 GitHub Issues 回報</a>。</p>
+  <p class="lead">目前最新版 <b>v1.3.0</b>(2026-10-18)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">寫信或到 GitHub Issues 回報</a>。</p>
   <div class="meta">
     <span class="chip">單校自架 · 資料不出校</span>
     <span class="chip">開源免費(MIT)</span>
@@ -160,6 +160,7 @@
   <tr><td>場地需求</td><td>指定特定場地,或只指定場地類型由自動排課挑選。</td><td class="ver">v1.0</td></tr>
   <tr><td>協同教學</td><td>同一筆配課多位教師(第一位為主教),所有教師同時被占用。</td><td class="ver">v1.0</td></tr>
   <tr><td>跑班群組</td><td>多個班級組成群組,群組內的多筆配課同一節一起上(多元選修、英數分組、社團)。成員班級須同一套節次表、各筆節數與連堂結構一致;同一位教師在群組內只能有一筆(v1.2.15 起會擋下)。</td><td class="ver">v1.0 / v1.2.15</td></tr>
+  <tr><td>單雙週組</td><td>同一節單週、雙週輪流上兩門課(例:701 週一三四節單週生科、雙週資科;702 反過來)。一組一個班,單週、雙週各一筆,節數與連堂相同。學期第一週為單週、之後固定輪流;隔週的課鐘點算一半。</td><td class="ver">v1.3.0</td></tr>
   <tr><td>即時鐘點側欄</td><td>每位教師「配課節數 vs 應授鐘點」,超鐘點紅字標示(如 +2)。</td><td class="ver">v1.0</td></tr>
   <tr><td>超鐘點上限</td><td>配課超過「應授 + N 節」時擋下並指名(N 預設 8,0 表示不限制;沒填基本鐘點的教師不受限)。</td><td class="ver">v1.2.0</td></tr>
   <tr><td>班級負荷警告</td><td>某班每週配課總節數超過可排節次時警告。</td><td class="ver">v1.0</td></tr>
@@ -174,6 +175,7 @@
   <tr><td>鎖定格位</td><td>鎖定後自動排課不會移動(第八節課後輔導、社團都靠這招)。</td><td class="ver">v1.0</td></tr>
   <tr><td>復原/重做、自動儲存</td><td>Ctrl+Z 復原;編輯過程自動存草稿。</td><td class="ver">v1.0</td></tr>
   <tr><td>跑班群組連動</td><td>群組內任一門課放入、移動、刪除、鎖定,整組一起動。</td><td class="ver">v1.0</td></tr>
+  <tr><td>單雙週</td><td>單雙週組合成一張卡片,拖一次放入單週、雙週兩堂(可連堂);衝堂判斷分單雙週,單週在 701、雙週在 702 不算衝堂。格子上下列出「單/雙」兩堂。</td><td class="ver">v1.3.0</td></tr>
 </table></div>
 
 <h2 id="auto"><span class="no">05</span>自動排課</h2>
@@ -200,7 +202,7 @@
 <h2 id="leave"><span class="no">07</span>請假與調代課處理</h2>
 <div class="tbl"><table>
   <tr><th>功能</th><th>說明</th><th>版本</th></tr>
-  <tr><td>請假登記</td><td>教師自登或組長代登;假別有公假、事假、病假、婚假、喪假、產假、進修等;可整天、半天(指定時段)、多天、跨週。依已發布課表自動展開每一節受影響的課。</td><td class="ver">v1.0</td></tr>
+  <tr><td>請假登記</td><td>教師自登或組長代登;假別有公假、事假、病假、婚假、喪假、產假、進修等;可整天、半天(指定時段)、多天、跨週。依已發布課表自動展開每一節受影響的課;單雙週的課只列那一週真的有上的。</td><td class="ver">v1.0 / v1.3.0</td></tr>
   <tr><td>銷假</td><td>未上的節次自動取消並通知代課老師;已上完的課照常計鐘點。</td><td class="ver">v1.0</td></tr>
   <tr><td>五種處置</td><td>代課(計鐘點)、調課(兩人互換,不計)、併班(預設不計,可改)、自習、不處理;已處置的節次寫出「怎麼處置」,可撤回。</td><td class="ver">v1.0 / v1.2.4</td></tr>
   <tr><td>代課推薦</td><td>列出當節有空的老師,同科、當天已在校者優先,附理由與本月已代節數;排很滿的老師自動排後面;無人可代時提示改併班或自習。</td><td class="ver">v1.0</td></tr>
@@ -261,17 +263,18 @@
 <h2 id="ops"><span class="no">13</span>部署、升級與備份</h2>
 <div class="cards">
   <div class="card"><b>Docker 一鍵部署</b><span>六個容器(網頁、API、排課工作、匯出/備份工作、PostgreSQL、Redis);官方映像 amd64＋arm64 雙架構,免建置直接拉取。</span></div>
-  <div class="card"><b>升級</b><span>改 .env 的 IMAGE_TAG 後 pull、up;資料庫遷移自動執行。至今所有 1.2.x 版本都沒有資料表結構變更,退回只要改回版本號。</span></div>
+  <div class="card"><b>升級</b><span>改 .env 的 IMAGE_TAG 後 pull、up;資料庫遷移自動執行。1.2.x 各版都沒有資料表結構變更;v1.3.0 首次變更,升級前務必備份,退回需還原備份。</span></div>
   <div class="card"><b>HTTPS</b><span>設定網域即自動申請憑證(Caddy);未設定時為校內 HTTP。</span></div>
   <div class="card"><b>資料不出校</b><span>單校自架,不連任何雲端服務;唯一的對外連線是每天一次的版本查詢,可關閉。</span></div>
 </div>
-<div class="note good">每一版發布前都經過:後端 625 項、前端 30 項、端對端 49 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
+<div class="note good">每一版發布前都經過:後端 647 項、前端 31 項、端對端 50 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
 
 <h2 id="limits"><span class="no">14</span>目前的限制</h2>
 <p class="intro">已知、尚未處理的部分。多數有變通做法(見手冊 FAQ)。</p>
 <div class="tbl"><table>
   <tr><th>項目</th><th>現況與變通</th></tr>
-  <tr><td>單雙週課程<span class="tag plan">開發中</span></td><td>課表每週相同,沒有單週/雙週。暫時可用「合併科目＋協同教學」或跑班群組變通,但兩位老師每週都被視為有課、請假時無法判斷當週輪到誰。<b>將於 v1.3.0 正式支援。</b></td></tr>
+  <tr><td>跑班群組＋單雙週<span class="tag limit">未做</span></td><td>單雙週組只支援一個班的兩門課;「單週社團、雙週班會」這類整個群組隔週輪流尚未支援。</td></tr>
+  <tr><td>匯入配課的單雙週<span class="tag limit">未做</span></td><td>Excel 匯入配課還不能設定單雙週,請匯入後在畫面上組成單雙週組。</td></tr>
   <tr><td>兼課、輔導費月結<span class="tag plan">待討論</span></td><td>月結只有代課;超鐘點(兼課)與課後輔導「當月實際上了幾節」需要學校停課日資料,尚未提供。</td></tr>
   <tr><td>鐘點費金額<span class="tag limit">不做</span></td><td>系統只算節數與天數,金額由學校依規定計算。</td></tr>
   <tr><td>跑班格子的顯示<span class="tag limit">限制</span></td><td>班級課表與匯出的同一格若是跑班群組(多門課同時),只顯示其中一門。</td></tr>
@@ -286,7 +289,7 @@
 <h2 id="plan"><span class="no">15</span>規劃中</h2>
 <div class="tbl"><table>
   <tr><th>項目</th><th>內容</th><th>預定</th></tr>
-  <tr><td>單雙週課程</td><td>配課可建「單雙週組」:同一節單週上 A 科、雙週上 B 科(通常兩位老師,兩班交叉對開)。學期第一週為單週、之後固定輪流。課表、自動排課、請假代課、調課、看板、巡堂表、通知單、檢查課表、鐘點計算全面支援。需要資料表結構變更,升級前須先備份。</td><td class="ver">v1.3.0</td></tr>
+  <tr><td>匯入配課支援單雙週</td><td>Excel 範本加上單週/雙週與配對欄位,並與舊範本相容。</td><td class="ver">v1.3.x</td></tr>
   <tr><td>工程改善</td><td>API 映像拆掉排課引擎(約 674MB → 200MB)、前端按需載入、科目匯入支援主科欄、配課當下擋群組節數不一致、還原上傳改串流。</td><td class="ver">之後</td></tr>
 </table></div>
 
@@ -303,6 +306,7 @@
   <tr><td>v1.2.15–1.2.16</td><td class="ver">2026-10-07</td><td>跑班群組:重複教師檢查、每日節數算法</td></tr>
   <tr><td>v1.2.17–1.2.18</td><td class="ver">2026-10-08</td><td>登入重複送出修正、檢查課表</td></tr>
   <tr><td>v1.2.19</td><td class="ver">2026-10-09</td><td>日薪代課、整批指派代課</td></tr>
+  <tr><td>v1.3.0</td><td class="ver">2026-10-18</td><td>單雙週課程(首次資料表結構變更)</td></tr>
 </table></div>
 
 <h2 id="feedback"><span class="no">17</span>意見回報</h2>
@@ -313,7 +317,7 @@
 </div>
 <div class="note good">回報問題時附上<b>系統版本</b>(選單底部)、<b>操作步驟</b>和<b>畫面截圖</b>,會更快找到原因;截圖請先遮住老師姓名等個人資料。</div>
 
-<footer>排課與調代課系統 · 功能總覽 · 對應 v1.2.19 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
+<footer>排課與調代課系統 · 功能總覽 · 對應 v1.3.0 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
 </div>
 </body>
 </html>

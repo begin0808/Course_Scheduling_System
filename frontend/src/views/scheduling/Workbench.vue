@@ -140,8 +140,13 @@ const visibleEntries = computed<GridEntry[]>(() => {
     // 教師/場地視角照預設節次表畫格線;另一套節次表的課要標出實際時間
     note: view.value === 'class' ? undefined
       : crossTableNote(e, classes.value, allTables.value, defaultTable.value),
+    week: weekTag(e.week_parity),
   }))
 })
+
+function weekTag(p?: 'odd' | 'even' | null): '單' | '雙' | undefined {
+  return p === 'odd' ? '單' : p === 'even' ? '雙' : undefined
+}
 
 // ── 未排課務(班級視角)──
 const placedByAssignment = computed(() => {
@@ -151,19 +156,35 @@ const placedByAssignment = computed(() => {
   }
   return m
 })
-interface TrayItem { a: Assignment; remaining: number; span: number }
+// pair:單雙週組的另一週那筆。兩筆一起排進同一格,清單上合成一張卡片(v1.3.0)
+interface TrayItem { a: Assignment; remaining: number; span: number; pair?: Assignment }
 const trayItems = computed<TrayItem[]>(() => {
   if (view.value !== 'class' || !classId.value) return []
-  return assignments.value
+  const mine = assignments.value
     .filter((a) => a.scheduling_unit.classes.some((c) => c.id === classId.value))
-    .map((a) => {
-      const remaining = a.periods_per_week - (placedByAssignment.value.get(a.id) ?? 0)
-      const b = a.block_rules[0]
-      const span = b && remaining >= b.block_size ? b.block_size : 1
-      return { a, remaining, span }
-    })
-    .filter((x) => x.remaining > 0)
+  const items: TrayItem[] = []
+  for (const a of mine) {
+    if (a.week_parity === 'even' && mine.some(
+      (o) => o.scheduling_unit.id === a.scheduling_unit.id && o.week_parity === 'odd')) continue
+    const remaining = a.periods_per_week - (placedByAssignment.value.get(a.id) ?? 0)
+    const b = a.block_rules[0]
+    const span = b && remaining >= b.block_size ? b.block_size : 1
+    const pair = a.week_parity === 'odd'
+      ? mine.find((o) => o.scheduling_unit.id === a.scheduling_unit.id && o.week_parity === 'even')
+      : undefined
+    items.push({ a, remaining, span, pair })
+  }
+  return items.filter((x) => x.remaining > 0)
 })
+function trayTitle(item: TrayItem): string {
+  if (item.a.week_parity && item.pair) return `單 ${item.a.subject.name}/雙 ${item.pair.subject.name}`
+  if (item.a.week_parity) return `${item.a.week_parity === 'odd' ? '單' : '雙'} ${item.a.subject.name}`
+  return item.a.subject.name
+}
+function trayTeachers(item: TrayItem): string {
+  const names = (a: Assignment) => a.teachers.map((t) => t.name).join('、')
+  return item.pair ? `${names(item.a)}/${names(item.pair)}` : names(item.a)
+}
 const totalRemaining = computed(() => trayItems.value.reduce((n, x) => n + x.remaining, 0))
 
 // ── 拖拉與衝突檢查 ──
@@ -412,11 +433,12 @@ function onKey(ev: KeyboardEvent) {
               @dragstart="onTrayDragStart(item, $event)" @dragend="clearDrag"
             >
               <div class="tray-subject">
-                {{ item.a.subject.name }}
+                {{ trayTitle(item) }}
+                <n-tag v-if="item.a.week_parity" size="tiny" type="info">單雙週</n-tag>
                 <n-tag v-if="item.span > 1" size="tiny" type="warning">{{ item.span }}連堂</n-tag>
               </div>
               <div class="tray-meta">
-                {{ item.a.teachers.map((t) => t.name).join('、') }} · 剩 {{ item.remaining }} 節
+                {{ trayTeachers(item) }} · 剩 {{ item.remaining }} 節
               </div>
             </div>
             <n-text depth="3" style="font-size: 12px">

@@ -96,4 +96,15 @@ describe('TimetableGrid', () => {
     await cell(w, 1, 3).trigger('drop', { dataTransfer: { ...DT } })
     expect(w.emitted('drop')).toBeUndefined()
   })
+  it('單雙週的格子:單週、雙週兩堂上下並列,單週在上', () => {
+    const alt: GridEntry[] = [
+      { id: 11, weekday: 2, period_no: 3, subject: '資科', teacher: '乙師', week: '雙' },
+      { id: 10, weekday: 2, period_no: 3, subject: '生科', teacher: '甲師', week: '單' },
+    ]
+    const w = mount(TimetableGrid, { props: { periods, entries: alt } })
+    const lines = cell(w, 2, 3).findAll('[data-testid="tg-week"]')
+    expect(lines).toHaveLength(2)
+    expect(lines[0].text()).toBe('單生科甲師')
+    expect(lines[1].text()).toBe('雙資科乙師')
+  })
 })

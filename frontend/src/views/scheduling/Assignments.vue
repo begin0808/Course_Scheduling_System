@@ -6,10 +6,12 @@ import {
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
 import {
-  createAssignment, createGroup, deleteAssignment, deleteGroup, listAssignments, listGroups,
-  updateAssignment, teacherLoad, classLoad,
+  WEEK_LABELS, createAlternate, createAssignment, createGroup, deleteAssignment, deleteGroup,
+  listAlternates, listAssignments, listGroups, updateAssignment, teacherLoad, classLoad,
 } from '@/api/assignments'
-import type { Assignment, AssignmentPayload, ClassLoad, SchedulingUnit, TeacherLoad } from '@/api/assignments'
+import type {
+  Assignment, AssignmentPayload, ClassLoad, SchedulingUnit, TeacherLoad, WeekParity,
+} from '@/api/assignments'
 import { listClassUnits, listRooms, listSubjects, listTeachers, ROOM_TYPE_LABELS } from '@/api/basedata'
 import type { ClassUnit, Room, Subject, Teacher } from '@/api/basedata'
 import { listSemesters } from '@/api/semesters'
@@ -26,6 +28,7 @@ const subjects = ref<Subject[]>([])
 const teachers = ref<Teacher[]>([])
 const rooms = ref<Room[]>([])
 const groups = ref<SchedulingUnit[]>([])
+const alternates = ref<SchedulingUnit[]>([])
 const assignments = ref<Assignment[]>([])
 const loads = ref<TeacherLoad[]>([])
 const classLoads = ref<ClassLoad[]>([])
@@ -37,6 +40,16 @@ const teacherOptions = computed(() => teachers.value.map((t) => ({ label: t.name
 const roomOptions = computed(() => rooms.value.map((r) => ({ label: r.name, value: r.id })))
 const roomTypeOptions = Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => ({ label, value }))
 const groupOptions = computed(() => groups.value.map((g) => ({ label: g.name, value: g.id })))
+const alternateOptions = computed(() =>
+  alternates.value.map((g) => ({ label: g.name, value: g.id })))
+/** 單雙週組已經配了哪幾週(引導組長補齊另一筆) */
+function weeksOf(u: SchedulingUnit): { odd?: Assignment; even?: Assignment } {
+  const out: { odd?: Assignment; even?: Assignment } = {}
+  for (const a of assignments.value) {
+    if (a.scheduling_unit.id === u.id && a.week_parity) out[a.week_parity] = a
+  }
+  return out
+}
 
 async function loadBase(id: number) {
   ;[classes.value, subjects.value, teachers.value, rooms.value] = await Promise.all([
@@ -44,9 +57,10 @@ async function loadBase(id: number) {
   ])
 }
 async function reloadAll(id: number) {
-  ;[assignments.value, groups.value, loads.value, classLoads.value] = await Promise.all([
-    listAssignments(id), listGroups(id), teacherLoad(id), classLoad(id),
-  ])
+  ;[assignments.value, groups.value, alternates.value, loads.value, classLoads.value] =
+    await Promise.all([
+      listAssignments(id), listGroups(id), listAlternates(id), teacherLoad(id), classLoad(id),
+    ])
 }
 async function onSemesterChange(id: number) {
   sid.value = id
@@ -69,20 +83,25 @@ function loadTagType(l: TeacherLoad): 'success' | 'error' | 'warning' | 'info' {
   return 'success'
 }
 
+// 單雙週的課鐘點算一半,可能出現 .5
+function num(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1)
+}
+
 function loadTagText(l: TeacherLoad): string {
   if (l.delta > 0) {
     return l.over_limit
-      ? `+${l.delta} 超過上限 ${l.max_overtime}`
-      : `+${l.delta} 超鐘點`
+      ? `+${num(l.delta)} 超過上限 ${l.max_overtime}`
+      : `+${num(l.delta)} 超鐘點`
   }
-  return l.delta < 0 ? `${l.delta} 不足` : '剛好'
+  return l.delta < 0 ? `${num(l.delta)} 不足` : '剛好'
 }
 
 // ── 配課 modal ──
 const show = ref(false)
 const editingId = ref<number | null>(null)
 interface AForm {
-  target: 'single' | 'group'
+  target: 'single' | 'group' | 'alternate'
   class_id: number | null
   scheduling_unit_id: number | null
   subject_id: number | null
@@ -93,12 +112,13 @@ interface AForm {
   required_room_type: string | null
   room_id: number | null
   lock_room: boolean
+  week_parity: WeekParity | null
 }
 function emptyForm(): AForm {
   return {
     target: 'single', class_id: null, scheduling_unit_id: null, subject_id: null,
     teacher_ids: [], lead_teacher_id: null, periods_per_week: 1, block_rules: [],
-    required_room_type: null, room_id: null, lock_room: false,
+    required_room_type: null, room_id: null, lock_room: false, week_parity: null,
   }
 }
 const form = ref<AForm>(emptyForm())
@@ -111,11 +131,24 @@ function openCreate() {
   form.value = emptyForm()
   show.value = true
 }
+/** 從單雙週組卡片直接新增那一組缺的那一週 */
+function openCreateWeek(u: SchedulingUnit, week: WeekParity, from?: Assignment) {
+  editingId.value = null
+  form.value = {
+    ...emptyForm(), target: 'alternate', scheduling_unit_id: u.id, week_parity: week,
+    // 另一週的節數與連堂要相同,先帶入
+    periods_per_week: from?.periods_per_week ?? 1,
+    block_rules: from?.block_rules.map((b) => ({ ...b })) ?? [],
+  }
+  show.value = true
+}
 function openEdit(a: Assignment) {
   editingId.value = a.id
-  const isGroup = a.scheduling_unit.unit_type === 'group'
+  const kind = a.scheduling_unit.unit_type
+  const isGroup = kind !== 'single'
   form.value = {
-    target: isGroup ? 'group' : 'single',
+    target: kind === 'alternate' ? 'alternate' : isGroup ? 'group' : 'single',
+    week_parity: a.week_parity,
     class_id: isGroup ? null : (a.scheduling_unit.classes[0]?.id ?? null),
     scheduling_unit_id: isGroup ? a.scheduling_unit.id : null,
     subject_id: a.subject.id,
@@ -140,13 +173,16 @@ async function save() {
   const f = form.value
   if (f.target === 'single' && !f.class_id) return message.warning('請選擇班級')
   if (f.target === 'group' && !f.scheduling_unit_id) return message.warning('請選擇跑班群組')
+  if (f.target === 'alternate' && !f.scheduling_unit_id) return message.warning('請選擇單雙週組')
+  if (f.target === 'alternate' && !f.week_parity) return message.warning('請選擇單週或雙週')
   if (!f.subject_id) return message.warning('請選擇科目')
   if (f.teacher_ids.length === 0) return message.warning('請至少指定一位教師')
   const lead = f.lead_teacher_id && f.teacher_ids.includes(f.lead_teacher_id)
     ? f.lead_teacher_id : f.teacher_ids[0]
   const payload: AssignmentPayload = {
     class_id: f.target === 'single' ? f.class_id : null,
-    scheduling_unit_id: f.target === 'group' ? f.scheduling_unit_id : null,
+    scheduling_unit_id: f.target === 'single' ? null : f.scheduling_unit_id,
+    week_parity: f.target === 'alternate' ? f.week_parity : null,
     subject_id: f.subject_id,
     periods_per_week: f.periods_per_week,
     teachers: f.teacher_ids.map((id) => ({ teacher_id: id, is_lead: id === lead })),
@@ -200,9 +236,31 @@ async function removeGroup(g: SchedulingUnit) {
   }
 }
 
+// ── 單雙週組 modal ──
+const altShow = ref(false)
+const altClass = ref<number | null>(null)
+function openAlternate() {
+  altClass.value = null
+  altShow.value = true
+}
+async function saveAlternate() {
+  if (!altClass.value) return message.warning('請選擇班級')
+  try {
+    const u = await createAlternate(sid.value!, { class_id: altClass.value })
+    altShow.value = false
+    message.success(`已建立「${u.name}」,接著新增單週與雙週的課`)
+    await reloadAll(sid.value!)
+  } catch (e) {
+    message.error((e as ApiError).detail || '建立失敗')
+  }
+}
+
 function unitLabel(a: Assignment): string {
   const u = a.scheduling_unit
   if (u.unit_type === 'group') return `${u.name}(跑班)`
+  if (u.unit_type === 'alternate') {
+    return `${u.name}(${a.week_parity ? WEEK_LABELS[a.week_parity] : '未設週別'})`
+  }
   const c = u.classes[0]
   return c ? `${c.grade}年${c.name}` : u.name
 }
@@ -230,6 +288,7 @@ function blockLabel(a: Assignment): string {
         <n-space>
           <n-button type="primary" data-testid="assignment-add" @click="openCreate">新增配課</n-button>
           <n-button data-testid="group-add" @click="openGroup">新增跑班群組</n-button>
+          <n-button data-testid="alt-add" @click="openAlternate">新增單雙週組</n-button>
         </n-space>
 
         <n-card title="配課清單" size="small">
@@ -269,6 +328,38 @@ function blockLabel(a: Assignment): string {
           </table>
         </n-card>
 
+        <n-card v-if="alternates.length" title="單雙週組" size="small" data-testid="alt-list">
+          <n-text depth="3" style="display: block; margin-bottom: 8px">
+            同一格單週、雙週輪流上兩門課(學期第一週為單週)。單週、雙週各配一筆,節數與連堂要相同。
+          </n-text>
+          <n-space vertical size="small">
+            <n-space
+              v-for="u in alternates" :key="u.id" align="center" justify="space-between"
+              :data-testid="`alt-${u.name}`"
+            >
+              <n-space align="center" size="small">
+                <strong>{{ u.name }}</strong>
+                <template v-for="w in (['odd', 'even'] as const)" :key="w">
+                  <n-tag v-if="weeksOf(u)[w]" size="small" type="success">
+                    {{ WEEK_LABELS[w] }}:{{ weeksOf(u)[w]!.subject.name }}
+                    {{ weeksOf(u)[w]!.teachers.map((t) => t.name).join('、') }}
+                  </n-tag>
+                  <n-button
+                    v-else size="tiny" type="warning" dashed :data-testid="`alt-add-${w}`"
+                    @click="openCreateWeek(u, w, weeksOf(u)[w === 'odd' ? 'even' : 'odd'])"
+                  >
+                    + 新增{{ WEEK_LABELS[w] }}的課
+                  </n-button>
+                </template>
+              </n-space>
+              <n-popconfirm @positive-click="removeGroup(u)">
+                <template #trigger><n-button size="tiny" type="error" ghost>刪除</n-button></template>
+                刪除單雙週組將一併移除其配課,確定?
+              </n-popconfirm>
+            </n-space>
+          </n-space>
+        </n-card>
+
         <n-card v-if="groups.length" title="跑班群組" size="small">
           <n-space vertical size="small">
             <n-space v-for="g in groups" :key="g.id" align="center" justify="space-between">
@@ -296,7 +387,7 @@ function blockLabel(a: Assignment): string {
             <tbody>
               <tr v-for="l in loads" :key="l.teacher_id">
                 <td>{{ l.name }}</td>
-                <td>{{ l.assigned }} / {{ l.target }}</td>
+                <td>{{ num(l.assigned) }} / {{ l.target }}</td>
                 <td>
                   <n-tag size="tiny" :type="loadTagType(l)">
                     {{ loadTagText(l) }}
@@ -325,15 +416,26 @@ function blockLabel(a: Assignment): string {
         <n-radio-group v-model:value="form.target">
           <n-radio-button value="single">單一班級</n-radio-button>
           <n-radio-button value="group">跑班群組</n-radio-button>
+          <n-radio-button value="alternate" data-testid="a-target-alt">單雙週組</n-radio-button>
         </n-radio-group>
         <n-select
           v-if="form.target === 'single'" v-model:value="form.class_id"
           data-testid="a-class" :options="classOptions" placeholder="選擇班級" filterable
         />
         <n-select
-          v-else v-model:value="form.scheduling_unit_id"
+          v-else-if="form.target === 'group'" v-model:value="form.scheduling_unit_id"
           :options="groupOptions" placeholder="選擇跑班群組(需先建立)"
         />
+        <template v-else>
+          <n-select
+            v-model:value="form.scheduling_unit_id" data-testid="a-alt-unit"
+            :options="alternateOptions" placeholder="選擇單雙週組(需先建立)"
+          />
+          <n-radio-group v-model:value="form.week_parity" data-testid="a-week">
+            <n-radio-button value="odd">單週</n-radio-button>
+            <n-radio-button value="even">雙週</n-radio-button>
+          </n-radio-group>
+        </template>
 
         <n-text>科目</n-text>
         <n-select v-model:value="form.subject_id" data-testid="a-subject" :options="subjectOptions" filterable placeholder="選擇科目" />
@@ -379,6 +481,22 @@ function blockLabel(a: Assignment): string {
         <n-checkbox v-model:checked="form.lock_room">鎖定場地(排課不得更動)</n-checkbox>
 
         <n-button type="primary" data-testid="a-save" @click="save">儲存</n-button>
+      </n-space>
+    </n-modal>
+
+    <!-- 單雙週組 modal -->
+    <n-modal v-model:show="altShow" preset="card" title="新增單雙週組" style="max-width: 460px">
+      <n-space vertical>
+        <n-text depth="3">
+          同一格單週、雙週輪流上兩門課,例如週一三、四節單週生科、雙週資科。
+          一組放一個班;建好後再新增單週、雙週各一筆配課。
+        </n-text>
+        <n-text>班級</n-text>
+        <n-select
+          v-model:value="altClass" data-testid="alt-class" :options="classOptions"
+          filterable placeholder="選擇班級"
+        />
+        <n-button type="primary" data-testid="alt-save" @click="saveAlternate">建立</n-button>
       </n-space>
     </n-modal>
 

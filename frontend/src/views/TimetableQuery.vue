@@ -141,6 +141,8 @@ const entries = computed<GridEntry[]>(() => {
     // 教師/場地視角照預設節次表畫格線;另一套節次表的課要標出實際時間
     note: view.value === 'class' ? undefined : crossTableNote(
       e, data.value?.classes ?? [], data.value?.period_tables ?? [], activeTable.value),
+    // 單雙週(v1.3.0):同一格單週、雙週兩堂上下並列
+    week: e.week_parity === 'odd' ? '單' as const : e.week_parity === 'even' ? '雙' as const : undefined,
   }))
 })
 </script>

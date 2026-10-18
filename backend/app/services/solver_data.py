@@ -237,6 +237,7 @@ def load_problem(
             lock_room=a.lock_room,
             blocks=tuple(blocks_by_a.get(a.id, [])),
             subject_is_major=a.subject.is_major,
+            week_parity=a.week_parity,
         )
         for a in db.scalars(
             select(CourseAssignment)
