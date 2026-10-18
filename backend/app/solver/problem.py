@@ -10,6 +10,8 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 
+from app.solver.week_parity import weekly_load
+
 # (period_table_id, weekday, period_no)
 SlotKey = tuple[int, int, int]
 
@@ -111,13 +113,24 @@ class BlockSpec:
 @dataclass(frozen=True, slots=True)
 class UnitSpec:
     id: int
-    unit_type: str  # single / group
+    unit_type: str  # single / group / alternate
     name: str
     class_ids: tuple[int, ...]
 
     @property
     def is_group(self) -> bool:
+        """跑班群組(多班、多門課同一節一起上)。"""
         return self.unit_type == "group"
+
+    @property
+    def is_alternate(self) -> bool:
+        """單雙週組(v1.3.0):同一格單週、雙週輪流上不同的課。"""
+        return self.unit_type == "alternate"
+
+    @property
+    def is_bundle(self) -> bool:
+        """單位內的配課要排在同一個時段(跑班群組、單雙週組)。"""
+        return self.is_group or self.is_alternate
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,10 +146,16 @@ class AssignmentSpec:
     lock_room: bool
     blocks: tuple[BlockSpec, ...]
     subject_is_major: bool = False  # 軟約束 S5
+    week_parity: str | None = None  # v1.3.0:None=每週;odd/even=只上單週/雙週
 
     @property
     def block_periods(self) -> int:
         return sum(b.size * b.count for b in self.blocks)
+
+    @property
+    def weekly_load(self) -> float:
+        """平均每週占用教師/場地的節數:隔週的課算一半。"""
+        return weekly_load(self.periods_per_week, self.week_parity)
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,10 +205,11 @@ class Problem:
         """同時段一起排的最小單位。
 
         跑班群組的多門課同進同出(H7),對班級而言只佔一格,故整個群組是一個 course;
+        單雙週組同理(單週、雙週那兩筆輪流占同一格)。
         單班則每筆配課各自是一個 course(同一班的國文與數學不可同時段)。
         """
         unit = self.units[a.unit_id]
-        return ("unit", unit.id) if unit.is_group else ("assignment", a.id)
+        return ("unit", unit.id) if unit.is_bundle else ("assignment", a.id)
 
     def assignments_of_teacher(self, teacher_id: int) -> tuple[AssignmentSpec, ...]:
         return tuple(a for a in self.assignments if teacher_id in a.teacher_ids)
@@ -205,13 +225,13 @@ class Problem:
     def unit_slot_consumption(self, unit_id: int) -> int:
         """該排課單位佔用成員班級的節數。
 
-        single:單位內各配課節數總和;group:群組內配課同時段開課(H7),
+        single:單位內各配課節數總和;group / alternate:單位內配課同時段開課(H7),
         班級只被佔掉最長的那一筆。
         """
         periods = [a.periods_per_week for a in self.assignments if a.unit_id == unit_id]
         if not periods:
             return 0
-        return max(periods) if self.units[unit_id].is_group else sum(periods)
+        return max(periods) if self.units[unit_id].is_bundle else sum(periods)
 
 
 # ── 約束設定(architecture.md §3.2)──────────────────────────

@@ -17,6 +17,7 @@ from app.solver.problem import (
     SolvedEntry,
     slots_overlap,
 )
+from app.solver.week_parity import PARITIES, overlaps
 
 DEFAULT_DAILY_SUBJECT_CAP = 2  # H10 同班同科目每日單節上限(連堂不計)
 
@@ -152,6 +153,8 @@ def _pairwise_resource_clash(
                 a, b = items[i], items[j]
                 if a.entry is b.entry:
                     continue
+                if not overlaps(a.assignment.week_parity, b.assignment.week_parity):
+                    continue  # 單週的課和雙週的課不會碰在一起(v1.3.0)
                 if not slots_overlap(a.slot, b.slot, same_table=a.table_id == b.table_id):
                     continue
                 v.append(Violation(
@@ -205,20 +208,21 @@ def _h7_group_sync(
     by_id: dict[int, AssignmentSpec],
     v: list[Violation],
 ) -> None:
-    """跑班群組內的所有配課必須排在完全相同的時段。"""
+    """跑班群組、單雙週組內的所有配課必須排在完全相同的時段。"""
     by_assignment: dict[int, set[tuple[int, int, int]]] = {}
     for e in entries:
         by_assignment.setdefault(e.assignment_id, set()).add((e.weekday, e.period_no, e.span))
 
     for unit in problem.units.values():
-        if not unit.is_group:
+        if not unit.is_bundle:
             continue
         members = [a for a in problem.assignments if a.unit_id == unit.id]
         slots = {frozenset(by_assignment.get(a.id, set())) for a in members}
         if len(slots) > 1:
+            kind = "單雙週組" if unit.is_alternate else "跑班群組"
             v.append(Violation(
                 "H7",
-                f"跑班群組「{unit.name}」的各門課未排在相同時段",
+                f"{kind}「{unit.name}」的各門課未排在相同時段",
                 {"unit_id": unit.id},
             ))
 
@@ -276,17 +280,24 @@ def _h10_daily_cap(
     以格位計:跑班群組同一格的多筆同科目配課(英語分組等)對學生是一節課,只算一次
     ——與 model_builder 把整個群組當成一門課的算法一致。
     """
-    slots: set[tuple[int, int, int, int]] = set()
+    # 單雙週的課只在其中一週出現:單週、雙週各算一次,取較多的那週(v1.3.0)
+    slots: set[tuple[int, int, int, int, str]] = set()
     for e in entries:
         if e.span != 1:
             continue
         a = by_id[e.assignment_id]
+        weeks = (a.week_parity,) if a.week_parity else PARITIES
         for cls in problem.classes_of(a):
-            slots.add((cls.id, e.weekday, a.subject_id, e.period_no))
+            for week in weeks:
+                slots.add((cls.id, e.weekday, a.subject_id, e.period_no, week))
+    by_week: dict[tuple[int, int, int, str], int] = {}
+    for class_id, weekday, subject_id, _period_no, week in slots:
+        key = (class_id, weekday, subject_id, week)
+        by_week[key] = by_week.get(key, 0) + 1
     counts: dict[tuple[int, int, int], int] = {}
-    for class_id, weekday, subject_id, _period_no in slots:
-        key = (class_id, weekday, subject_id)
-        counts[key] = counts.get(key, 0) + 1
+    for (class_id, weekday, subject_id, _week), n in by_week.items():
+        day_key = (class_id, weekday, subject_id)
+        counts[day_key] = max(counts.get(day_key, 0), n)
     subject_names = {a.subject_id: a.subject_name for a in problem.assignments}
 
     for (class_id, weekday, subject_id), n in counts.items():

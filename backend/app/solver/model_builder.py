@@ -35,6 +35,7 @@ from app.solver.problem import (
     UnitSpec,
     slots_overlap,
 )
+from app.solver.week_parity import PARITIES
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +194,14 @@ class _Course:
     def subject_ids(self) -> frozenset[int]:
         return frozenset(a.subject_id for a in self.assignments)
 
+    def weeks_of_teacher(self, teacher_id: int) -> frozenset[str]:
+        """這位教師在這門課占用哪幾週:每週的課兩週都占;單雙週組只占他那一週。"""
+        weeks: set[str] = set()
+        for a in self.assignments:
+            if teacher_id in a.teacher_ids:
+                weeks |= {a.week_parity} if a.week_parity else set(PARITIES)
+        return frozenset(weeks)
+
 
 # ── 候選時段 ────────────────────────────────────────────────
 def _runs(table: PeriodTableSpec) -> list[list[Slot]]:
@@ -244,11 +253,12 @@ def _build_courses(problem: Problem) -> list[_Course]:
         if table is None:
             raise SolverInputError(f"排課單位「{unit.name}」的班級沒有節次表")
 
-        if unit.is_group:
+        if unit.is_bundle:
             shapes = {(a.periods_per_week, a.blocks) for a in members}
             if len(shapes) > 1:
+                kind = "單雙週組" if unit.is_alternate else "跑班群組"
                 raise SolverInputError(
-                    f"跑班群組「{unit.name}」的各門課節數/連堂結構不一致,無法同時段開課"
+                    f"{kind}「{unit.name}」的各門課節數/連堂結構不一致,無法同時段開課"
                 )
             # 下面把群組的教師合併成集合,重複的人會被當成一次——H2 就看不出他同一節上兩堂
             for tid, count in duplicate_group_teachers(members).items():
@@ -498,17 +508,37 @@ class _Model:
                     self.m.add_at_most_one(by_key[keys[i]] + by_key[keys[j]])
 
     def _h2_teacher(self) -> None:
+        """教師同一時段至多一堂課。
+
+        單雙週組(v1.3.0)的教師只在他那一週有課:單週在 701、雙週在 702 的同一節不算衝堂。
+        做法是把「同一時段」分成單週、雙週兩條線各自互斥;每週的課兩條線都占。
+        沒有任何單雙週課的教師只建一條線,與 v1.2 完全相同。
+        """
         for teacher_id in self.problem.teachers:
             if self._off("H2", "teacher", teacher_id):
                 continue
-            entries: list[tuple[int, Slot, cp_model.IntVar]] = []
+            items: list[tuple[frozenset[str], tuple[int, Slot, cp_model.IntVar]]] = []
             for ci, course in enumerate(self.courses):
                 if teacher_id not in course.teacher_ids:
                     continue
+                weeks = course.weeks_of_teacher(teacher_id)
                 for slot in course.table.slots:
-                    entries.append((course.table.id, slot, self.occ[(ci, slot.key)]))
-            if entries:
-                self._resource_at_most_one(entries)
+                    items.append((weeks, (course.table.id, slot, self.occ[(ci, slot.key)])))
+            self._resource_by_week(items)
+
+    def _resource_by_week(
+        self, items: list[tuple[frozenset[str], tuple[int, Slot, cp_model.IntVar]]]
+    ) -> None:
+        """依週別建互斥:全部都是每週的課(沒有單雙週)時只建一次,與 v1.2 相同。"""
+        if not items:
+            return
+        if all(len(weeks) == len(PARITIES) for weeks, _ in items):
+            self._resource_at_most_one([item for _, item in items])
+            return
+        for week in PARITIES:
+            line = [item for weeks, item in items if week in weeks]
+            if line:
+                self._resource_at_most_one(line)
 
     def _h4_unavailable(self) -> None:
         """教師不可排時段。
@@ -537,13 +567,16 @@ class _Model:
         for a_id, rid in self.y:
             rooms_of_assignment.setdefault(a_id, []).append(rid)
 
-        by_room: dict[int, list[tuple[int, Slot, cp_model.IntVar]]] = {}
+        # 單雙週組的課只在單週或雙週用教室(v1.3.0),所以和教師一樣分兩條線互斥
+        by_room: dict[int, list[tuple[frozenset[str], tuple[int, Slot, cp_model.IntVar]]]] = {}
         for ci, course in enumerate(self.courses):
             for a in course.assignments:
+                weeks = frozenset({a.week_parity} if a.week_parity else PARITIES)
                 for slot in course.table.slots:
                     o = self.occ[(ci, slot.key)]
                     if a.room_id is not None:
-                        by_room.setdefault(a.room_id, []).append((course.table.id, slot, o))
+                        by_room.setdefault(a.room_id, []).append(
+                            (weeks, (course.table.id, slot, o)))
                         continue
                     for rid in rooms_of_assignment.get(a.id, []):
                         yv = self.y[(a.id, rid)]
@@ -552,11 +585,11 @@ class _Model:
                         self.m.add(z <= o)
                         self.m.add(z <= yv)
                         self.m.add(z >= o + yv - 1)
-                        by_room.setdefault(rid, []).append((course.table.id, slot, z))
+                        by_room.setdefault(rid, []).append((weeks, (course.table.id, slot, z)))
 
-        for rid, entries in by_room.items():
+        for rid, items in by_room.items():
             if not self._off("H3", "room", rid):
-                self._resource_at_most_one(entries)
+                self._resource_by_week(items)
 
     def _h10_daily_cap(self) -> None:
         """同班同科目每日單節數上限;連堂是一次上完的整塊,不計入。"""

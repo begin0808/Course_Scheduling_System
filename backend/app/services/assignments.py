@@ -3,7 +3,9 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.week_parity import PARITY_CN, fmt_periods, weekly_load
 from app.models.assignment import (
+    BUNDLE_UNIT_TYPES,
     AssignmentTeacher,
     CourseAssignment,
     SchedulingUnit,
@@ -72,6 +74,64 @@ def create_group(
     return unit
 
 
+def create_alternate(
+    db: Session, semester_id: int, class_id: int, name: str | None = None
+) -> SchedulingUnit:
+    """建立單雙週組(v1.3.0):一個班,之後在組裡配單週、雙週各一筆課。
+
+    一個班可以有好幾組(週一三四節生科/資科、週三第五節音樂/美術…)。
+    沒給名稱時用「701 單雙週」,同班第二組起加上編號。
+    """
+    cls = db.get(ClassUnit, class_id)
+    if cls is None or cls.semester_id != semester_id:
+        raise DomainError("班級無效或不屬於本學期")
+    if not name:
+        taken = set(db.scalars(
+            select(SchedulingUnit.name).where(
+                SchedulingUnit.semester_id == semester_id,
+                SchedulingUnit.unit_type == SchedulingUnitType.alternate.value,
+            )
+        ))
+        base = f"{cls.name} 單雙週"
+        name, n = base, 2
+        while name in taken:
+            name = f"{base} {n}"
+            n += 1
+    unit = SchedulingUnit(
+        semester_id=semester_id, unit_type=SchedulingUnitType.alternate.value, name=name
+    )
+    unit.members.append(SchedulingUnitMember(class_unit_id=class_id))
+    db.add(unit)
+    db.flush()
+    return unit
+
+
+def check_week_parity(
+    db: Session, unit: SchedulingUnit, week_parity: str | None, assignment_id: int | None
+) -> None:
+    """單雙週組的配課一定要標單週或雙週,而且同一組單週、雙週各只能一筆;
+    其他配課不可以標(跑班群組＋單雙週這次不支援)。"""
+    if unit.unit_type != SchedulingUnitType.alternate.value:
+        if week_parity:
+            raise DomainError("只有單雙週組裡的配課可以設定單週或雙週")
+        return
+    if not week_parity:
+        raise DomainError("單雙週組的配課要選擇單週或雙週")
+    clash = db.scalar(
+        select(CourseAssignment).where(
+            CourseAssignment.scheduling_unit_id == unit.id,
+            CourseAssignment.week_parity == week_parity,
+            CourseAssignment.id != (assignment_id or -1),
+        )
+    )
+    if clash is not None:
+        raise DomainError(
+            f"單雙週組「{unit.name}」已經有{PARITY_CN[week_parity]}的課"
+            f"({clash.subject.name}),每組單週、雙週各一筆",
+            status_code=409,
+        )
+
+
 def _require_same_period_table(db: Session, classes: list[ClassUnit]) -> None:
     table_ids = set()
     for c in classes:
@@ -84,17 +144,23 @@ def _require_same_period_table(db: Session, classes: list[ClassUnit]) -> None:
 
 
 def teacher_loads(db: Session, semester_id: int) -> list[dict]:
-    """每位教師的鐘點統計:應授(base-減課)vs 已配課,delta 正為超鐘點。"""
+    """每位教師的鐘點統計:應授(base-減課)vs 已配課,delta 正為超鐘點。
+
+    單雙週的課按實際上課量算一半(v1.3.0,使用者定案):單週在 701、雙週在 702 的老師
+    每週都上,合計是完整的節數;只有單週那筆的老師平均每週只有一半。
+    """
     rows = db.execute(
         select(
             AssignmentTeacher.teacher_id,
-            func.sum(CourseAssignment.periods_per_week),
+            CourseAssignment.periods_per_week,
+            CourseAssignment.week_parity,
         )
         .join(CourseAssignment, AssignmentTeacher.course_assignment_id == CourseAssignment.id)
         .where(CourseAssignment.semester_id == semester_id)
-        .group_by(AssignmentTeacher.teacher_id)
     ).all()
-    assigned_by = {tid: int(total or 0) for tid, total in rows}
+    assigned_by: dict[int, float] = {}
+    for tid, periods, parity in rows:
+        assigned_by[tid] = assigned_by.get(tid, 0.0) + weekly_load(periods, parity)
     teachers = db.scalars(
         select(Teacher).where(Teacher.semester_id == semester_id).order_by(Teacher.name)
     )
@@ -102,7 +168,7 @@ def teacher_loads(db: Session, semester_id: int) -> list[dict]:
     out: list[dict] = []
     for t in teachers:
         target = max(t.base_periods - t.admin_reduction, 0)
-        assigned = assigned_by.get(t.id, 0)
+        assigned = assigned_by.get(t.id, 0.0)
         delta = assigned - target
         out.append({
             "teacher_id": t.id, "name": t.name,
@@ -136,8 +202,8 @@ def assert_within_overtime_limit(
         if row["teacher_id"] not in teacher_ids or not row["over_limit"]:
             continue
         raise DomainError(
-            f"{row['name']} 應授 {row['target']} 節,配課後為 {row['assigned']} 節,"
-            f"超出 {row['delta']} 節,已超過上限 {limit} 節。"
+            f"{row['name']} 應授 {row['target']} 節,配課後為 {fmt_periods(row['assigned'])} 節,"
+            f"超出 {fmt_periods(row['delta'])} 節,已超過上限 {limit} 節。"
             "請調整配課,或於「系統管理」修改超鐘點上限。",
             status_code=409,
         )
@@ -163,7 +229,7 @@ def _unit_slot_consumption(db: Session, semester_id: int) -> dict[int, int]:
         .group_by(SchedulingUnit.id, SchedulingUnit.unit_type)
     ).all()
     return {
-        uid: int((longest if utype == SchedulingUnitType.group.value else total) or 0)
+        uid: int((longest if utype in BUNDLE_UNIT_TYPES else total) or 0)
         for uid, utype, total, longest in rows
     }
 
@@ -218,6 +284,7 @@ def serialize_assignment(a: CourseAssignment) -> dict:
         "periods_per_week": a.periods_per_week,
         "required_room_type": a.required_room_type,
         "room_id": a.room_id, "lock_room": a.lock_room,
+        "week_parity": a.week_parity,
         "teachers": [
             {"teacher_id": t.teacher_id, "is_lead": t.is_lead, "name": t.teacher.name}
             for t in sorted(a.teachers, key=lambda x: (not x.is_lead, x.teacher_id))

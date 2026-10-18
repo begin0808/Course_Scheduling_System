@@ -16,6 +16,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.week_parity import PARITY_SHORT
 from app.models.basedata import ClassUnit, Room, Teacher
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
@@ -78,6 +79,7 @@ class _EntryView:
     class_ids: frozenset[int]
     room_id: int | None
     table_id: int | None = None   # 這一格所屬的節次表(取第一個班級的)
+    week_parity: str | None = None  # 單雙週(v1.3.0):odd / even;None = 每週
 
 
 class _Published:
@@ -143,6 +145,7 @@ def _view(e: ScheduleEntry) -> _EntryView:
         room_id=e.effective_room_id,
         # 沒指定節次表的班級是 None(=學期預設表,也就是教師課表格線用的那套)
         table_id=su.members[0].class_unit.period_table_id if su.members else None,
+        week_parity=a.week_parity,
     )
 
 
@@ -205,10 +208,10 @@ def _grid_from(
                 by_no[pno] = extra
     order = sorted(by_no)
 
-    # (weekday, period_no) → entry
-    placed: dict[tuple[int, int], _EntryView] = {
-        (e.weekday, e.period_no): e for e in entries
-    }
+    # (weekday, period_no) → 這一格的課。單雙週的格子有單週、雙週兩堂(v1.3.0)
+    placed: dict[tuple[int, int], list[_EntryView]] = {}
+    for e in entries:
+        placed.setdefault((e.weekday, e.period_no), []).append(e)
     covered: set[tuple[int, int]] = set()
     for e in entries:
         for k in range(1, e.span):
@@ -223,8 +226,19 @@ def _grid_from(
             if (wd, pno) in covered:
                 row.cells.append(Cell(covered=True))
             elif (wd, pno) in placed:
-                e = placed[(wd, pno)]
-                lines = list(lines_of(e))
+                here = placed[(wd, pno)]
+                alternating = sorted(
+                    (x for x in here if x.week_parity), key=lambda x: x.week_parity != "odd")
+                if alternating:
+                    # 「單 生科 甲師」「雙 資科 乙師」:一行一週,一眼看出隔週輪流
+                    e = alternating[0]
+                    lines = [
+                        f"{PARITY_SHORT[x.week_parity or '']} " + " ".join(lines_of(x))
+                        for x in alternating
+                    ]
+                else:
+                    e = here[-1]
+                    lines = list(lines_of(e))
                 note = _time_note(e, table, tables) if tables else ""
                 if note:
                     lines.append(note)

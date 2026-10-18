@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_roles
 from app.core.db import get_db
 from app.models.assignment import (
+    BUNDLE_UNIT_TYPES,
     AssignmentTeacher,
     BlockRule,
     CourseAssignment,
@@ -21,6 +22,7 @@ from app.models.basedata import ClassUnit, Room, Subject, Teacher
 from app.models.semester import Semester
 from app.models.user import Role
 from app.schemas.assignment import (
+    AlternateIn,
     AssignmentIn,
     AssignmentOut,
     ClassLoad,
@@ -85,11 +87,48 @@ def create_group(
 def delete_group(
     unit_id: int, db: Session = Depends(get_db), _: object = Depends(editor)
 ) -> None:
+    """刪除跑班群組或單雙週組(連同組內的配課)。"""
     unit = db.get(SchedulingUnit, unit_id)
-    if unit is None or unit.unit_type != SchedulingUnitType.group.value:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到跑班群組")
+    if unit is None or unit.unit_type not in BUNDLE_UNIT_TYPES:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到跑班群組或單雙週組")
     db.delete(unit)  # 級聯刪除其配課
     db.commit()
+
+
+# ── 單雙週組(v1.3.0)────────────────────
+@router.get("/alternate-units", response_model=list[SchedulingUnitOut])
+def list_alternates(
+    semester_id: int = Query(...),
+    db: Session = Depends(get_db),
+    _: object = Depends(viewer),
+):
+    units = db.scalars(
+        select(SchedulingUnit).where(
+            SchedulingUnit.semester_id == semester_id,
+            SchedulingUnit.unit_type == SchedulingUnitType.alternate.value,
+        ).order_by(SchedulingUnit.name)
+    ).all()
+    return [svc.serialize_unit(u) for u in units]
+
+
+@router.post(
+    "/alternate-units", response_model=SchedulingUnitOut, status_code=status.HTTP_201_CREATED
+)
+def create_alternate(
+    body: AlternateIn,
+    semester_id: int = Query(...),
+    db: Session = Depends(get_db),
+    _: object = Depends(editor),
+):
+    """建立單雙週組:一個班,之後在組裡配單週、雙週各一筆課。"""
+    _require_semester(db, semester_id)
+    try:
+        unit = svc.create_alternate(db, semester_id, body.class_id, body.name)
+    except svc.DomainError as e:
+        raise _domain(e) from e
+    db.commit()
+    db.refresh(unit)
+    return svc.serialize_unit(unit)
 
 
 # ── 統計(需在 /assignments/{id} 之前註冊)────
@@ -155,8 +194,16 @@ def _validate_refs(db: Session, semester_id: int, body: AssignmentIn) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "教師清單含無效或跨學期的教師")
 
 
+def _check_week(db: Session, unit: SchedulingUnit, body: AssignmentIn, assignment_id: int | None):
+    try:
+        svc.check_week_parity(db, unit, body.week_parity, assignment_id)
+    except svc.DomainError as e:
+        raise _domain(e) from e
+
+
 def _apply(db: Session, assignment: CourseAssignment, body: AssignmentIn) -> None:
     assignment.subject_id = body.subject_id
+    assignment.week_parity = body.week_parity
     assignment.periods_per_week = body.periods_per_week
     assignment.required_room_type = (
         body.required_room_type.value if body.required_room_type else None
@@ -201,6 +248,7 @@ def create_assignment(
     _require_semester(db, semester_id)
     _validate_refs(db, semester_id, body)
     unit = _resolve_unit(db, semester_id, body)
+    _check_week(db, unit, body, None)
     assignment = CourseAssignment(
         semester_id=semester_id, scheduling_unit_id=unit.id, subject_id=body.subject_id,
         periods_per_week=body.periods_per_week,
@@ -236,6 +284,7 @@ def update_assignment(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到配課")
     _validate_refs(db, a.semester_id, body)
     unit = _resolve_unit(db, a.semester_id, body)
+    _check_week(db, unit, body, a.id)
     a.scheduling_unit_id = unit.id
     _apply(db, a, body)
     _check_overtime(db, a.semester_id, body)

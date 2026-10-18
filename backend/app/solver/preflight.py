@@ -18,8 +18,10 @@ from app.solver.problem import (
     RoomSpec,
     Slot,
     TeacherSpec,
+    UnitSpec,
     max_non_overlapping,
 )
+from app.solver.week_parity import fmt_periods
 
 Level = Literal["error", "warning"]
 
@@ -87,6 +89,7 @@ STRUCTURAL_CODES = frozenset({
     "no_period_table",
     "group_shape_mismatch",
     "group_teacher_duplicate",
+    "alternate_incomplete",
     "block_infeasible",
     "block_exceeds_periods",
     "room_no_candidate",  # 沒有任何一間場地適用此科目 → _make_room_vars 直接失敗
@@ -143,6 +146,9 @@ def _check_period_tables(problem: Problem, issues: list[Issue]) -> None:
 def _check_groups(problem: Problem, issues: list[Issue]) -> None:
     """跑班群組的各門課同時段開課(H7),故每週節數與連堂結構必須一致。"""
     for unit in problem.units.values():
+        if unit.is_alternate:
+            _check_alternate(problem, unit, issues)
+            continue
         if not unit.is_group:
             continue
         members = [a for a in problem.assignments if a.unit_id == unit.id]
@@ -168,6 +174,33 @@ def _check_groups(problem: Problem, issues: list[Issue]) -> None:
             ))
 
 
+def _check_alternate(problem: Problem, unit: UnitSpec, issues: list[Issue]) -> None:
+    """單雙週組(v1.3.0):單週、雙週各一筆,節數與連堂結構相同,才能輪流占同一格。"""
+    members = [a for a in problem.assignments if a.unit_id == unit.id]
+    if not members:
+        return  # 剛建好、還沒配課的組:不擋,也沒有課要排
+    weeks = sorted(a.week_parity or "" for a in members)
+    if weeks != ["even", "odd"]:
+        missing = "雙週" if "even" not in weeks else "單週" if "odd" not in weeks else ""
+        detail = f"還缺{missing}的課" if missing and len(members) < 2 else "單週、雙週要各一筆"
+        issues.append(Issue(
+            "error", "alternate_incomplete",
+            f"單雙週組「{unit.name}」{detail},才能排課",
+            "semester", problem.semester_id,
+            {"unit_id": unit.id},
+        ))
+        return
+    if len({(a.periods_per_week, a.blocks) for a in members}) > 1:
+        periods = sorted({a.periods_per_week for a in members})
+        issues.append(Issue(
+            "error", "group_shape_mismatch",
+            f"單雙週組「{unit.name}」單週與雙週的節數或連堂不一致({periods}),"
+            f"無法排在同一格",
+            "semester", problem.semester_id,
+            {"unit_id": unit.id, "periods": periods},
+        ))
+
+
 def duplicate_group_teachers(members: Sequence[AssignmentSpec]) -> dict[int, int]:
     """同一個跑班群組內,出現在兩筆以上配課的教師 → 筆數。
 
@@ -184,7 +217,7 @@ def duplicate_group_teachers(members: Sequence[AssignmentSpec]) -> dict[int, int
 
 def _check_teachers(problem: Problem, issues: list[Issue]) -> None:
     for teacher in problem.teachers.values():
-        assigned = sum(a.periods_per_week for a in problem.assignments_of_teacher(teacher.id))
+        assigned = sum(a.weekly_load for a in problem.assignments_of_teacher(teacher.id))
         if assigned == 0:
             continue
         available = teacher_available_slots(problem, teacher)
@@ -193,15 +226,16 @@ def _check_teachers(problem: Problem, issues: list[Issue]) -> None:
             suffix = f"(已扣除 {blocked} 格不可排時段)" if blocked else ""
             issues.append(Issue(
                 "error", "teacher_overload",
-                f"教師{teacher.name} 配課 {assigned} 節,但可排時段僅 {available} 格{suffix}",
+                f"教師{teacher.name} 配課 {fmt_periods(assigned)} 節,"
+                f"但可排時段僅 {available} 格{suffix}",
                 "teacher", teacher.id,
                 {"assigned": assigned, "available": available, "unavailable": blocked},
             ))
         if assigned > teacher.target_periods:
             issues.append(Issue(
                 "warning", "teacher_over_hours",
-                f"教師{teacher.name} 配課 {assigned} 節,超出應授鐘點 "
-                f"{teacher.target_periods} 節 {assigned - teacher.target_periods} 節",
+                f"教師{teacher.name} 配課 {fmt_periods(assigned)} 節,超出應授鐘點 "
+                f"{teacher.target_periods} 節 {fmt_periods(assigned - teacher.target_periods)} 節",
                 "teacher", teacher.id,
                 {"assigned": assigned, "target": teacher.target_periods},
             ))
@@ -229,10 +263,10 @@ def _check_classes(problem: Problem, issues: list[Issue]) -> None:
 
 def _check_rooms(problem: Problem, issues: list[Issue]) -> None:
     # 1) 已綁定場地:逐間比對需求與可用節次
-    demand_by_room: dict[int, int] = {}
+    demand_by_room: dict[int, float] = {}
     for a in problem.assignments:
         if a.room_id is not None:
-            demand_by_room[a.room_id] = demand_by_room.get(a.room_id, 0) + a.periods_per_week
+            demand_by_room[a.room_id] = demand_by_room.get(a.room_id, 0) + a.weekly_load
 
     for room_id, demand in demand_by_room.items():
         room = problem.rooms.get(room_id)
@@ -242,7 +276,7 @@ def _check_rooms(problem: Problem, issues: list[Issue]) -> None:
         if demand > supply:
             issues.append(Issue(
                 "error", "room_supply",
-                f"場地 {room.name} 需求 {demand} 節,超過可用節次 {supply} 節",
+                f"場地 {room.name} 需求 {fmt_periods(demand)} 節,超過可用節次 {supply} 節",
                 "room", room_id,
                 {"demand": demand, "supply": supply},
             ))
@@ -295,10 +329,10 @@ def _check_room_types(problem: Problem, issues: list[Issue]) -> None:
     typed = [a for a in problem.assignments if a.required_room_type]
     for room_type in sorted({a.required_room_type for a in typed if a.required_room_type}):
         if not any(r.room_type == room_type for r in problem.rooms.values()):
-            demand = sum(a.periods_per_week for a in typed if a.required_room_type == room_type)
+            demand = sum(a.weekly_load for a in typed if a.required_room_type == room_type)
             issues.append(Issue(
                 "error", "room_type_supply",
-                f"需要「{_ROOM_TYPE_CN.get(room_type, room_type)}」的課共 {demand} 節,"
+                f"需要「{_ROOM_TYPE_CN.get(room_type, room_type)}」的課共 {fmt_periods(demand)} 節,"
                 f"但這類場地((無))合計只能提供 0 節",
                 "semester", problem.semester_id,
                 {"room_type": room_type, "demand": demand, "supply": 0},
@@ -322,7 +356,7 @@ def _check_room_types(problem: Problem, issues: list[Issue]) -> None:
         by_pool.setdefault(tuple(sorted(r.id for r in rooms)), []).append(a)
 
     for pool_ids, users in by_pool.items():
-        demand = sum(a.periods_per_week for a in users)
+        demand = sum(a.weekly_load for a in users)
         supply = len(pool_ids) * slots_per_room
         if demand <= supply:
             continue
@@ -330,7 +364,7 @@ def _check_room_types(problem: Problem, issues: list[Issue]) -> None:
         room_type = users[0].required_room_type or ""
         issues.append(Issue(
             "error", "room_type_supply",
-            f"需要「{_ROOM_TYPE_CN.get(room_type, room_type)}」的課共 {demand} 節,"
+            f"需要「{_ROOM_TYPE_CN.get(room_type, room_type)}」的課共 {fmt_periods(demand)} 節,"
             f"但可用的場地({names})合計只能提供 {supply} 節",
             "semester", problem.semester_id,
             {"room_type": room_type, "demand": demand, "supply": supply,

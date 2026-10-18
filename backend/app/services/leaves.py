@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core import clock
+from app.core.week_parity import runs_in_week, week_parity
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.basedata import Room, Subject, Teacher
 from app.models.leave import (
@@ -155,14 +156,19 @@ def expand(db: Session, leave: LeaveRequest) -> list[AffectedPeriod]:
     exp = _Expander(db)
     out: list[AffectedPeriod] = []
     seen: set[tuple[date, int, str]] = set()
+    semester = db.get(Semester, leave.semester_id)
+    sem_start = semester.start_date if semester else None
 
     for day in school_dates(leave.start_date, leave.end_date):
         window = _leave_window(leave, day)
         weekday = day.isoweekday()
+        week = week_parity(sem_start, day)
         for entry in entries:
             if entry.weekday != weekday:
                 continue
             a = entry.assignment
+            if not runs_in_week(a.week_parity, week):
+                continue  # 單雙週的課:這一週沒有上(v1.3.0)
             table_id = exp.table_of(a)
             if table_id is None or not exp.is_school_day(table_id, day):
                 continue

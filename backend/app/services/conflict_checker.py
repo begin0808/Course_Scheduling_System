@@ -5,6 +5,8 @@
 (architecture.md D7);同節次表則退化為 period_no 相等(常見情形,零額外成本)。
 跑班群組:同群組多筆配課同時排在同一格(H7),批次一起檢查;群組成員班級由
 多門課共用(不互相視為 H1 衝突),但彼此的教師/場地仍不可重複。
+單雙週(v1.3.0):單週的課和雙週的課永遠不會碰在一起——班級、教師、場地的衝突都
+先看兩堂課是不是同一週會上,再比時段。單雙週組的兩筆同一格放入,可以是連堂。
 """
 
 from dataclasses import dataclass
@@ -13,6 +15,7 @@ from datetime import time
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.week_parity import PARITIES, PARITY_SHORT, overlaps
 from app.models.assignment import (
     AssignmentTeacher,
     CourseAssignment,
@@ -56,6 +59,7 @@ class _Occ:
     start: time | None
     end: time | None
     desc: str
+    parity: str | None = None  # 單雙週:這堂課只在單週/雙週上(None = 每週)
 
 
 def _wd(w: int) -> str:
@@ -115,7 +119,8 @@ class _Checker:
 
     def _desc(self, a: CourseAssignment) -> str:
         names = "、".join(m.class_unit.name for m in a.scheduling_unit.members)
-        return f"{names} 班{a.subject.name}"
+        week = f"({PARITY_SHORT[a.week_parity]}週)" if a.week_parity else ""
+        return f"{names} 班{a.subject.name}{week}"
 
     def _slot(self, pmap: dict[tuple[int, int], Period], weekday: int, pno: int) -> str:
         """人話時段標籤:用節次表裡的名稱(早自習/午休/第一節),而非內部 period_no。
@@ -138,9 +143,10 @@ class _Checker:
         return occ.desc
 
     def _overlap(
-        self, occ: _Occ, weekday: int, table_id: int, pno: int, start: time | None, end: time | None
+        self, occ: _Occ, weekday: int, table_id: int, pno: int,
+        start: time | None, end: time | None, parity: str | None = None,
     ) -> bool:
-        if occ.weekday != weekday:
+        if occ.weekday != weekday or not overlaps(occ.parity, parity):
             return False
         if occ.table_id == table_id:
             return occ.period_no == pno  # 同表:節次號相等
@@ -157,10 +163,12 @@ class _Checker:
         check-conflict 是拖曳時的熱路徑(目標 p95 <100ms),逐格 hydrate ORM 物件
         在 60 班規模下代價過高,故此處只取需要的欄位並在 Python 端組裝。
         """
-        class_occ: dict[tuple[int, int, int], str] = {}
+        # 班級:(班, 星期, 節) → 已有的課(說明, 週別);單雙週組那一格會有單週、雙週兩堂
+        class_occ: dict[tuple[int, int, int], list[tuple[str, str | None]]] = {}
         teacher_occ: dict[int, list[_Occ]] = {}
         room_occ: dict[int, list[_Occ]] = {}
-        subj_count: dict[tuple[int, int, int], int] = {}
+        # 每日上限:單週、雙週各算一次(每週的課兩週都算)
+        subj_count: dict[tuple[int, int, int, str], int] = {}
 
         rows = self.db.execute(
             select(
@@ -169,6 +177,7 @@ class _Checker:
                 # 格位場地優先,未指定才沿用配課場地
                 func.coalesce(ScheduleEntry.room_id, CourseAssignment.room_id),
                 CourseAssignment.scheduling_unit_id, Subject.name,
+                CourseAssignment.week_parity,
             )
             .join(CourseAssignment, ScheduleEntry.course_assignment_id == CourseAssignment.id)
             .join(Subject, Subject.id == CourseAssignment.subject_id)
@@ -203,8 +212,10 @@ class _Checker:
         ).all():
             teachers_by_a.setdefault(aid, []).append(tid)
 
-        subj_slots: set[tuple[int, int, int, int]] = set()
-        for _e_id, wd, pno0, span, a_id, subject_id, room_id, unit_id, subj_name in rows:
+        subj_slots: set[tuple[int, int, int, int, str]] = set()
+        for row in rows:
+            _e_id, wd, pno0, span, a_id, subject_id, room_id, unit_id, subj_name, parity = (
+                tuple(row))
             classes = classes_by_unit.get(unit_id, [])
             if not classes:
                 continue
@@ -212,16 +223,17 @@ class _Checker:
             if table_id is None:
                 continue
             pmap = self._period_map(table_id)
-            desc = f"{'、'.join(c[1] for c in classes)} 班{subj_name}"
+            week = f"({PARITY_SHORT[parity]}週)" if parity else ""
+            desc = f"{'、'.join(c[1] for c in classes)} 班{subj_name}{week}"
             t_ids = teachers_by_a.get(a_id, [])
             for k in range(span):
                 pno = pno0 + k
                 p = pmap.get((wd, pno))
                 start = p.start_time if p else None
                 end = p.end_time if p else None
-                occ = _Occ(wd, table_id, pno, start, end, desc)
+                occ = _Occ(wd, table_id, pno, start, end, desc, parity)
                 for cid, _cname, _ct in classes:
-                    class_occ[(cid, wd, pno)] = desc
+                    class_occ.setdefault((cid, wd, pno), []).append((desc, parity))
                 for t_id in t_ids:
                     teacher_occ.setdefault(t_id, []).append(occ)
                 if room_id:
@@ -231,11 +243,12 @@ class _Checker:
             # 兩班對開的兩筆國語),對學生來說那是一節課——自動排課本來就這樣算(使用者回報)。
             if span == 1:
                 for cid, _cname, _ct in classes:
-                    if (cid, wd, subject_id, pno0) in subj_slots:
-                        continue
-                    subj_slots.add((cid, wd, subject_id, pno0))
-                    key = (cid, wd, subject_id)
-                    subj_count[key] = subj_count.get(key, 0) + 1
+                    for w in (parity,) if parity else PARITIES:
+                        if (cid, wd, subject_id, pno0, w) in subj_slots:
+                            continue
+                        subj_slots.add((cid, wd, subject_id, pno0, w))
+                        key = (cid, wd, subject_id, w)
+                        subj_count[key] = subj_count.get(key, 0) + 1
         return class_occ, teacher_occ, room_occ, subj_count
 
     def check(self, placements: list[Placement], ignore_entry_ids: set[int]) -> list[Conflict]:
@@ -247,6 +260,7 @@ class _Checker:
         for pl in placements:
             a = pl.assignment
             wd = pl.weekday
+            parity = a.week_parity
             table_id = self._table_id(a)
             if table_id is None:
                 conflicts.append(Conflict("H5", f"{self._desc(a)} 尚無可用節次表"))
@@ -279,10 +293,10 @@ class _Checker:
             # H1:班級不衝堂(僅比對既有格位;同群組成員班級共用不算衝突)
             for c in self._classes(a):
                 for pno, _s, _e in covered:
-                    d = class_occ.get((c.id, wd, pno))
-                    if d:
-                        conflicts.append(Conflict(
-                            "H1", f"班級 {c.name} {self._slot(pmap, wd, pno)} 已有 {d}"))
+                    for d, d_parity in class_occ.get((c.id, wd, pno), []):
+                        if overlaps(d_parity, parity):
+                            conflicts.append(Conflict(
+                                "H1", f"班級 {c.name} {self._slot(pmap, wd, pno)} 已有 {d}"))
 
             # H4 教師不可排時段 + H2 教師不衝堂(含跨表時間重疊、同群組其他門課)
             for at in a.teachers:
@@ -295,12 +309,12 @@ class _Checker:
                             conflicts.append(Conflict(
                                 "H4", f"教師{t.name} {label} 為不可排時段"))
                     for occ in teacher_occ.get(at.teacher_id, []):
-                        if self._overlap(occ, wd, table_id, pno, s, e):
+                        if self._overlap(occ, wd, table_id, pno, s, e, parity):
                             conflicts.append(Conflict(
                                 "H2",
                                 f"教師{t.name} {label} 已有 {self._occ_desc(occ, table_id)}"))
                     for occ in batch_teacher.get(at.teacher_id, []):
-                        if self._overlap(occ, wd, table_id, pno, s, e):
+                        if self._overlap(occ, wd, table_id, pno, s, e, parity):
                             conflicts.append(Conflict(
                                 "H2", f"教師{t.name} {label} 與同群組另一門課撞課"))
 
@@ -309,7 +323,7 @@ class _Checker:
             if room_id:
                 for pno, s, e in covered:
                     for occ in room_occ.get(room_id, []) + batch_room.get(room_id, []):
-                        if self._overlap(occ, wd, table_id, pno, s, e):
+                        if self._overlap(occ, wd, table_id, pno, s, e, parity):
                             conflicts.append(Conflict(
                                 "H3",
                                 f"場地 {self._room_name(room_id)} "
@@ -320,7 +334,10 @@ class _Checker:
             # 但連堂課剩下的單節仍受限——定義以 solver/validator.py 為準。
             if pl.span == 1:
                 for c in self._classes(a):
-                    existing = subj_count.get((c.id, wd, a.subject_id), 0)
+                    existing = max(
+                        subj_count.get((c.id, wd, a.subject_id, w), 0)
+                        for w in ((parity,) if parity else PARITIES)
+                    )
                     if existing + 1 > self.cap:
                         conflicts.append(Conflict(
                             "H10",
@@ -333,10 +350,11 @@ class _Checker:
             for at in a.teachers:
                 for pno, s, e in covered:
                     batch_teacher.setdefault(at.teacher_id, []).append(
-                        _Occ(wd, table_id, pno, s, e, desc))
+                        _Occ(wd, table_id, pno, s, e, desc, parity))
             if room_id:
                 for pno, s, e in covered:
-                    batch_room.setdefault(room_id, []).append(_Occ(wd, table_id, pno, s, e, desc))
+                    batch_room.setdefault(room_id, []).append(
+                        _Occ(wd, table_id, pno, s, e, desc, parity))
 
         return conflicts
 
@@ -349,12 +367,24 @@ def placements_for(
     span: int,
     room_id: int | None = None,
 ) -> list[Placement]:
-    """展開實際要放入的配課:跑班群組 → 群組內全部配課同格(span=1);單班 → 該配課。
+    """展開實際要放入的配課:跑班群組 → 群組內全部配課同格(span=1);
+    單雙週組 → 單週、雙週兩筆同格(可以是連堂,兩筆的連堂結構相同);單班 → 該配課。
 
     room_id 為「本次放入的場地」,只套用在被拖曳的那一筆配課上;
     群組內的其他門課各自使用自己的場地(跑班的每組本來就在不同教室)。
     """
     su = assignment.scheduling_unit
+    if su.unit_type == SchedulingUnitType.alternate.value:
+        sibs = list(
+            db.scalars(
+                select(CourseAssignment).where(CourseAssignment.scheduling_unit_id == su.id)
+                .order_by(CourseAssignment.id)
+            )
+        )
+        return [
+            Placement(s, weekday, period_no, span, room_id if s.id == assignment.id else None)
+            for s in sibs
+        ]
     if su.unit_type == SchedulingUnitType.group.value:
         sibs = list(
             db.scalars(

@@ -3,6 +3,7 @@
 排課單位(scheduling_unit)是支撐五學制的核心抽象(architecture.md D1):
 - `single`:單一班級的課(國小包班=導師在自己班的大量 single 配課)
 - `group`:跑班群組(多班聯排,群組內配課由求解器強制排在同一時段)
+- `alternate`:單雙週組(v1.3.0;一個班,單週一筆、雙週一筆,同一格隔週輪流上)
 
 配課(course_assignment)掛在排課單位上,而非直接掛班級,故單班與跑班共用一套 schema。
 """
@@ -25,6 +26,11 @@ from app.models.basedata import ClassUnit, Room, Subject, Teacher
 class SchedulingUnitType(enum.StrEnum):
     single = "single"  # 單一班級
     group = "group"    # 跑班群組(多班聯排)
+    alternate = "alternate"  # 單雙週組(同一格單週、雙週輪流上不同的課)
+
+
+# 「同一格一起排」的單位:跑班群組與單雙週組的配課都要排在同一個時段
+BUNDLE_UNIT_TYPES = frozenset({SchedulingUnitType.group.value, SchedulingUnitType.alternate.value})
 
 
 class SchedulingUnit(Base):
@@ -86,6 +92,8 @@ class CourseAssignment(Base):
         ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True, index=True
     )
     lock_room: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 單雙週(v1.3.0):None = 每週都上;"odd" / "even" = 只上單週 / 雙週(只出現在單雙週組)
+    week_parity: Mapped[str | None] = mapped_column(String(4), nullable=True, default=None)
 
     scheduling_unit: Mapped[SchedulingUnit] = relationship(back_populates="assignments")
     subject: Mapped[Subject] = relationship(lazy="selectin")

@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v130-之前務必先備份">升級到 v1.3.0 之前:務必先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -189,6 +189,14 @@
       <blockquote>
       <p><strong>開始前先備份。</strong> 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見<a href="backup.html">備份指南</a>。</p>
       </blockquote>
+      <h2 id="升級到-v130-之前務必先備份">升級到 v1.3.0 之前:務必先備份</h2>
+      <p>v1.3.0 是第一個<strong>改動資料表結構</strong>的版本(新增單雙週課程用的欄位)。升級本身已在 v1.2.0、v1.2.10、
+      v1.2.19 三個版本的實際資料上驗證過:課表、配課、鐘點、請假、代課、統計、巡堂表升級前後完全相同。
+      但結構一旦升級,<strong>舊版程式就不認得新結構</strong>,所以:</p>
+      <ol>
+      <li>升級前到「系統管理 → 資料備份與還原」按「<strong>立即備份</strong>」,並把備份檔下載到另一台電腦保存。</li>
+      <li>升級後若要退回 v1.2.x,<strong>必須同時還原升級前那份備份</strong>,不能只改回版本號(見下方「退回舊版」)。</li>
+      </ol>
       <h2 id="一條規則docker-composeyml-要跟著版本走">一條規則:<code>docker-compose.yml</code> 要跟著版本走</h2>
       <p>系統的容器組成會隨版本演進(例如 v1.1 就多了一個 <code>worker-ops</code> 容器)。<strong>升級時請連 <code>docker-compose.yml</code> 一起更新到新版</strong>——方式 A 重新下載該檔,方式 B 的 <code>git pull</code> 會自動帶到。</p>
       <p>沿用舊 compose 檔而漏了新容器時,系統不會默默壞掉:相關功能會<strong>立刻</strong>回一句說得出處置的錯誤(例如「維運背景服務(worker-ops)沒有在執行……請更新 docker-compose.yml」),補上新檔案再 <code>docker compose up -d</code> 即恢復,資料不受影響。</p>
@@ -201,7 +209,7 @@
       #    https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
       
       # 3) 選擇版本:編輯 .env
-      #    釘選版本(可控):IMAGE_TAG=v1.2.19
+      #    釘選版本(可控):IMAGE_TAG=v1.3.0
       #    永遠最新:        IMAGE_TAG=latest
       
       # 4) 拉新映像並重啟
@@ -221,7 +229,7 @@
       <hr />
       <h2 id="關於版本釘選">關於版本釘選</h2>
       <ul>
-      <li><strong>正式環境建議 <code>IMAGE_TAG=v1.2.19</code> 這樣釘住特定版本</strong>,你才能決定何時升級、升到哪一版,而不是每次 <code>pull</code> 都可能變動。</li>
+      <li><strong>正式環境建議 <code>IMAGE_TAG=v1.3.0</code> 這樣釘住特定版本</strong>,你才能決定何時升級、升到哪一版,而不是每次 <code>pull</code> 都可能變動。</li>
       <li>想升級時,把 <code>IMAGE_TAG</code> 改成新版本號,再 <code>docker compose pull &amp;&amp; up -d</code>。</li>
       <li>各版本的變更內容見專案根目錄的 <a href="../../CHANGELOG.html">CHANGELOG.md</a>;破壞性變更(若有)會在該版本明確標註 ⚠️ 與對應處置。</li>
       </ul>

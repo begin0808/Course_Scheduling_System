@@ -25,9 +25,11 @@ from datetime import date, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.week_parity import runs_in_week, week_parity
 from app.models.basedata import ClassUnit
 from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus
 from app.models.period import Period, PeriodTable, PeriodType
+from app.models.semester import Semester
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
 from app.services import period_tables as pt_service
@@ -158,10 +160,16 @@ class _Day:
         self.db = db
         self.on = on
         weekday = on.isoweekday()
-        self.entries = list(db.scalars(
-            select(ScheduleEntry).where(
-                ScheduleEntry.timetable_id == timetable_id, ScheduleEntry.weekday == weekday)
-        ))
+        semester = db.get(Semester, semester_id)
+        week = week_parity(semester.start_date if semester else None, on)
+        self.entries = [
+            e for e in db.scalars(
+                select(ScheduleEntry).where(
+                    ScheduleEntry.timetable_id == timetable_id, ScheduleEntry.weekday == weekday)
+            )
+            # 單雙週的課只在對應的那一週出現在巡堂表上(v1.3.0)
+            if runs_in_week(e.assignment.week_parity, week)
+        ]
         live = (
             LeaveRequest.status == LeaveStatus.registered.value,
             AffectedPeriod.status != AffectedStatus.cancelled.value,

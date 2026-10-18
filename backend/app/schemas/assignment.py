@@ -1,5 +1,7 @@
 """配課(scheduling_unit / course_assignment)schema。"""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.basedata import RoomType
@@ -17,6 +19,13 @@ class ClassBrief(BaseModel):
 class GroupIn(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     class_ids: list[int] = Field(min_length=2)  # 群組至少含 2 班
+
+
+class AlternateIn(BaseModel):
+    """單雙週組(v1.3.0):一個班;名稱可省略(預設「701 單雙週」)。"""
+
+    class_id: int
+    name: str | None = Field(default=None, max_length=64)
 
 
 class SchedulingUnitOut(BaseModel):
@@ -63,6 +72,8 @@ class AssignmentIn(BaseModel):
     required_room_type: RoomType | None = None
     room_id: int | None = None
     lock_room: bool = False
+    # 單雙週組的配課:odd = 只上單週、even = 只上雙週;其他配課留空(每週都上)
+    week_parity: Literal["odd", "even"] | None = None
 
     @model_validator(mode="after")
     def _check(self) -> "AssignmentIn":
@@ -92,6 +103,7 @@ class AssignmentOut(BaseModel):
     required_room_type: str | None
     room_id: int | None
     lock_room: bool
+    week_parity: str | None = None
     teachers: list[AssignmentTeacherOut] = []
     block_rules: list[BlockRuleOut] = []
 
@@ -103,8 +115,8 @@ class TeacherLoad(BaseModel):
     base_periods: int
     admin_reduction: int
     target: int          # 應授節數 = base_periods - admin_reduction(不小於 0)
-    assigned: int        # 已配課節數
-    delta: int           # assigned - target(正=超鐘點,負=不足)
+    assigned: float      # 已配課節數(單雙週的課算一半,故可能是 .5)
+    delta: float         # assigned - target(正=超鐘點,負=不足)
     max_overtime: int    # 超鐘點上限(節);0 = 學校未設限
     over_limit: bool     # delta 已超過上限
 

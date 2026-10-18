@@ -47,7 +47,20 @@ const periodInfo = computed(() => {
 })
 const entryMap = computed(() => {
   const m = new Map<string, GridEntry>()
-  for (const e of props.entries) m.set(`${e.weekday}-${e.period_no}`, e)
+  for (const e of props.entries) {
+    const k = `${e.weekday}-${e.period_no}`
+    if (!m.has(k)) m.set(k, e) // 代表卡片(拖曳、點選用):單雙週那一格取單週那堂
+  }
+  return m
+})
+// 單雙週的格子:單週、雙週兩堂上下並列(v1.3.0)
+const weekMap = computed(() => {
+  const m = new Map<string, GridEntry[]>()
+  for (const e of props.entries) {
+    if (!e.week) continue
+    const k = `${e.weekday}-${e.period_no}`
+    m.set(k, [...(m.get(k) ?? []), e].sort((a, b) => (a.week === '單' ? -1 : 1) - (b.week === '單' ? -1 : 1)))
+  }
   return m
 })
 // 連堂佔用的下方格位(跳過不渲染)
@@ -87,7 +100,11 @@ function periodAt(w: number, p: number): PeriodCell | undefined {
   return periodMap.value.get(key(w, p))
 }
 function entryAt(w: number, p: number): GridEntry | undefined {
-  return entryMap.value.get(key(w, p))
+  const weeks = weekMap.value.get(key(w, p))
+  return weeks?.[0] ?? entryMap.value.get(key(w, p))
+}
+function weeksAt(w: number, p: number): GridEntry[] {
+  return weekMap.value.get(key(w, p)) ?? []
 }
 function isCovered(w: number, p: number): boolean {
   return coveredSet.value.has(key(w, p))
@@ -192,9 +209,20 @@ function onCellDrop(w: number, p: number, ev: DragEvent) {
               @click="emit('select', entryAt(w, p)!)"
             >
               <span v-if="entryAt(w, p)!.locked" class="tg-lock" title="已鎖定">🔒</span>
-              <div class="tg-subject">{{ entryAt(w, p)!.subject }}</div>
-              <div v-if="entryAt(w, p)!.teacher" class="tg-teacher">{{ entryAt(w, p)!.teacher }}</div>
-              <div v-if="entryAt(w, p)!.room" class="tg-room">{{ entryAt(w, p)!.room }}</div>
+              <template v-if="weeksAt(w, p).length">
+                <div
+                  v-for="x in weeksAt(w, p)" :key="x.id" class="tg-week-line" data-testid="tg-week"
+                >
+                  <span class="tg-week-tag">{{ x.week }}</span>
+                  <span class="tg-subject">{{ x.subject }}</span>
+                  <span v-if="x.teacher" class="tg-teacher">{{ x.teacher }}</span>
+                </div>
+              </template>
+              <template v-else>
+                <div class="tg-subject">{{ entryAt(w, p)!.subject }}</div>
+                <div v-if="entryAt(w, p)!.teacher" class="tg-teacher">{{ entryAt(w, p)!.teacher }}</div>
+                <div v-if="entryAt(w, p)!.room" class="tg-room">{{ entryAt(w, p)!.room }}</div>
+              </template>
               <div v-if="entryAt(w, p)!.note" class="tg-note" data-testid="tg-note">{{ entryAt(w, p)!.note }}</div>
             </div>
             <div v-else-if="!isRegular(w, p)" class="tg-blocked-label">
@@ -251,4 +279,10 @@ function onCellDrop(w: number, p: number, ev: DragEvent) {
 .tg-teacher { font-size: 12px; opacity: 0.85; }
 .tg-room { font-size: 11px; opacity: 0.65; }
 .tg-note { font-size: 11px; font-weight: 600; color: #b45309; }
+.tg-week-line { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; line-height: 1.35; }
+.tg-week-line + .tg-week-line { border-top: 1px dashed rgba(24, 160, 88, 0.45); margin-top: 2px; padding-top: 2px; }
+.tg-week-tag {
+  font-size: 11px; font-weight: 700; border-radius: 3px; padding: 0 3px;
+  background: rgba(24, 160, 88, 0.22);
+}
 </style>

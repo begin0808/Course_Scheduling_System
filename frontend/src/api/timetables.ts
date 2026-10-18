@@ -13,12 +13,13 @@ export interface ScheduleEntry {
   subject: string
   teachers: string[]
   classes: string[]
-  unit_type: 'single' | 'group'
+  unit_type: 'single' | 'group' | 'alternate'
   unit_name: string
   room: string | null
   teacher_ids: number[]
   class_ids: number[]
   room_id: number | null
+  week_parity?: 'odd' | 'even' | null // 單雙週(v1.3.0)
 }
 export interface TimetableBrief {
   id: number

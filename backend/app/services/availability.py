@@ -10,6 +10,8 @@
 
 M4-4 的今日看板、M4-2 的代課推薦都建立在這一層上。判斷一律用牆鐘時間區間,
 不用 period_no——不同節次表的「第二節」時間不同(D7)。
+
+單雙週(v1.3.0):週課表裡單週/雙週的課,只在對應的那一週算「有課」。
 """
 
 from dataclasses import dataclass
@@ -18,9 +20,11 @@ from datetime import date, time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.week_parity import runs_in_week, week_parity
 from app.models.assignment import AssignmentTeacher, CourseAssignment
 from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus
 from app.models.period import Period
+from app.models.semester import Semester
 from app.models.substitution import Substitution
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.services import period_tables as pt_service
@@ -84,14 +88,26 @@ class Availability:
         self.db = db
         self.semester_id = semester_id
         self.timetable = timetable or published_timetable(db, semester_id)
-        self._teaching: dict[int, list[Interval]] | None = None
+        # 每位教師的授課時段,附上週別(None = 每週;odd/even = 只上單週/雙週)
+        self._teaching: dict[int, list[tuple[Interval, str | None]]] | None = None
         self._table_periods: dict[int, dict[tuple[int, int], Period]] = {}
+        semester = db.get(Semester, semester_id)
+        self.semester_start = semester.start_date if semester else None
+
+    def week_of(self, when: date | None) -> str | None:
+        """when 是單週還是雙週(學期第一週為單週);不知道日期時回 None。"""
+        return week_parity(self.semester_start, when) if when else None
+
+    def entry_runs_on(self, entry: ScheduleEntry, when: date) -> bool:
+        """這一格的課在 when 那一週有沒有上:單雙週的課只在對應的那一週。"""
+        a = self.db.get(CourseAssignment, entry.course_assignment_id)
+        return runs_in_week(a.week_parity if a else None, self.week_of(when))
 
     # ── 週課表:每位教師的授課時段(牆鐘區間)──
-    def _teaching_map(self) -> dict[int, list[Interval]]:
+    def _teaching_map(self) -> dict[int, list[tuple[Interval, str | None]]]:
         if self._teaching is not None:
             return self._teaching
-        result: dict[int, list[Interval]] = {}
+        result: dict[int, list[tuple[Interval, str | None]]] = {}
         if self.timetable is None:
             self._teaching = result
             return result
@@ -99,21 +115,21 @@ class Availability:
         rows = self.db.execute(
             select(
                 ScheduleEntry.weekday, ScheduleEntry.period_no, ScheduleEntry.span,
-                CourseAssignment.id, AssignmentTeacher.teacher_id,
+                CourseAssignment.id, AssignmentTeacher.teacher_id, CourseAssignment.week_parity,
             )
             .join(CourseAssignment, ScheduleEntry.course_assignment_id == CourseAssignment.id)
             .join(AssignmentTeacher, AssignmentTeacher.course_assignment_id == CourseAssignment.id)
             .where(ScheduleEntry.timetable_id == self.timetable.id)
         ).all()
 
-        for weekday, period_no, span, a_id, teacher_id in rows:
+        for weekday, period_no, span, a_id, teacher_id, parity in rows:
             table_id = self._table_of_assignment(a_id)
             for k in range(span):
                 p = self._period(table_id, weekday, period_no + k) if table_id else None
-                result.setdefault(teacher_id, []).append(Interval(
+                result.setdefault(teacher_id, []).append((Interval(
                     weekday, period_no + k,
                     p.start_time if p else None, p.end_time if p else None,
-                ))
+                ), parity))
         self._teaching = result
         return result
 
@@ -217,15 +233,19 @@ class Availability:
     def is_on_leave(self, teacher_id: int, when: date, slot: Interval) -> bool:
         return self._on_leave(teacher_id, when, slot)
 
-    def teaching_at(self, teacher_id: int, slot: Interval) -> Interval | None:
-        for iv in self._teaching_map().get(teacher_id, []):
-            if iv.overlaps(slot):
+    def teaching_at(
+        self, teacher_id: int, slot: Interval, when: date | None = None
+    ) -> Interval | None:
+        """該教師在 slot 時段有沒有自己的課;給了日期時,單雙週的課只看那一週。"""
+        week = self.week_of(when)
+        for iv, parity in self._teaching_map().get(teacher_id, []):
+            if iv.overlaps(slot) and runs_in_week(parity, week):
                 return iv
         return None
 
     def conflict_for(self, teacher_id: int, when: date, slot: Interval) -> Conflict | None:
         """該教師在 when 這一天的 slot 時段,有沒有不能來的理由(回第一個)。"""
-        if self.teaching_at(teacher_id, slot) is not None:
+        if self.teaching_at(teacher_id, slot, when) is not None:
             return Conflict("teaching", "該時段有自己的課")
         if self._on_leave(teacher_id, when, slot):
             return Conflict("on_leave", "當天也請假")
@@ -236,6 +256,10 @@ class Availability:
     def is_free(self, teacher_id: int, when: date, slot: Interval) -> bool:
         return self.conflict_for(teacher_id, when, slot) is None
 
-    def teaches_on(self, teacher_id: int, weekday: int) -> bool:
+    def teaches_on(self, teacher_id: int, weekday: int, when: date | None = None) -> bool:
         """該教師在某星期是否有課——用來判斷『當天已在校』(免多跑一趟)。"""
-        return any(iv.weekday == weekday for iv in self._teaching_map().get(teacher_id, []))
+        week = self.week_of(when)
+        return any(
+            iv.weekday == weekday and runs_in_week(parity, week)
+            for iv, parity in self._teaching_map().get(teacher_id, [])
+        )

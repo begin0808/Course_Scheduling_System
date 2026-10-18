@@ -121,7 +121,7 @@ def recommend(
             continue
 
         same_subject = t.id in subject_teachers
-        at_school = av.teaches_on(t.id, affected.weekday)
+        at_school = av.teaches_on(t.id, affected.weekday, affected.date)
         month_n = month_counts.get(t.id, 0)
 
         reasons: list[str] = []

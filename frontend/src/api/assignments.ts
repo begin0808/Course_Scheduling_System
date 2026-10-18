@@ -11,10 +11,13 @@ export interface ClassBrief {
 export interface SchedulingUnit {
   id: number
   semester_id: number
-  unit_type: 'single' | 'group'
+  unit_type: 'single' | 'group' | 'alternate'
   name: string
   classes: ClassBrief[]
 }
+/** 單雙週(v1.3.0):odd = 只上單週、even = 只上雙週;null = 每週都上 */
+export type WeekParity = 'odd' | 'even'
+export const WEEK_LABELS: Record<WeekParity, string> = { odd: '單週', even: '雙週' }
 export interface AssignmentTeacher {
   teacher_id: number
   is_lead: boolean
@@ -36,6 +39,7 @@ export interface Assignment {
   lock_room: boolean
   teachers: AssignmentTeacher[]
   block_rules: BlockRule[]
+  week_parity: WeekParity | null
 }
 export interface TeacherLoad {
   teacher_id: number
@@ -67,6 +71,7 @@ export interface AssignmentPayload {
   required_room_type?: RoomType | null
   room_id?: number | null
   lock_room?: boolean
+  week_parity?: WeekParity | null
 }
 
 // ── 跑班群組 ──
@@ -75,6 +80,12 @@ export const listGroups = (semesterId: number) =>
 export const createGroup = (semesterId: number, body: { name: string; class_ids: number[] }) =>
   apiPost<SchedulingUnit>(`/scheduling-units?semester_id=${semesterId}`, body)
 export const deleteGroup = (id: number) => request<void>('DELETE', `/scheduling-units/${id}`)
+
+// ── 單雙週組(v1.3.0):一個班,單週一筆、雙週一筆,同一格隔週輪流 ──
+export const listAlternates = (semesterId: number) =>
+  apiGet<SchedulingUnit[]>(`/alternate-units?semester_id=${semesterId}`)
+export const createAlternate = (semesterId: number, body: { class_id: number; name?: string }) =>
+  apiPost<SchedulingUnit>(`/alternate-units?semester_id=${semesterId}`, body)
 
 // ── 配課 ──
 export const listAssignments = (semesterId: number) =>

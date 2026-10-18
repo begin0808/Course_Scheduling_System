@@ -251,7 +251,7 @@ def search(
             entry_classes = {m.class_unit_id for m in a.scheduling_unit.members}
             class_names = "、".join(m.class_unit.name for m in a.scheduling_unit.members)
             for when in dates:
-                if when.isoweekday() != entry.weekday:
+                if when.isoweekday() != entry.weekday or not av.entry_runs_on(entry, when):
                     continue
                 for no in block_periods(av, entry):
                     if when == affected.date and no == affected.period_no:

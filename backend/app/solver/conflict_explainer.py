@@ -48,6 +48,7 @@ from app.solver.problem import (
     TeacherSpec,
     max_non_overlapping,
 )
+from app.solver.week_parity import fmt_periods
 
 # 衝突定位的預設時間預算。求解本身可能跑十分鐘,但「為什麼排不出來」要儘快回答;
 # 拖太久的話,教學組長會直接關掉視窗。
@@ -313,6 +314,7 @@ _PREFLIGHT_SUGGESTIONS = {
     "block_exceeds_periods": "調整連堂設定,使連堂節數不超過每週節數",
     "group_shape_mismatch": "讓跑班群組內各門課的每週節數與連堂結構一致",
     "group_teacher_duplicate": "同一個跑班群組內,每位教師只留一筆配課",
+    "alternate_incomplete": "單雙週組補齊單週、雙週各一筆配課",
     "no_period_table": "為該班級指派節次表",
     "assignment_without_class": "為該配課指定班級或跑班群組",
 }
@@ -370,11 +372,11 @@ def _room_cause(problem: Problem, tag: ConstraintTag, _config: SolverConfig) -> 
 
     if usable < supply:
         message = (
-            f"{where}需求 {demand} 節,但扣除相關教師的不可排時段後"
+            f"{where}需求 {fmt_periods(demand)} 節,但扣除相關教師的不可排時段後"
             f"只剩 {usable} 節可用(合計一週共 {supply} 節)"
         )
     else:
-        message = f"{where}需求 {demand} 節,可用 {usable} 節,同時段每間只能容納一班"
+        message = f"{where}需求 {fmt_periods(demand)} 節,可用 {usable} 節,同時段每間只能容納一班"
 
     return Cause(
         "H3", "room", room.id, room.name, message,
@@ -391,7 +393,7 @@ def _unavailable_cause(problem: Problem, tag: ConstraintTag, _config: SolverConf
     return Cause(
         "H4", "teacher", teacher.id, teacher.name,
         f"教師{teacher.name} 有 {blocked} 格不可排時段,扣除後只剩 {available} 格"
-        f"可安排 {assigned} 節課,擋住了排課",
+        f"可安排 {fmt_periods(assigned)} 節課,擋住了排課",
         f"放寬 {teacher.name} 的不可排時段(或在部分排課中勾選放寬此項)",
         _relaxable("H4"),
         {"assigned": assigned, "available": available, "unavailable": blocked},
@@ -467,7 +469,7 @@ def _structural_causes(problem: Problem) -> tuple[Cause, ...]:
         if assigned and available:
             rows.append((assigned / available, Cause(
                 "structural", "teacher", teacher.id, teacher.name,
-                f"教師{teacher.name} 配課 {assigned} 節,可排時段 {available} 格",
+                f"教師{teacher.name} 配課 {fmt_periods(assigned)} 節,可排時段 {available} 格",
                 f"減少 {teacher.name} 的配課,或改由其他教師分擔",
                 detail={"assigned": assigned, "available": available},
             )))
@@ -490,8 +492,8 @@ def _class_numbers(problem: Problem, cls: ClassSpec) -> tuple[int, int]:
     return used, len(table.slots) if table else 0
 
 
-def _teacher_numbers(problem: Problem, teacher: TeacherSpec) -> tuple[int, int]:
-    assigned = sum(a.periods_per_week for a in problem.assignments_of_teacher(teacher.id))
+def _teacher_numbers(problem: Problem, teacher: TeacherSpec) -> tuple[float, int]:
+    assigned = sum(a.weekly_load for a in problem.assignments_of_teacher(teacher.id))
     return assigned, preflight.teacher_available_slots(problem, teacher)
 
 
@@ -531,10 +533,12 @@ def _room_pool(problem: Problem, room: RoomSpec) -> tuple[RoomSpec, ...]:
     )
 
 
-def _room_numbers(problem: Problem, room: RoomSpec) -> tuple[int, int, int, tuple[RoomSpec, ...]]:
+def _room_numbers(
+    problem: Problem, room: RoomSpec
+) -> tuple[float, int, int, tuple[RoomSpec, ...]]:
     """(需求節數, 候選池一週合計節次數, 扣掉相關教師不可排時段後可用的節次數, 候選池)。"""
     users = _room_users(problem, room)
-    demand = sum(a.periods_per_week for a in users)
+    demand = sum(a.weekly_load for a in users)
     pool = _room_pool(problem, room)
 
     all_slots: dict[tuple[int, int, int], Slot] = {}

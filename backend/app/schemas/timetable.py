@@ -26,6 +26,8 @@ class ScheduleEntryOut(BaseModel):
     teacher_ids: list[int] = []
     class_ids: list[int] = []
     room_id: int | None = None
+    # 單雙週(v1.3.0):None = 每週;odd / even = 只上單週 / 雙週
+    week_parity: str | None = None
 
 
 class TimetableBrief(BaseModel):
