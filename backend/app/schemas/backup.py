@@ -8,6 +8,7 @@ _REASON_CN = {
     "manual": "手動",
     "auto": "每日自動",
     "presafe": "還原前保護",
+    "preupgrade": "升級前自動備份",
     "upload": "上傳",
 }
 

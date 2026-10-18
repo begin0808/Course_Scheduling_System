@@ -9,8 +9,9 @@ set -e
 ROLE="${1:-api}"
 
 if [ "$ROLE" = "api" ]; then
-    echo "[entrypoint] 執行資料庫遷移 alembic upgrade head ..."
-    alembic upgrade head
+    # 結構要升級時先自動備份(v1.3.0;備份失敗照常升級並提示系統管理員)
+    echo "[entrypoint] 執行資料庫遷移(結構有變更時先自動備份)..."
+    python -m app.scripts.migrate
     echo "[entrypoint] 啟動 API (uvicorn) ..."
     exec uvicorn app.main:app --host 0.0.0.0 --port 8000
 elif [ "$ROLE" = "worker" ]; then

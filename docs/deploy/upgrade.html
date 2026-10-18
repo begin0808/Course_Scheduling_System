@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v130-之前務必先備份">升級到 v1.3.0 之前:務必先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -189,14 +189,18 @@
       <blockquote>
       <p><strong>開始前先備份。</strong> 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見<a href="backup.html">備份指南</a>。</p>
       </blockquote>
-      <h2 id="升級到-v130-之前務必先備份">升級到 v1.3.0 之前:務必先備份</h2>
+      <h2 id="升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</h2>
       <p>v1.3.0 是第一個<strong>改動資料表結構</strong>的版本(新增單雙週課程用的欄位)。升級本身已在 v1.2.0、v1.2.10、
-      v1.2.19 三個版本的實際資料上驗證過:課表、配課、鐘點、請假、代課、統計、巡堂表升級前後完全相同。
-      但結構一旦升級,<strong>舊版程式就不認得新結構</strong>,所以:</p>
-      <ol>
-      <li>升級前到「系統管理 → 資料備份與還原」按「<strong>立即備份</strong>」,並把備份檔下載到另一台電腦保存。</li>
-      <li>升級後若要退回 v1.2.x,<strong>必須同時還原升級前那份備份</strong>,不能只改回版本號(見下方「退回舊版」)。</li>
-      </ol>
+      v1.2.19 三個版本的實際資料上驗證過:課表、配課、鐘點、請假、代課、統計、巡堂表升級前後完全相同。</p>
+      <p>為了讓沒看到這份說明的學校(例如 <code>.env</code> 設 <code>IMAGE_TAG=latest</code>)也受到保護,<strong>v1.3.0 起,
+      <code>api</code> 容器發現資料庫結構需要升級時,會先自動備份一次再升級</strong>:</p>
+      <ul>
+      <li>備份出現在「系統管理 → 資料備份與還原」,標示「<strong>升級前自動備份</strong>」,<strong>不會</strong>被每日備份的輪替刪除。</li>
+      <li>升級後,系統管理員在「系統管理 → 系統版本」會看到一次提示,寫著這份備份的檔名。</li>
+      <li>自動備份萬一失敗(例如硬碟空間不足),系統<strong>照常升級、可以正常使用</strong>,提示會改成說明失敗原因;
+        這時請盡快按「立即備份」。要退回舊版仍有兩條路:升級前一晚的每日自動備份,或下方的「退回指令」。</li>
+      </ul>
+      <p>仍建議升級前自己按一次「立即備份」並把檔案下載到另一台電腦保存——那是唯一不在同一台主機上的一份。</p>
       <h2 id="一條規則docker-composeyml-要跟著版本走">一條規則:<code>docker-compose.yml</code> 要跟著版本走</h2>
       <p>系統的容器組成會隨版本演進(例如 v1.1 就多了一個 <code>worker-ops</code> 容器)。<strong>升級時請連 <code>docker-compose.yml</code> 一起更新到新版</strong>——方式 A 重新下載該檔,方式 B 的 <code>git pull</code> 會自動帶到。</p>
       <p>沿用舊 compose 檔而漏了新容器時,系統不會默默壞掉:相關功能會<strong>立刻</strong>回一句說得出處置的錯誤(例如「維運背景服務(worker-ops)沒有在執行……請更新 docker-compose.yml」),補上新檔案再 <code>docker compose up -d</code> 即恢復,資料不受影響。</p>
@@ -242,6 +246,23 @@
       </code></pre>
       <blockquote>
       <p>⚠️ <strong>注意資料庫遷移方向</strong>:若新版本引入了資料表結構變更,退回舊映像後其程式可能不認得新結構。<strong>最保險的退回方式是:退回舊映像 + 還原「升級前那份備份」</strong>(見<a href="backup.html">備份指南</a>的還原流程)。若該次升級的 CHANGELOG 未標註 schema 變更,則單純換映像即可。</p>
+      </blockquote>
+      <h3 id="從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</h3>
+      <p>v1.3.0 改了資料表結構,<strong>直接把版本號改回 v1.2.x,舊版會啟動失敗</strong>(它不認得新的結構版本)。兩種退回方式擇一:</p>
+      <p><strong>方式一:用升級前自動備份還原(建議)</strong></p>
+      <ol>
+      <li>在 v1.3.0 的「系統管理 → 資料備份與還原」,選標示「升級前自動備份」的那一份按「還原」。</li>
+      <li>還原完成後<strong>立刻</strong>把 <code>.env</code> 的 <code>IMAGE_TAG</code> 改回舊版本號,執行 <code>docker compose pull</code> 與 <code>docker compose up -d</code>。</li>
+      </ol>
+      <p>資料會回到升級前那一刻;升級後才新增的資料(請假、調代課等)不會保留。</p>
+      <p><strong>方式二:退回指令(不需要備份,資料全部保留)</strong></p>
+      <p>還沒開始使用單雙週組時適用。在 <code>docker-compose.yml</code> 所在資料夾,<strong>先以 v1.3.0 執行</strong>:</p>
+      <pre><code class="language-bash">docker compose run --rm --entrypoint alembic api downgrade 0017_class_name_unique
+      </code></pre>
+      <p>這會把資料表結構退回 v1.2.x 的樣子(只移除單雙週用的欄位),課表、請假、代課等資料都不動。
+      接著把 <code>.env</code> 的 <code>IMAGE_TAG</code> 改回舊版本號,執行 <code>docker compose pull</code> 與 <code>docker compose up -d</code>。</p>
+      <blockquote>
+      <p>已經建了單雙週組的話,舊版看不懂那些組的資料,請改用方式一。</p>
       </blockquote>
       <hr />
       <h2 id="升級檢查清單">升級檢查清單</h2>

@@ -1,6 +1,6 @@
 // 系統版本與新版本提醒(v1.2.3)。
 
-import { apiGet } from '@/api/client'
+import { apiGet, apiPost } from '@/api/client'
 
 export interface UpdateStatus {
   enabled: boolean // false = 管理者在 .env 關閉了新版本檢查
@@ -20,5 +20,15 @@ export const UPGRADE_GUIDE_URL =
 export const getVersion = (): Promise<{ version: string }> => apiGet('/system/version')
 
 /** 管理員專用。refresh = 「立即檢查」(後端限制至少間隔一分鐘) */
+/** 資料表結構升級後的一次性提示(v1.3.0):升級前自動備份的檔名,或備份失敗的原因 */
+export interface UpgradeNotice {
+  version: string
+  at: string
+  backup: string
+  error: string
+}
+export const getUpgradeNotice = (): Promise<UpgradeNotice | null> => apiGet('/system/upgrade-notice')
+export const dismissUpgradeNotice = (): Promise<void> => apiPost('/system/upgrade-notice/dismiss')
+
 export const getUpdateStatus = (refresh = false): Promise<UpdateStatus> =>
   apiGet(`/system/update${refresh ? '?refresh=true' : ''}`)
