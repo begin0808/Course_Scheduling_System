@@ -715,12 +715,12 @@
       <tr>
       <td><code>scheduling_unit</code></td>
       <td><strong>排課單位</strong>(關鍵抽象)</td>
-      <td>類型:<code>single</code>(單一班級)/<code>group</code>(跑班群組);跑班群組透過 <code>scheduling_unit_member</code> 關聯多個班級</td>
+      <td>類型:<code>single</code>(單一班級)/<code>group</code>(跑班群組)/<code>alternate</code>(單雙週組,v1.3.0);跑班群組透過 <code>scheduling_unit_member</code> 關聯多個班級,單雙週組只有一個班</td>
       </tr>
       <tr>
       <td><code>course_assignment</code></td>
       <td><strong>配課</strong></td>
-      <td>排課單位、科目、每週節數、場地需求(類型或指定場地)、是否鎖定場地</td>
+      <td>排課單位、科目、每週節數、場地需求(類型或指定場地)、是否鎖定場地、<code>week_parity</code>(v1.3.0:空 = 每週;<code>odd</code>/<code>even</code> = 只上單週/雙週,僅出現在單雙週組)</td>
       </tr>
       <tr>
       <td><code>assignment_teacher</code></td>
@@ -792,6 +792,11 @@
       <h3 id="23-關鍵設計決策">2.3 關鍵設計決策</h3>
       <p><strong>D1|「排課單位」抽象是支撐五學制的核心。</strong>
       排課的最小單位不是「班級」而是 <code>scheduling_unit</code>。單一班級的課 → <code>single</code>;跑班選修(3 個班同時段拆成 5 組上不同課)→ 建一個 <code>group</code> 含 3 個班,群組內的多筆配課由求解器強制排在同一時段。國小包班 = 導師在自己班的大量 <code>single</code> 配課,無需特殊邏輯。</p>
+      <p><strong>單雙週組(<code>alternate</code>,v1.3.0)</strong>:同一格單週、雙週輪流上兩門課(例:701 週一三四節單週生科、雙週資科)。一組一個班,恰好一筆 <code>week_parity=odd</code>、一筆 <code>even</code>,節數與連堂結構相同;與跑班群組一樣同格排(H7),對班級只佔一格。週別以學期開始日所在週為第 1 週(單週)、之後固定輪流,放假不調整(<code>app/solver/week_parity.py</code>)。
+      - <strong>資源互斥分週</strong>:教師/場地的 H2/H3 在單週、雙週兩條線各自互斥——單週在 701、雙週在 702 的同一節不衝突;每週的課兩條線都佔。沒有單雙週課的教師只建一條線,模型與 v1.2 相同。H10 每日上限亦分週計。
+      - <strong>依日期的功能</strong>(請假展開、可用性、調課、巡堂表)只看當天那一週會上的課。
+      - <strong>鐘點</strong>:隔週的課以平均每週節數計(一半),交叉對開的教師合計即完整節數。
+      - 跑班群組＋單雙週(整個群組隔週輪流)不在 v1.3.0 範圍。</p>
       <p><strong>D2|節次表資料化,絕不寫死。</strong>
       「週三下午不排課」「第 8 節只有高三上」這類規則,全部以 <code>period.type</code> 與教師/班級的時段規則表達。完全中學(國中部+高中部節次時間不同)以多套 <code>period_table</code> 支援——這是市售系統常見痛點,必須在 schema 層解決。</p>
       <p><strong>D3|學期快照,不做跨學期外鍵。</strong>
@@ -838,7 +843,7 @@
       <tr>
       <td>H2</td>
       <td>教師不衝堂</td>
-      <td>同一教師同時段至多一門課(含協同)</td>
+      <td>同一教師同時段至多一門課(含協同);單週、雙週分開判定(v1.3.0)</td>
       </tr>
       <tr>
       <td>H3</td>
@@ -863,7 +868,7 @@
       <tr>
       <td>H7</td>
       <td>跑班同步</td>
-      <td>同一跑班群組的所有配課排在同一時段</td>
+      <td>同一跑班群組(及單雙週組)的所有配課排在同一時段</td>
       </tr>
       <tr>
       <td>H8</td>
