@@ -31,6 +31,7 @@ from app.api import (
     substitutions,
     system,
     timetables,
+    users,
     wizard,
 )
 from app.api import (
@@ -98,6 +99,7 @@ def env():
     application.include_router(backups.router, prefix="/api")
     application.include_router(demo.router, prefix="/api")
     application.include_router(system.router, prefix="/api")
+    application.include_router(users.router, prefix="/api")
 
     @application.get("/api/_protected")
     def _protected(user: User = Depends(get_active_user)) -> dict:

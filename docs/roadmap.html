@@ -313,13 +313,18 @@
       <td>2026-10-18</td>
       <td><strong>單雙週課程</strong>(兩所學校提出):同一節單週、雙週輪流上不同的課;首次資料表結構變更</td>
       </tr>
+      <tr>
+      <td>v1.3.1</td>
+      <td>2026-10-19</td>
+      <td><strong>帳號管理</strong>(使用者詢問):系統管理員設定教學組長、教務主任的帳號與角色</td>
+      </tr>
       </tbody>
       </table></div>
       <p>各版細節見 <a href="../CHANGELOG.html">CHANGELOG.md</a>。</p>
       <hr />
       <h2 id="工程改善原v13-範圍v130-改做單雙週後順延內容與順序不變">工程改善(原「v1.3 範圍」;v1.3.0 改做單雙週後順延,內容與順序不變)</h2>
       <p>排序原則:<strong>學校裝得快、用得順的先做</strong>,純工程衛生的後做。全部不改資料表結構。</p>
-      <p><strong>開工時機</strong>:由專案負責人決定;先讓使用學校實際用 v1.3.0 幾天,沒有新的問題回報再動工。</p>
+      <p><strong>開工時機</strong>:由專案負責人決定;先讓使用學校實際用 v1.3.1 幾天,沒有新的問題回報再動工。</p>
       <h3 id="1-api-映像拆掉-ortools-m">1. api 映像拆掉 ortools —— M</h3>
       <ul>
       <li><strong>現況</strong>:<code>ortools</code> 在 <code>pyproject.toml</code> 主依賴,api 映像 <strong>674MB</strong>;排課求解只在 worker 跑,api 容器用不到。</li>

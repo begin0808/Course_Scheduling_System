@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="排課與調代課系統 v1.3.0 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
+<meta name="description" content="排課與調代課系統 v1.3.1 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
 <title>功能總覽 · 排課與調代課系統</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📋</text></svg>">
 <style>
@@ -90,7 +90,7 @@
 <header>
   <div class="eyebrow">FEATURE OVERVIEW</div>
   <h1>排課與調代課系統 · 功能總覽</h1>
-  <p class="lead">目前最新版 <b>v1.3.0</b>(2026-10-18)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">寫信或到 GitHub Issues 回報</a>。</p>
+  <p class="lead">目前最新版 <b>v1.3.1</b>(2026-10-19)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">寫信或到 GitHub Issues 回報</a>。</p>
   <div class="meta">
     <span class="chip">單校自架 · 資料不出校</span>
     <span class="chip">開源免費(MIT)</span>
@@ -131,6 +131,7 @@
   <tr><td>教學組長</td><td>日常主力:基礎資料、配課、排課、調代課</td><td>基礎資料、排課作業、調代課</td></tr>
   <tr><td>教師</td><td>查自己的課表、自己請假、確認代課通知</td><td>課表查詢(預設本人)、請假登記、我的代課鐘點</td></tr>
 </table></div>
+<div class="note">角色設定:教學組長、教務主任的帳號由系統管理員在「帳號管理」設定(v1.3.1);組長本身是教師時,同一個帳號加上「教學組長」即可。教師資料的「行政職稱」只影響減課與顯示。</div>
 <div class="note">帳號安全:首次登入強制改密碼;登入連續失敗 5 次鎖定 15 分鐘;使用者可自行改密碼,組長可替教師重設密碼、停用或啟用登入帳號。</div>
 
 <h2 id="setup"><span class="no">02</span>開始使用與基礎資料</h2>
@@ -252,6 +253,7 @@
 <div class="tbl"><table>
   <tr><th>功能</th><th>說明</th><th>版本</th></tr>
   <tr><td>版本與新版提醒</td><td>顯示目前版本與 GitHub 上的最新正式版,有新版時附更新內容與升級指南連結;只提醒、不自動升級,每天最多查一次,可關閉。選單底部隨時顯示版本。</td><td class="ver">v1.2.3</td></tr>
+  <tr><td>帳號管理</td><td>新增行政帳號、設定教學組長/教務主任/系統管理員身分(教師帳號可同時加上組長身分)、重設密碼、停用與啟用;至少保留一個啟用中的系統管理員。</td><td class="ver">v1.3.1</td></tr>
   <tr><td>學校資訊</td><td>校名(顯示在介面、匯出課表、通知信、公告單),改完立即生效。</td><td class="ver">v1.2.0</td></tr>
   <tr><td>排課設定</td><td>超鐘點上限(應授 + N 節)。</td><td class="ver">v1.2.0</td></tr>
   <tr><td>巡堂表設定</td><td>記錄說明的代碼文字。</td><td class="ver">v1.2.12</td></tr>
@@ -267,7 +269,7 @@
   <div class="card"><b>HTTPS</b><span>設定網域即自動申請憑證(Caddy);未設定時為校內 HTTP。</span></div>
   <div class="card"><b>資料不出校</b><span>單校自架,不連任何雲端服務;唯一的對外連線是每天一次的版本查詢,可關閉。</span></div>
 </div>
-<div class="note good">每一版發布前都經過:後端 654 項、前端 31 項、端對端 50 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
+<div class="note good">每一版發布前都經過:後端 663 項、前端 31 項、端對端 51 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
 
 <h2 id="limits"><span class="no">14</span>目前的限制</h2>
 <p class="intro">已知、尚未處理的部分。多數有變通做法(見手冊 FAQ)。</p>
@@ -306,7 +308,8 @@
   <tr><td>v1.2.15–1.2.16</td><td class="ver">2026-10-07</td><td>跑班群組:重複教師檢查、每日節數算法</td></tr>
   <tr><td>v1.2.17–1.2.18</td><td class="ver">2026-10-08</td><td>登入重複送出修正、檢查課表</td></tr>
   <tr><td>v1.2.19</td><td class="ver">2026-10-09</td><td>日薪代課、整批指派代課</td></tr>
-  <tr><td>v1.3.0</td><td class="ver">2026-10-18</td><td>單雙週課程(首次資料表結構變更)</td></tr>
+  <tr><td>v1.3.0</td><td class="ver">2026-10-18</td><td>單雙週課程(首次資料表結構變更)、升級前自動備份</td></tr>
+  <tr><td>v1.3.1</td><td class="ver">2026-10-19</td><td>帳號管理(設定教學組長、教務主任)</td></tr>
 </table></div>
 
 <h2 id="feedback"><span class="no">17</span>意見回報</h2>
@@ -317,7 +320,7 @@
 </div>
 <div class="note good">回報問題時附上<b>系統版本</b>(選單底部)、<b>操作步驟</b>和<b>畫面截圖</b>,會更快找到原因;截圖請先遮住老師姓名等個人資料。</div>
 
-<footer>排課與調代課系統 · 功能總覽 · 對應 v1.3.0 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
+<footer>排課與調代課系統 · 功能總覽 · 對應 v1.3.1 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
 </div>
 </body>
 </html>
