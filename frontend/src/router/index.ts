@@ -132,6 +132,13 @@ const routes = [
         name: 'system',
         component: () => import('@/views/settings/System.vue'),
       },
+      {
+        // 帳號與角色管理(v1.3.1):限系統管理員
+        path: 'settings/accounts',
+        name: 'accounts',
+        component: () => import('@/views/settings/Accounts.vue'),
+        meta: { adminOnly: true },
+      },
     ],
   },
 ]
@@ -176,6 +183,10 @@ router.beforeEach(async (to) => {
     && !AUTH_PAGES.has(to.name as string) && !TEACHER_PAGES.has(to.name as string)
   ) {
     return { name: 'timetable-query' }
+  }
+
+  if (to.meta.adminOnly && !auth.hasRole('admin')) {
+    return { name: 'dashboard' }
   }
 
   // 首次登入引導:教學組長/管理員在尚未完成初始設定時,自動進入精靈(精靈內可略過)

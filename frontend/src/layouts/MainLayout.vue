@@ -71,6 +71,9 @@ const menuOptions = computed(() => {
       ],
     },
     { label: menuLink('system', '系統管理'), key: 'system' },
+    // 教學組長、教務主任的帳號在這裡設定(v1.3.1);只有系統管理員看得到
+    ...(auth.hasRole('admin')
+      ? [{ label: menuLink('accounts', '帳號管理'), key: 'accounts' }] : []),
   ]
 })
 

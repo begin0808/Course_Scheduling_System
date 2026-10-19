@@ -213,7 +213,8 @@ def _teacher_account(db: Session, teacher_id: int) -> tuple[Teacher, User]:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "此教師尚未綁定登入帳號")
     if user.role_names - {Role.teacher.value}:
         raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "此帳號不只是教師角色,請由系統管理員處理"
+            status.HTTP_403_FORBIDDEN,
+            "此帳號另有教學組長、教務主任等身分,請由系統管理員到「帳號管理」處理"
         )
     return teacher, user
 
