@@ -524,6 +524,7 @@ Write-Host ''
 Write-Host '  帳號 admin,密碼是你剛才設定的那組;登入後會要求改一次密碼,' -ForegroundColor White
 Write-Host '  接著進入「設定精靈」,照畫面五個步驟建立學期、教師、班級、科目。' -ForegroundColor White
 Write-Host ''
+Write-Note '登不進去或忘了管理員密碼:docker compose exec api python -m app.scripts.reset_admin(會印出臨時密碼)'
 Write-Note "安裝目錄:$dir"
 Write-Note "停止:docker compose down    重新啟動:docker compose up -d(需先 cd 到上面的目錄)"
 Write-Note "操作手冊與部署文件:$RepoUrl"
