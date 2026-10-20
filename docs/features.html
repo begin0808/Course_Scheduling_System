@@ -68,7 +68,7 @@
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
   .card b{display:block;margin-bottom:2px}
-  .card span{color:var(--text-soft);font-size:14px}
+  .card span{color:var(--text-soft);font-size:14px;overflow-wrap:anywhere}
   .tag{display:inline-block;font-size:12px;border-radius:4px;padding:0 6px;margin-left:4px;
     font-weight:700;vertical-align:1px}
   .tag.plan{background:var(--accent-soft);color:var(--accent)}
@@ -90,7 +90,7 @@
 <header>
   <div class="eyebrow">FEATURE OVERVIEW</div>
   <h1>排課與調代課系統 · 功能總覽</h1>
-  <p class="lead">目前最新版 <b>v1.3.2</b>(2026-10-20)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">寫信或到 GitHub Issues 回報</a>。</p>
+  <p class="lead">目前最新版 <b>v1.3.2</b>(2026-10-20)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">加入 LINE 社群、寫信或到 GitHub Issues 回報</a>。</p>
   <div class="meta">
     <span class="chip">單校自架 · 資料不出校</span>
     <span class="chip">開源免費(MIT)</span>
@@ -314,8 +314,9 @@
 </table></div>
 
 <h2 id="feedback"><span class="no">17</span>意見回報</h2>
-<p class="intro">這一版的多數改進都來自老師們的回報。遇到問題、學校有特別的做法,或想要什麼功能,都歡迎告訴我們。兩種方式擇一即可:</p>
+<p class="intro">這一版的多數改進都來自老師們的回報。遇到問題、學校有特別的做法,或想要什麼功能,都歡迎告訴我們。三種方式擇一即可:</p>
 <div class="cards">
+  <div class="card"><b>💬 LINE 社群</b><span>「排課與調代課系統｜使用者交流」<br><a href="https://line.me/ti/g2/hP0Lg7mqvE5rvWg0sE9MHI-QsLkd94Cfp3wKcg">點此加入</a>或用手機掃描:<br><img src="img/line-community-qr.jpg" alt="LINE 社群 QR Code" width="120" height="120" style="margin-top:6px"><br>可用暱稱加入。直接提問、和其他學校交流,新版發布也會在群組公告。</span></div>
   <div class="card"><b>✉️ 寫信</b><span>不需要任何帳號,直接寄到<br><a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a>(李佳恩老師)</span></div>
   <div class="card"><b>🐞 GitHub Issues</b><span><a href="https://github.com/begin0808/Course_Scheduling_System/issues">github.com/begin0808/Course_Scheduling_System/issues</a><br>按「New issue」留言(需要免費的 GitHub 帳號),其他學校也看得到討論與處理進度。</span></div>
 </div>

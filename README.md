@@ -138,13 +138,17 @@ v1.3.2 新增**重設管理員密碼**的指令(忘了密碼或第一次就登�
 
 **請直接從最新版開始安裝**(見上方快速開始);`v1.3.2` 是目前建議使用的版本。各版變更見 [CHANGELOG](CHANGELOG.md),開發歷程見 [docs/tasks.md](docs/tasks.md)。
 
-系統仍在實際校園環境試用中,若你是第一批使用者,歡迎透過 [Issues](https://github.com/begin0808/Course_Scheduling_System/issues) 回報任何問題。
+系統仍在實際校園環境試用中,若你是第一批使用者,歡迎加入 [LINE 社群](https://line.me/ti/g2/hP0Lg7mqvE5rvWg0sE9MHI-QsLkd94Cfp3wKcg) 或透過 [Issues](https://github.com/begin0808/Course_Scheduling_System/issues) 回報任何問題。
 
 ---
 
 ## 回報問題與意見回饋
 
 發現錯誤、有功能建議,或想分享貴校的使用經驗,都非常歡迎:
+
+- **LINE 社群「排課與調代課系統｜使用者交流」**:[點此加入](https://line.me/ti/g2/hP0Lg7mqvE5rvWg0sE9MHI-QsLkd94Cfp3wKcg)(可用暱稱加入)。使用上的問題可以直接在群組提問,其他學校的老師也能一起交流;**新版發布會在群組公告**(改了什麼、要注意什麼、怎麼升級)。
+
+  <img src="docs/img/line-community-qr.jpg" alt="LINE 社群 QR Code" width="160">
 
 - **回報問題 / 提出建議**:於本專案開 [GitHub Issue](https://github.com/begin0808/Course_Scheduling_System/issues)(附上操作步驟與 `docker compose logs` 片段會更快解決)
 - **來信聯絡**:專案開發者 **國立南大附中 李佳恩老師** — [begin0808@gmail.com](mailto:begin0808@gmail.com)
