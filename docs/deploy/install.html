@@ -335,6 +335,8 @@
       </code></pre>
       <p>把印出來的那 64 個字元貼到 <code>SECRET_KEY=</code> 後面即可。</p>
       <blockquote>
+      <p>⚠️ <strong>改完 <code>.env</code> 再啟動。</strong> 管理員帳號只在系統<strong>第一次啟動</strong>時,依當時 <code>.env</code> 的 <code>ADMIN_PASSWORD</code> 建立;之後再改 <code>.env</code> 的密碼、重新啟動,都<strong>不會</strong>改到已經建立的帳號。如果先啟動過一次才改,請用預設密碼 <code>changeme</code> 登入,或見下方「登不進去怎麼辦」。</p>
+      <p><strong>密碼請只用英文字母與數字。</strong> docker compose 會把 <code>.env</code> 值裡的 <code>$</code> 當成變數展開(<code>my$ecret123</code> 實際變成 <code>my</code>),<code>#</code> 前面有空白會被當成註解切掉,而且都沒有任何錯誤訊息。第一次登入時系統會要求你改密碼,那時就可以用含符號的密碼了。(用安裝程式 <code>install.sh</code> / <code>install.ps1</code> 安裝的不受影響,它會自動處理。)</p>
       <p>沒改 <code>SECRET_KEY</code> 不會讓系統起不來——程式偵測到仍是範例值時會自動換一把隨機金鑰。
       但那把金鑰只存在記憶體裡,<strong>容器一重啟所有人就被登出</strong>,所以還是設一個固定值為宜。</p>
       </blockquote>
@@ -364,6 +366,10 @@
       <li>校內其他電腦:<code>http://&lt;主機的區網IP&gt;</code>(例如 <code>http://192.168.1.50</code>,IP 用 <code>ipconfig</code> / <code>ip a</code> 查)</li>
       </ul>
       <p>以 <code>.env</code> 設定的 <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code> 登入,系統會要求你<strong>首次改密碼</strong>,接著進入<strong>設定精靈</strong>,依畫面五步驟建立學期、教師、班級、科目即可開始使用。</p>
+      <p><strong>登不進去怎麼辦?</strong> 一直顯示「帳號或密碼錯誤」、接著被鎖 15 分鐘,代表帳號已經建好(帳號不存在時不會鎖定),只是資料庫裡的密碼和你輸入的不同——跟網路、IP、在不在國外都無關。在系統資料夾執行:</p>
+      <pre><code class="language-bash">docker compose exec api python -m app.scripts.reset_admin
+      </code></pre>
+      <p>畫面會印出一組<strong>臨時密碼</strong>,同時解除鎖定。用帳號 <code>admin</code> 和這組臨時密碼登入,系統會要求你立刻改成新密碼。資料完全不受影響。(v1.3.2 起;更早的版本請先升級。)</p>
       <h3 id="想先試看看再決定載入示範資料">想先試看看再決定?載入示範資料</h3>
       <p>還沒建任何學期時,到「系統管理 → 示範資料」按一下,系統會建出一所完整的虛構國中(臺南市市立敦品國中:18 班、48 位教師、384 筆配課),十幾秒就能跑出一張全校課表。適合評估階段先把整套流程走過一遍,不必先手 key 幾百筆資料。</p>
       <p><strong>只有在系統完全沒有學期時才能載入</strong>,以免蓋掉正式資料。試用完要正式啟用時,建議重新安裝一套乾淨的系統,不要把示範資料與真實資料混在一起。</p>
