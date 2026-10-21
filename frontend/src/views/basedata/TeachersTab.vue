@@ -292,7 +292,7 @@ function openRules(t: Teacher) {
         <n-text>姓名</n-text>
         <n-input v-model:value="form.name" data-testid="teacher-name" placeholder="如:王小明" />
         <n-text>任教科目</n-text>
-        <n-select v-model:value="form.subject_ids" multiple :options="subjectOptions" placeholder="可多選" />
+        <n-select v-model:value="form.subject_ids" multiple :options="subjectOptions" filterable placeholder="可多選,可打字搜尋" />
         <n-space>
           <n-space vertical style="flex: 1">
             <n-text>基本鐘點</n-text>
@@ -333,6 +333,7 @@ function openRules(t: Teacher) {
           data-testid="teacher-account"
           :options="accountOptions"
           clearable
+          filterable
           placeholder="綁定後此教師可用該帳號登入查課表/請假"
         />
 

@@ -121,7 +121,7 @@ async function remove(r: Room) {
         <n-text>容量(選填)</n-text>
         <n-input-number v-model:value="form.capacity" :min="0" />
         <n-text>適用科目(選填)</n-text>
-        <n-select v-model:value="form.subject_ids" multiple :options="subjectOptions" placeholder="可多選" />
+        <n-select v-model:value="form.subject_ids" multiple :options="subjectOptions" filterable placeholder="可多選,可打字搜尋" />
         <n-button type="primary" @click="save">儲存</n-button>
       </n-space>
     </n-modal>
