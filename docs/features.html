@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="排課與調代課系統 v1.3.4 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
+<meta name="description" content="排課與調代課系統 v1.3.5 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
 <title>功能總覽 · 排課與調代課系統</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📋</text></svg>">
 <style>
@@ -90,7 +90,7 @@
 <header>
   <div class="eyebrow">FEATURE OVERVIEW</div>
   <h1>排課與調代課系統 · 功能總覽</h1>
-  <p class="lead">目前最新版 <b>v1.3.4</b>(2026-10-21)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">加入 LINE 社群、寫信或到 GitHub Issues 回報</a>。</p>
+  <p class="lead">目前最新版 <b>v1.3.5</b>(2026-10-21)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">加入 LINE 社群、寫信或到 GitHub Issues 回報</a>。</p>
   <div class="meta">
     <span class="chip">單校自架 · 資料不出校</span>
     <span class="chip">開源免費(MIT)</span>
@@ -205,7 +205,7 @@
   <tr><th>功能</th><th>說明</th><th>版本</th></tr>
   <tr><td>請假登記</td><td>教師自登或組長代登;假別有公假、事假、病假、婚假、喪假、產假、進修等;可整天、半天(指定時段)、多天、跨週。依已發布課表自動展開每一節受影響的課;單雙週的課只列那一週真的有上的。</td><td class="ver">v1.0 / v1.3.0</td></tr>
   <tr><td>銷假</td><td>未上的節次自動取消並通知代課老師;已上完的課照常計鐘點。</td><td class="ver">v1.0</td></tr>
-  <tr><td>五種處置</td><td>代課(計鐘點)、調課(兩人互換,不計)、併班(預設不計,可改)、自習、不處理;已處置的節次寫出「怎麼處置」,可撤回。</td><td class="ver">v1.0 / v1.2.4</td></tr>
+  <tr><td>五種處置</td><td>代課(計鐘點)、調課(兩人互換,不計)、併班(預設不計,可改)、自習、不處理;已處置的節次寫出「怎麼處置」,可撤回。併班列出這一節正在上課的老師與班級,同年級優先(v1.3.5)。</td><td class="ver">v1.0 / v1.2.4 / v1.3.5</td></tr>
   <tr><td>代課推薦</td><td>列出當節有空的老師,同科、當天已在校者優先,附理由與本月已代節數;排很滿的老師自動排後面;無人可代時提示改併班或自習。</td><td class="ver">v1.0</td></tr>
   <tr><td>計費方式</td><td>公費代課、自費代課、日薪代課、課務自理、不支鐘點,也可自行輸入;預設依假別(事假自費、其餘公費)。印在代課通知單上。</td><td class="ver">v1.2.5 / v1.2.19</td></tr>
   <tr><td>整批指派代課</td><td>整張假單或其中一天一次派給同一位老師;代課老師自己有課的節次跳過並說明原因,已處理的不動。</td><td class="ver">v1.2.19</td></tr>
@@ -270,7 +270,7 @@
   <div class="card"><b>HTTPS</b><span>設定網域即自動申請憑證(Caddy);未設定時為校內 HTTP。</span></div>
   <div class="card"><b>資料不出校</b><span>單校自架,不連任何雲端服務;唯一的對外連線是每天一次的版本查詢,可關閉。</span></div>
 </div>
-<div class="note good">每一版發布前都經過:後端 685 項、前端 35 項、端對端 53 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
+<div class="note good">每一版發布前都經過:後端 692 項、前端 35 項、端對端 54 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
 
 <h2 id="limits"><span class="no">14</span>目前的限制</h2>
 <p class="intro">已知、尚未處理的部分。多數有變通做法(見手冊 FAQ)。</p>
@@ -314,6 +314,7 @@
   <tr><td>v1.3.2</td><td class="ver">2026-10-20</td><td>重設管理員密碼指令;安裝說明補上 .env 密碼的注意事項</td></tr>
   <tr><td>v1.3.3</td><td class="ver">2026-10-21</td><td>儀表板即時概況(Issue #50)</td></tr>
   <tr><td>v1.3.4</td><td class="ver">2026-10-21</td><td>下拉選單打字搜尋(跑班群組、導師、任教科目等)</td></tr>
+  <tr><td>v1.3.5</td><td class="ver">2026-10-21</td><td>併班可以選老師;調課單記號說明</td></tr>
 </table></div>
 
 <h2 id="feedback"><span class="no">17</span>意見回報</h2>
@@ -325,7 +326,7 @@
 </div>
 <div class="note good">回報問題時附上<b>系統版本</b>(選單底部)、<b>操作步驟</b>和<b>畫面截圖</b>,會更快找到原因;截圖請先遮住老師姓名等個人資料。</div>
 
-<footer>排課與調代課系統 · 功能總覽 · 對應 v1.3.4 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
+<footer>排課與調代課系統 · 功能總覽 · 對應 v1.3.5 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
 </div>
 </body>
 </html>

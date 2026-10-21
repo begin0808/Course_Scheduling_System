@@ -202,8 +202,14 @@ def _resolve_handler(
     if teacher.id == affected.leave_request.teacher_id:
         raise SubstitutionError("不能指派請假教師代自己的課")
 
-    # 代課/併班:接手者在該時段必須是空的(調課的衝突另由 _validate_swap 檢查)
-    if sub_type != SubstitutionType.swap.value:
+    if sub_type == SubstitutionType.merge.value:
+        # 併班:接手的是這一節正在上自己班的老師(併到他班一起上),不必空堂,
+        # 只要人在(v1.3.5 使用者定案;先前要求空堂,與「併到他班」的意思相反)
+        if av.on_leave(teacher.id, affected.date, av.slot_of(affected)):
+            raise SubstitutionError(
+                f"{teacher.name} {affected.date} {affected.period_name} 當天也請假,無法併班")
+    elif sub_type != SubstitutionType.swap.value:
+        # 代課:接手者在該時段必須是空的(調課的衝突另由 _validate_swap 檢查)
         conflict = av.conflict_for(teacher.id, affected.date, av.slot_of(affected))
         if conflict is not None:
             raise SubstitutionError(

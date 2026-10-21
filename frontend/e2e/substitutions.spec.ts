@@ -313,22 +313,25 @@ test('調代課處理:調課列出可對調節次,點選後成立並上看板', 
   // 清單寫出處置方式與補課時間,分得出是調課不是代課
   await expect(period.getByTestId('sub-handler')).toContainText(`調課 → 陳師(王師 ${short(THU)} 第二節補課)`)
 
-  // 調課通知單:陳師、王師各一張教師單 + 701 班級單;格子寫「日期/科目/老師/[調MM-DD_星期節次]」
+  // 調課通知單:陳師、王師各一張教師單 + 701 班級單;格子寫「日期/科目/老師/[調月/日_星期節次]」
   const [slips] = await Promise.all([
     page.waitForEvent('popup'),
     period.getByTestId('sub-print-slip').click(),
   ])
   await expect(slips.getByTestId('slip-teacher')).toHaveCount(2)
   await expect(slips.getByTestId('slip-class')).toHaveCount(1)
-  const mmdd = (iso: string) => iso.slice(5)
+  const md = (iso: string) => iso.slice(5).split('-').map(Number).join('/')   // 10/30,不補零(v1.3.5)
   const chenSlip = slips.getByTestId('slip-teacher').first()
   await expect(chenSlip).toContainText('教師調課通知單')
   await expect(chenSlip).toContainText('調課教師：陳師')
   await expect(chenSlip.getByTestId('slip-cell')).toHaveText(
-    new RegExp(`${WED}\\s*數學\\s*陳師\\s*\\[調${mmdd(THU)}_42\\]`))
+    new RegExp(`${WED}\\s*數學\\s*陳師\\s*\\[調${md(THU)}_42\\]`))
   await expect(slips.getByTestId('slip-teacher').nth(1).getByTestId('slip-cell')).toHaveText(
-    new RegExp(`${THU}\\s*國文\\s*王師\\s*\\[調${mmdd(WED)}_31\\]`))
+    new RegExp(`${THU}\\s*國文\\s*王師\\s*\\[調${md(WED)}_31\\]`))
   await expect(slips.getByTestId('slip-class').getByTestId('slip-cell')).toHaveCount(2)
+  // 紙本下方說明記號的意思(v1.3.5)
+  await expect(chenSlip.getByTestId('slip-code-note')).toContainText(
+    `[調${md(THU)}_42] 表示這一格和 ${md(THU)}（星期四）第 2 節對調`)
   // 表頭斜線畫在內容裡(SVG),列印不會像背景一樣被瀏覽器略過
   await expect(slips.locator('th.corner svg line')).toHaveCount(3)
   await slips.screenshot({ path: `${SHOTS}/sub-8-swap-slips.png`, fullPage: true })

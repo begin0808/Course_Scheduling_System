@@ -1,7 +1,8 @@
 """調課通知單(教師調課單、班級調課單)的資料組裝(v1.2.2)。
 
 版面照使用學校現行的紙本:一張週課表,只在「有異動的格子」寫上
-「日期 / 科目 / 實際上課的老師 / [調MM-DD_星期節次]」,中括號指向對調的另一節。
+「日期 / 科目 / 實際上課的老師 / [調月/日_星期節次]」,中括號指向對調的另一節
+(例如 [調10/30_56] = 10/30 星期五第 6 節;v1.3.5 起日期寫成 10/30,原本是 10-30)。
 格線與跨週分頁等共用部分見 `slip_layout`。
 
 **一筆調課 = 兩個異動格。** 甲請假那節改由乙上;乙原本那節改由甲上。
@@ -16,6 +17,8 @@
 本模組只讀,不寫資料庫;資料全部來自已成立調課的快照欄位與節次表。
 """
 
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,6 +26,11 @@ from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, Leave
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
 from app.services.slip_layout import Move, SlipError, Slips, Tables, assemble, school_title
+
+
+def _md(d: date) -> str:
+    """記號裡的日期照習慣寫成 10/30(不補零)。"""
+    return f"{d.month}/{d.day}"
 
 
 def _moves(db: Session, tables: Tables, ap: AffectedPeriod, sub: Substitution) -> list[Move]:
@@ -42,13 +50,13 @@ def _moves(db: Session, tables: Tables, ap: AffectedPeriod, sub: Substitution) -
             date=ap.date, period_no=ap.period_no, class_names=ap.class_names,
             subject_name=sub.swap_subject_name if same_class else ap.subject_name,
             teacher_id=partner.id, teacher_name=partner.name, table_id=leave_table,
-            code=f"調{sub.swap_date:%m-%d}_{swap_wd}{swap_ord}",
+            code=f"調{_md(sub.swap_date)}_{swap_wd}{swap_ord}",
         ),
         Move(  # 乙原本那節:改由甲上
             date=sub.swap_date, period_no=sub.swap_period_no, class_names=sub.swap_class_names,
             subject_name=ap.subject_name if same_class else sub.swap_subject_name,
             teacher_id=absent.id, teacher_name=absent.name, table_id=swap_table,
-            code=f"調{ap.date:%m-%d}_{leave_wd}{leave_ord}",
+            code=f"調{_md(ap.date)}_{leave_wd}{leave_ord}",
         ),
     ]
 

@@ -107,6 +107,19 @@ export const clearSubstitution = (affectedId: number): Promise<{ status: string 
   apiDelete(`/affected-periods/${affectedId}/substitution`)
 
 /** 未指定教師時,只找也教這個班的老師;weeks = 從請假那週起找幾週(1–4) */
+// ── 併班(v1.3.5):這一節正在上自己班的老師,把請假老師的班併過去 ──
+export interface MergeOption {
+  teacher_id: number
+  teacher_name: string
+  class_names: string // 接手老師這一節在上的班
+  subject_name: string
+  same_grade: boolean
+  same_subject: boolean
+}
+
+export const getMergeOptions = (affectedId: number): Promise<{ options: MergeOption[] }> =>
+  apiGet(`/affected-periods/${affectedId}/merge-options`)
+
 export const getSwapOptions = (
   affectedId: number, teacherId?: number | null, weeks = 2,
 ): Promise<SwapOptions> => {
@@ -130,7 +143,7 @@ export interface SlipCell {
   ordinal: number
   subject_name: string
   actor: string // 第三行:調課單寫上課老師;代課單寫「班級[代]」或「老師[代]」
-  code: string // 「調09-15_25」:與 9/15 星期二第 5 節對調;代課單沒有
+  code: string // 「調9/15_25」:與 9/15 星期二第 5 節對調;代課單沒有
   time_note?: string // 跨節次表的格子:實際上課時間(與格線那一列不同時才有)
 }
 

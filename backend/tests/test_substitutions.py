@@ -602,7 +602,7 @@ def test_swap_slips_same_class_follow_the_paper_form(env2):
     assert kinds == [("teacher", "陳師", "701"), ("teacher", "王師", "701"), ("class", "", "701")]
 
     chen, wang_slip, klass = body["slips"]
-    thu, wed = THU.strftime("%m-%d"), WED.strftime("%m-%d")
+    thu, wed = f"{THU.month}/{THU.day}", f"{WED.month}/{WED.day}"   # 10/30,不補零(v1.3.5)
     assert _cells(chen) == [(WED.isoformat(), 1, "數學", "陳師", f"調{thu}_42")]
     assert _cells(wang_slip) == [(THU.isoformat(), 2, "國文", "王師", f"調{wed}_31")]
     assert len(_cells(klass)) == 2

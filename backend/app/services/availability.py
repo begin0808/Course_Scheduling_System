@@ -90,6 +90,8 @@ class Availability:
         self.timetable = timetable or published_timetable(db, semester_id)
         # 每位教師的授課時段,附上週別(None = 每週;odd/even = 只上單週/雙週)
         self._teaching: dict[int, list[tuple[Interval, str | None]]] | None = None
+        # 同上,另附配課 id(併班要知道接手老師那一節在上哪個班)
+        self._lessons: dict[int, list[tuple[Interval, str | None, int]]] | None = None
         self._table_periods: dict[int, dict[tuple[int, int], Period]] = {}
         semester = db.get(Semester, semester_id)
         self.semester_start = semester.start_date if semester else None
@@ -105,11 +107,19 @@ class Availability:
 
     # ── 週課表:每位教師的授課時段(牆鐘區間)──
     def _teaching_map(self) -> dict[int, list[tuple[Interval, str | None]]]:
-        if self._teaching is not None:
-            return self._teaching
-        result: dict[int, list[tuple[Interval, str | None]]] = {}
+        if self._teaching is None:
+            self._teaching = {
+                t: [(iv, parity) for iv, parity, _ in lessons]
+                for t, lessons in self._lesson_map().items()
+            }
+        return self._teaching
+
+    def _lesson_map(self) -> dict[int, list[tuple[Interval, str | None, int]]]:
+        if self._lessons is not None:
+            return self._lessons
+        result: dict[int, list[tuple[Interval, str | None, int]]] = {}
         if self.timetable is None:
-            self._teaching = result
+            self._lessons = result
             return result
 
         rows = self.db.execute(
@@ -129,9 +139,19 @@ class Availability:
                 result.setdefault(teacher_id, []).append((Interval(
                     weekday, period_no + k,
                     p.start_time if p else None, p.end_time if p else None,
-                ), parity))
-        self._teaching = result
+                ), parity, a_id))
+        self._lessons = result
         return result
+
+    def lessons_at(self, slot: Interval, when: date) -> list[tuple[int, int]]:
+        """when 這一天 slot 時段正在上課的 (教師, 配課);單雙週的課只看那一週。"""
+        week = self.week_of(when)
+        return [
+            (teacher_id, a_id)
+            for teacher_id, lessons in self._lesson_map().items()
+            for iv, parity, a_id in lessons
+            if iv.overlaps(slot) and runs_in_week(parity, week)
+        ]
 
     def _table_of_assignment(self, assignment_id: int) -> int | None:
         a = self.db.get(CourseAssignment, assignment_id)
@@ -147,6 +167,9 @@ class Availability:
         return self._table_periods[table_id].get((weekday, period_no))
 
     # ── 當日請假:該教師自己那天那個時段是否也請假 ──
+    def on_leave(self, teacher_id: int, when: date, slot: Interval) -> bool:
+        return self._on_leave(teacher_id, when, slot)
+
     def _on_leave(self, teacher_id: int, when: date, slot: Interval) -> bool:
         """該教師在 when 這天的 slot 時段是否請假。
 

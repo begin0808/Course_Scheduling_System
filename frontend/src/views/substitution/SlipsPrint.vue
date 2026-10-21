@@ -41,6 +41,19 @@ function cellsAt(cells: SlipCell[], day: string, ordinal: number): SlipCell[] {
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '')
 
+/**
+ * 調課記號說明(v1.3.5):[調10/30_56] 單看紙本不容易懂,用這一頁的第一個記號舉例。
+ * 記號格式:調 + 月/日 + _ + 星期(1~7)+ 節次。
+ */
+function codeNote(cells: SlipCell[]): string {
+  const code = cells.find((c) => c.code)?.code ?? ''
+  const m = /^調(\d+\/\d+)_(\d)(\d+)$/.exec(code)
+  if (!m) return '記號說明：[調月/日_星期節次] 表示這一格和那一節對調。'
+  const weekday = DAY_NAMES[Number(m[2]) - 1] ?? ''
+  return `記號說明：[${code}] 表示這一格和 ${m[1]}（${weekday}）第 ${m[3]} 節對調；`
+    + '底線後第一碼是星期，其餘是節次。'
+}
+
 function doPrint() {
   window.print()
 }
@@ -150,6 +163,7 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
+      <p v-if="isSwap" class="code-note" data-testid="slip-code-note">{{ codeNote(week.cells) }}</p>
     </section>
   </div>
 </template>
@@ -190,6 +204,7 @@ onMounted(async () => {
 .grid td.time { font-size: 11px; line-height: 1.2; }
 .grid td.time { border-right-width: 2px; }
 tr.afternoon td { border-top-width: 2px; }
+.code-note { font-size: 12px; margin: 6px 0 0; }
 
 @media print {
   @page { size: A4 portrait; margin: 12mm; }

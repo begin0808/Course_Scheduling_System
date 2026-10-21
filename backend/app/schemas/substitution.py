@@ -23,6 +23,21 @@ class RecommendationOut(BaseModel):
     no_candidate_hint: str = ""
 
 
+class MergeOptionOut(BaseModel):
+    teacher_id: int
+    teacher_name: str
+    class_names: str
+    subject_name: str
+    same_grade: bool
+    same_subject: bool
+
+
+class MergeOptionsOut(BaseModel):
+    """併班:這一節正在上自己班、可以把請假老師的班併過去的老師(v1.3.5)。"""
+
+    options: list[MergeOptionOut] = []
+
+
 class AssignRequest(BaseModel):
     """指派處置。type=substitute/swap/merge 需 handler_teacher_id;swap 另需 swap_*。"""
 

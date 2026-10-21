@@ -13,7 +13,8 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.basedata import Teacher
+from app.models.assignment import CourseAssignment
+from app.models.basedata import Subject, Teacher
 from app.models.leave import AffectedPeriod, AffectedStatus
 from app.models.substitution import Substitution
 from app.services.availability import Availability
@@ -142,3 +143,60 @@ def recommend(
             f"該時段全校 {blocked} 位教師都無法代課,建議改採「併班」或「自習」"
         )
     return rec
+
+
+@dataclass(frozen=True, slots=True)
+class MergeOption:
+    teacher_id: int
+    teacher_name: str
+    class_names: str      # 接手老師這一節在上的班(併過去的地方)
+    subject_name: str
+    same_grade: bool
+    same_subject: bool
+
+
+def merge_options(
+    db: Session,
+    affected: AffectedPeriod,
+    *,
+    availability: Availability | None = None,
+) -> list[MergeOption]:
+    """併班:這一節**正在上自己班**的老師,把請假老師的班併過去一起上(v1.3.5 使用者定案)。
+
+    空堂老師請用代課,不列在這裡;同一堂課的協同教師也不列(不是「併到他班」)。
+    排序:同年級優先、同科目其次。
+    """
+    av = availability or Availability(db, affected.semester_id)
+    slot = av.slot_of(affected)
+    absent_teacher_id = affected.leave_request.teacher_id
+    own = (db.get(CourseAssignment, affected.course_assignment_id)
+           if affected.course_assignment_id else None)
+    grades = {m.class_unit.grade for m in own.scheduling_unit.members} if own else set()
+
+    out: list[MergeOption] = []
+    seen: set[tuple[int, int]] = set()
+    for teacher_id, a_id in av.lessons_at(slot, affected.date):
+        if (teacher_id, a_id) in seen or teacher_id == absent_teacher_id:
+            continue
+        seen.add((teacher_id, a_id))
+        if a_id == affected.course_assignment_id:
+            continue
+        teacher = db.get(Teacher, teacher_id)
+        if teacher is None or not teacher.is_active:
+            continue
+        if av.on_leave(teacher_id, affected.date, slot):
+            continue
+        a = db.get(CourseAssignment, a_id)
+        if a is None:
+            continue
+        classes = [m.class_unit for m in a.scheduling_unit.members]
+        subject = db.get(Subject, a.subject_id)
+        subject_name = subject.name if subject else ""
+        out.append(MergeOption(
+            teacher_id=teacher.id, teacher_name=teacher.name,
+            class_names="、".join(c.name for c in classes), subject_name=subject_name,
+            same_grade=bool(grades & {c.grade for c in classes}),
+            same_subject=subject_name == affected.subject_name,
+        ))
+    out.sort(key=lambda o: (not o.same_grade, not o.same_subject, o.class_names, o.teacher_name))
+    return out

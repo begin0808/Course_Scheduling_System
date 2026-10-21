@@ -10,11 +10,11 @@ import { listSemesters } from '@/api/semesters'
 import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
 import {
-  assignSubstitution, assignSubstitutionBatch, clearSubstitution, getRecommendations,
-  getSwapOptions, listFundingSources, listSubstitutionTypes, openSlips,
+  assignSubstitution, assignSubstitutionBatch, clearSubstitution, getMergeOptions,
+  getRecommendations, getSwapOptions, listFundingSources, listSubstitutionTypes, openSlips,
 } from '@/api/substitutions'
 import type {
-  BatchSkip, Candidate, Recommendation, SwapOption, SwapOptions, SwapPartner,
+  BatchSkip, Candidate, MergeOption, Recommendation, SwapOption, SwapOptions, SwapPartner,
 } from '@/api/substitutions'
 
 const message = useMessage()
@@ -38,6 +38,9 @@ const loadingSwap = ref(false)
 const swapTeacherId = ref<number | null>(null)
 // 找幾週:換節次、換假單都沿用組長上次選的(常和隔三週調的學校,每次都要重選很煩)
 const swapWeeks = ref(2)
+// 併班(v1.3.5):這一節正在上自己班的老師;選一位,把請假老師的班併過去
+const mergeOpen = ref(false)
+const mergeOptions = ref<MergeOption[] | null>(null)
 const SWAP_WEEK_OPTIONS = [
   { label: '本週與下週', value: 2 },
   { label: '往後共 3 週', value: 3 },
@@ -73,6 +76,8 @@ function resetSwap() {
   swap.value = null
   swapTeacherId.value = null
   swapExpanded.value = new Set()
+  mergeOpen.value = false
+  mergeOptions.value = null
 }
 
 /** 這位老師目前要顯示的節次:有同班的就先只列同班,其他班等組長展開 */
@@ -199,7 +204,28 @@ async function loadSwap(p: AffectedPeriod) {
 
 async function toggleSwap(p: AffectedPeriod) {
   swapOpen.value = !swapOpen.value
+  mergeOpen.value = false
   if (swapOpen.value && !swap.value) await loadSwap(p)
+}
+
+async function toggleMerge(p: AffectedPeriod) {
+  mergeOpen.value = !mergeOpen.value
+  swapOpen.value = false
+  if (mergeOpen.value && !mergeOptions.value) {
+    mergeOptions.value = (await getMergeOptions(p.id)).options
+  }
+}
+
+async function assignMerge(p: AffectedPeriod, o: MergeOption) {
+  try {
+    await assignSubstitution(p.id, { type: 'merge', handler_teacher_id: o.teacher_id })
+    message.success(`已把 ${p.class_names} 併到 ${o.teacher_name} 的 ${o.class_names} 一起上`)
+    openId.value = null
+    resetSwap()
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '併班失敗')
+  }
 }
 
 async function onSwapTeacherChange(p: AffectedPeriod, id: number | null) {
@@ -465,7 +491,10 @@ function candidateTagType(c: Candidate): string {
                     >
                       調課
                     </n-button>
-                    <n-button size="tiny" data-testid="sub-merge" @click="assign(p, 'merge')">
+                    <n-button
+                      size="tiny" :type="mergeOpen ? 'primary' : 'default'"
+                      data-testid="sub-merge" @click="toggleMerge(p)"
+                    >
                       併班
                     </n-button>
                     <n-button
@@ -477,6 +506,30 @@ function candidateTagType(c: Candidate): string {
                       不處理
                     </n-button>
                   </n-space>
+
+                  <!-- 併班:把這班併到這一節正在上課的老師那裡一起上(v1.3.5) -->
+                  <div v-if="mergeOpen" class="swap" data-testid="sub-merge-panel">
+                    <n-text depth="3" class="swap-intro">
+                      併班 = 把 {{ p.class_names }} 併到這一節正在上課的老師班上一起上(不另計代課鐘點)。
+                      同年級的排前面;沒有課的老師請用上面的「代課」。
+                    </n-text>
+                    <n-text v-if="mergeOptions && !mergeOptions.length" depth="3" data-testid="sub-merge-empty">
+                      這一節沒有其他老師在上課,無法併班;可改用代課或自習。
+                    </n-text>
+                    <div v-for="o in mergeOptions ?? []" :key="`${o.teacher_id}-${o.class_names}`" class="swap-partner">
+                      <n-space align="center" size="small">
+                        <n-button
+                          size="small" type="primary" ghost data-testid="sub-merge-pick"
+                          @click="assignMerge(p, o)"
+                        >
+                          併到 {{ o.teacher_name }}({{ o.class_names }})
+                        </n-button>
+                        <n-text>{{ o.subject_name }}</n-text>
+                        <n-tag v-if="o.same_grade" size="small" type="success">同年級</n-tag>
+                        <n-tag v-if="o.same_subject" size="small" type="info">同科目</n-tag>
+                      </n-space>
+                    </div>
+                  </div>
 
                   <!-- 調課:乙來上這一節,甲在往後幾週內補回乙的一節 -->
                   <div v-if="swapOpen" class="swap" data-testid="sub-swap-panel">
