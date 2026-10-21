@@ -111,3 +111,33 @@ export interface PatrolSettings {
 export const getPatrolSettings = () => apiGet<PatrolSettings>('/settings/patrol')
 export const savePatrolSettings = (body: PatrolSettings) =>
   apiPut<PatrolSettings>('/settings/patrol', body)
+
+// ── 儀表板即時概況(v1.3.3)──
+export interface LiveCell {
+  class_name: string
+  subject: string
+  teacher: string
+  room: string
+  note: string // 代課/調課/併班/自習/停課/請假待處理
+}
+export interface LiveSection {
+  table_name: string // 全校只有一套節次表時為空
+  /** in_class 上課中 / upcoming 下課中(列下一節)/ before_school / after_school / no_class / no_times */
+  state: string
+  message: string
+  now_label: string // 下課、早自習、午休…
+  period_name: string
+  start: string
+  end: string
+  cells: LiveCell[]
+}
+export interface LiveOverview {
+  date: string
+  weekday: number
+  time: string
+  message: string
+  sections: LiveSection[]
+}
+
+export const getLiveOverview = (semesterId: number): Promise<LiveOverview> =>
+  apiGet(`/live-overview?semester_id=${semesterId}`)

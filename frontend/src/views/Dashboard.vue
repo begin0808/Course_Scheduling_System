@@ -2,6 +2,7 @@
 import { NButton, NCard, NEmpty, NSpace, NStatistic, NTag } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import LiveOverviewCard from '@/components/LiveOverviewCard.vue'
 import { listSemesters } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import { getDailyBoard } from '@/api/substitutionLog'
@@ -60,6 +61,8 @@ onMounted(async () => {
         </template>
       </n-empty>
     </n-card>
+
+    <LiveOverviewCard v-if="semester" :semester-id="semester.id" />
 
     <n-card v-if="semester && board" data-testid="dash-today" :title="`今日調代課 · ${boardDateLabel}`">
       <n-space v-if="board.entries.length" vertical>

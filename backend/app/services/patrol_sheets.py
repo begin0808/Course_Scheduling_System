@@ -153,8 +153,11 @@ def _same_class(ap: AffectedPeriod, sub: Substitution) -> bool:
     return ap.class_names == sub.swap_class_names
 
 
-class _Day:
-    """某一天的實際課表:週課表格位 + 當天的請假與調代課。"""
+class Day:
+    """某一天的實際課表:週課表格位 + 當天的請假與調代課。
+
+    儀表板的即時概況(`live_overview`)也用它取「現在這一節」。
+    """
 
     def __init__(self, db: Session, semester_id: int, timetable_id: int, on: date) -> None:
         self.db = db
@@ -259,7 +262,22 @@ class _Day:
         return [lesson for _, lesson in sorted(out, key=lambda x: x[0])]
 
 
-def _join(values: list[str], sep: str = "／") -> str:
+def classes_by_period_table(
+    db: Session, semester_id: int,
+) -> dict[int, tuple[PeriodTable, list[ClassUnit]]]:
+    """各班依自己的節次表分組(國中小、完全中學兩部作息不同);班級依年級、班名排序。"""
+    by_table: dict[int, tuple[PeriodTable, list[ClassUnit]]] = {}
+    for c in db.scalars(
+        select(ClassUnit).where(ClassUnit.semester_id == semester_id)
+        .order_by(ClassUnit.grade, ClassUnit.name)
+    ):
+        table = pt_service.resolve_period_table(db, c)
+        if table is not None:
+            by_table.setdefault(table.id, (table, []))[1].append(c)
+    return by_table
+
+
+def join(values: list[str], sep: str = "／") -> str:
     return sep.join(dict.fromkeys(v for v in values if v))
 
 
@@ -270,10 +288,10 @@ def _cell(lessons: list[_Lesson]) -> PatrolCell:
         return PatrolCell(
             subject=lessons[0].unit_name, teacher=f"共 {len(lessons)} 組", note="見分組巡堂單")
     return PatrolCell(
-        subject=_join([x.subject for x in lessons]),
-        teacher=_join([x.teacher for x in lessons]),
-        room=_join([x.room for x in lessons]),
-        note=_join([x.note for x in lessons], "、"),
+        subject=join([x.subject for x in lessons]),
+        teacher=join([x.teacher for x in lessons]),
+        room=join([x.room for x in lessons]),
+        note=join([x.note for x in lessons], "、"),
     )
 
 
@@ -291,20 +309,12 @@ def build(db: Session, semester_id: int, date_from: date, date_to: date) -> Patr
     if timetable is None:
         raise PatrolError("此學期尚無已發布的課表")
 
-    classes = list(db.scalars(
-        select(ClassUnit).where(ClassUnit.semester_id == semester_id)
-        .order_by(ClassUnit.grade, ClassUnit.name)
-    ))
-    by_table: dict[int, tuple[PeriodTable, list[ClassUnit]]] = {}
-    for c in classes:
-        table = pt_service.resolve_period_table(db, c)
-        if table is not None:
-            by_table.setdefault(table.id, (table, []))[1].append(c)
+    by_table = classes_by_period_table(db, semester_id)
     multi = len(by_table) > 1
 
     result = PatrolSheets(title=school_title(db, semester_id), legend=legend(db))
     for on in _days(date_from, date_to):
-        day = _Day(db, semester_id, timetable.id, on)
+        day = Day(db, semester_id, timetable.id, on)
         if not day.entries:
             continue
         listed: set[tuple[int, int]] = set()      # 已出過分組單的 (群組, 節次)

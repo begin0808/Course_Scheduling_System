@@ -4,18 +4,24 @@
 """
 
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
+from app.core.clock import school_now
 from app.core.db import get_db
 from app.models.semester import Semester
 from app.models.user import Role, User
-from app.schemas.substitution_log import DailyBoardOut, LogEntryOut, PatrolSheetsOut
-from app.services import patrol_sheets, patrol_xlsx
+from app.schemas.substitution_log import (
+    DailyBoardOut,
+    LiveOverviewOut,
+    LogEntryOut,
+    PatrolSheetsOut,
+)
+from app.services import live_overview, patrol_sheets, patrol_xlsx
 from app.services import settings as app_settings
 from app.services import substitution_log as log_service
 
@@ -53,6 +59,25 @@ def daily_board(
         semester_label=sem.label,
         entries=[_entry_out(e) for e in entries],
     )
+
+
+@router.get("/live-overview", response_model=LiveOverviewOut)
+def get_live_overview(
+    semester_id: int = Query(...),
+    at: datetime | None = Query(
+        default=None, description="指定時刻(學校時區,供測試與預覽);預設為現在"),
+    db: Session = Depends(get_db),
+    _: User = Depends(viewer),
+):
+    """儀表板即時概況:現在這一節各班實際在上什麼課、誰在上(已套用當天的調代課)。
+
+    下課、早自習、午休時列出下一節;上學前、放學後、沒有課的日子只回一行說明。
+    """
+    _get_semester(db, semester_id)
+    now = school_now() if at is None else at
+    if now.tzinfo is not None:
+        now = now.astimezone(school_now().tzinfo).replace(tzinfo=None)
+    return LiveOverviewOut.model_validate(asdict(live_overview.build(db, semester_id, now)))
 
 
 @router.get("/patrol-sheets", response_model=PatrolSheetsOut)
