@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="排課與調代課系統 v1.3.2 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
+<meta name="description" content="排課與調代課系統 v1.3.3 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
 <title>功能總覽 · 排課與調代課系統</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📋</text></svg>">
 <style>
@@ -90,7 +90,7 @@
 <header>
   <div class="eyebrow">FEATURE OVERVIEW</div>
   <h1>排課與調代課系統 · 功能總覽</h1>
-  <p class="lead">目前最新版 <b>v1.3.2</b>(2026-10-20)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">加入 LINE 社群、寫信或到 GitHub Issues 回報</a>。</p>
+  <p class="lead">目前最新版 <b>v1.3.3</b>(2026-10-21)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">加入 LINE 社群、寫信或到 GitHub Issues 回報</a>。</p>
   <div class="meta">
     <span class="chip">單校自架 · 資料不出校</span>
     <span class="chip">開源免費(MIT)</span>
@@ -238,6 +238,7 @@
   <tr><td>巡堂紀錄</td><td>已發布課表＋當天調代課疊起來的真實樣貌。A4 橫式,班級為欄、節次為列,上午、下午各一張(早自習、午休不列);代課、調課、併班、自習、停課、請假待處理都會標示;超過 12 班自動分頁。可印當天或整週。</td><td class="ver">v1.2.12</td></tr>
   <tr><td>分組巡堂單</td><td>同一節 4 組以上的跑班群組(社團、多元選修)另列清單,一列一組,編號固定依配課建立順序。</td><td class="ver">v1.2.12–13</td></tr>
   <tr><td>匯出 Excel</td><td>內容同列印頁,每天上午、下午各一分頁,分組單另成頁;已設 A4 橫向一頁寬,可先改再印。</td><td class="ver">v1.2.14</td></tr>
+  <tr><td>儀表板即時概況</td><td>現在這一節各班實際在上什麼課、誰在上(同巡堂表,已套用當天的調代課,有異動的班級標色);下課、早自習、午休時列下一節;每分鐘自動更新。兩部作息分開判斷。限組長、主任、管理員。</td><td class="ver">v1.3.3</td></tr>
   <tr><td>記錄說明自訂</td><td>表格下方「授課情形、學生學習」的代碼說明可在系統管理改成各校寫法。</td><td class="ver">v1.2.12</td></tr>
 </table></div>
 
@@ -269,7 +270,7 @@
   <div class="card"><b>HTTPS</b><span>設定網域即自動申請憑證(Caddy);未設定時為校內 HTTP。</span></div>
   <div class="card"><b>資料不出校</b><span>單校自架,不連任何雲端服務;唯一的對外連線是每天一次的版本查詢,可關閉。</span></div>
 </div>
-<div class="note good">每一版發布前都經過:後端 670 項、前端 31 項、端對端 51 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
+<div class="note good">每一版發布前都經過:後端 685 項、前端 35 項、端對端 52 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
 
 <h2 id="limits"><span class="no">14</span>目前的限制</h2>
 <p class="intro">已知、尚未處理的部分。多數有變通做法(見手冊 FAQ)。</p>
@@ -311,6 +312,7 @@
   <tr><td>v1.3.0</td><td class="ver">2026-10-18</td><td>單雙週課程(首次資料表結構變更)、升級前自動備份</td></tr>
   <tr><td>v1.3.1</td><td class="ver">2026-10-20</td><td>帳號管理(設定教學組長、教務主任)</td></tr>
   <tr><td>v1.3.2</td><td class="ver">2026-10-20</td><td>重設管理員密碼指令;安裝說明補上 .env 密碼的注意事項</td></tr>
+  <tr><td>v1.3.3</td><td class="ver">2026-10-21</td><td>儀表板即時概況(Issue #50)</td></tr>
 </table></div>
 
 <h2 id="feedback"><span class="no">17</span>意見回報</h2>
@@ -322,7 +324,7 @@
 </div>
 <div class="note good">回報問題時附上<b>系統版本</b>(選單底部)、<b>操作步驟</b>和<b>畫面截圖</b>,會更快找到原因;截圖請先遮住老師姓名等個人資料。</div>
 
-<footer>排課與調代課系統 · 功能總覽 · 對應 v1.3.2 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
+<footer>排課與調代課系統 · 功能總覽 · 對應 v1.3.3 · 開源免費(MIT)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
 </div>
 </body>
 </html>

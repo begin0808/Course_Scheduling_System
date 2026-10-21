@@ -323,13 +323,18 @@
       <td>2026-10-20</td>
       <td><strong>重設管理員密碼指令</strong>(使用者來信):第一次就登不進去或忘了密碼時,不必刪資料或還原備份</td>
       </tr>
+      <tr>
+      <td>v1.3.3</td>
+      <td>2026-10-21</td>
+      <td><strong>儀表板即時概況</strong>(Issue #50):現在這一節各班在上什麼課、誰在上,已套用當天的調代課</td>
+      </tr>
       </tbody>
       </table></div>
       <p>各版細節見 <a href="../CHANGELOG.html">CHANGELOG.md</a>。</p>
       <hr />
       <h2 id="工程改善原v13-範圍v130-改做單雙週後順延內容與順序不變">工程改善(原「v1.3 範圍」;v1.3.0 改做單雙週後順延,內容與順序不變)</h2>
       <p>排序原則:<strong>學校裝得快、用得順的先做</strong>,純工程衛生的後做。全部不改資料表結構。</p>
-      <p><strong>開工時機</strong>:由專案負責人決定;先讓使用學校實際用 v1.3.2 幾天,沒有新的問題回報再動工。</p>
+      <p><strong>開工時機</strong>:由專案負責人決定;先讓使用學校實際用 v1.3.3 幾天,沒有新的問題回報再動工。</p>
       <h3 id="1-api-映像拆掉-ortools-m">1. api 映像拆掉 ortools —— M</h3>
       <ul>
       <li><strong>現況</strong>:<code>ortools</code> 在 <code>pyproject.toml</code> 主依賴,api 映像 <strong>674MB</strong>;排課求解只在 worker 跑,api 容器用不到。</li>

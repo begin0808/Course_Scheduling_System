@@ -94,3 +94,32 @@ class DailyBoardOut(BaseModel):
     school_name: str
     semester_label: str
     entries: list[LogEntryOut] = []
+
+
+class LiveCellOut(BaseModel):
+    class_name: str
+    subject: str
+    teacher: str
+    room: str
+    note: str
+
+
+class LiveSectionOut(BaseModel):
+    table_name: str
+    state: str
+    message: str
+    now_label: str
+    period_name: str
+    start: str
+    end: str
+    cells: list[LiveCellOut]
+
+
+class LiveOverviewOut(BaseModel):
+    """儀表板即時概況(v1.3.3):現在這一節(或下課時的下一節)各班實際的課。"""
+
+    date: _Date
+    weekday: int
+    time: str
+    message: str
+    sections: list[LiveSectionOut]
