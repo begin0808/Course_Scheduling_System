@@ -26,6 +26,7 @@ from app.schemas.substitution import (
     BatchAssignRequest,
     BatchSkipOut,
     CandidateOut,
+    MergeOptionsOut,
     RecommendationOut,
     SlipsOut,
     SubstitutionOut,
@@ -80,6 +81,16 @@ def get_recommendations(
             for c in rec.candidates
         ],
     )
+
+
+@router.get("/affected-periods/{affected_id}/merge-options", response_model=MergeOptionsOut)
+def get_merge_options(
+    affected_id: int, db: Session = Depends(get_db), _: User = Depends(editor)
+):
+    """併班:列出這一節正在上自己班的老師(同年級優先、同科目其次),選一位把班併過去。"""
+    affected = _get_affected(db, affected_id)
+    return MergeOptionsOut.model_validate(
+        {"options": [asdict(o) for o in recommender.merge_options(db, affected)]})
 
 
 @router.get("/affected-periods/{affected_id}/swap-options", response_model=SwapOptionsOut)
