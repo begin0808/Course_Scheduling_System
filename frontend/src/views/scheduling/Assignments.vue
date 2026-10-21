@@ -424,12 +424,13 @@ function blockLabel(a: Assignment): string {
         />
         <n-select
           v-else-if="form.target === 'group'" v-model:value="form.scheduling_unit_id"
-          :options="groupOptions" placeholder="選擇跑班群組(需先建立)"
+          data-testid="a-group" :options="groupOptions" filterable
+          placeholder="選擇跑班群組(需先建立,可打字搜尋)"
         />
         <template v-else>
           <n-select
             v-model:value="form.scheduling_unit_id" data-testid="a-alt-unit"
-            :options="alternateOptions" placeholder="選擇單雙週組(需先建立)"
+            :options="alternateOptions" filterable placeholder="選擇單雙週組(需先建立,可打字搜尋)"
           />
           <n-radio-group v-model:value="form.week_parity" data-testid="a-week">
             <n-radio-button value="odd">單週</n-radio-button>
@@ -476,7 +477,7 @@ function blockLabel(a: Assignment): string {
         <n-text>場地需求(選填)</n-text>
         <n-space>
           <n-select v-model:value="form.required_room_type" :options="roomTypeOptions" clearable placeholder="場地類型" style="flex: 1" />
-          <n-select v-model:value="form.room_id" :options="roomOptions" clearable placeholder="指定場地" style="flex: 1" />
+          <n-select v-model:value="form.room_id" :options="roomOptions" clearable filterable placeholder="指定場地" style="flex: 1" />
         </n-space>
         <n-checkbox v-model:checked="form.lock_room">鎖定場地(排課不得更動)</n-checkbox>
 

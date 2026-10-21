@@ -171,6 +171,7 @@ async function remove(c: ClassUnit) {
           v-model:value="form.homeroom_teacher_id"
           :options="teacherOptions"
           clearable
+          filterable
           placeholder="（未指定）"
         />
         <template v-if="showPeriodTable">
