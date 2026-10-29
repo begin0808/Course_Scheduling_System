@@ -166,6 +166,9 @@ erDiagram
     LEAVE_REQUEST ||--o{ AFFECTED_PERIOD : "受影響節次"
     AFFECTED_PERIOD ||--o| SUBSTITUTION : "處理"
     TEACHER ||--o{ SUBSTITUTION : "代課教師"
+    LEAVE_REQUEST ||--o{ HOMEROOM_COVER : "代導(導師請假)"
+    CLASS_UNIT ||--o{ HOMEROOM_COVER : "被代導的班"
+    TEACHER ||--o{ HOMEROOM_COVER : "代導教師"
     SUBSTITUTION ||--o{ NOTIFICATION : "通知"
     USER ||--o{ USER_ROLE : "角色"
     USER ||--o| TEACHER : "綁定"
@@ -192,6 +195,7 @@ erDiagram
 | `schedule_entry` | 課表格位 | 課表版本、配課、星期、節次、`span`(連堂)、`room_id`(空=沿用配課場地)、`locked` 旗標;**唯一性約束在應用層+求解器驗證**(教師/班級/場地同時段不重複) |
 | `leave_request` | 請假 | 教師、假別(公/事/病/婚/喪/產/進修)、起訖日期時間、事由、登記人 |
 | `affected_period` | 受影響節次 | 請假展開後的每一節課;狀態機見 §5.3 |
+| `homeroom_cover` | **代導**(v1.4.0,遷移 0019) | 導師請假時,依「他帶的班 × 請假期間的上課日」各一列(`uq(leave_request_id, class_name, date)`),**與課表無關**——當天沒課也要有人帶班。快照:班名、年級;該日請假時段 `from_time`/`to_time`(兩端皆空 = 全天,否則為半天,顯示為上午/下午);狀態沿用 `affected_period` 的待處理/已確認/已取消(已完成為讀取時推導:那天過完);`no_cover`(不需代導)、代導教師 `handler_teacher_id`。人選不檢查課務(有課也能代導),只排除當天整天請假者。月結只記全天/半天天數,不計算代導費 |
 | `substitution` | 調代課處置 | 類型:`substitute`(代課)/`swap`(調課)/`merge`(併班)/`self_study`(自習)/`cancel`(不處理);代課教師、是否計鐘點、經費來源標記 |
 | `notification` | 通知 | 站內+Email(v2 經 channel adapter 加 LINE/webhook);類型、收件人、已讀狀態 |
 | `user` / `user_role` | 帳號與角色 | 本地帳密(bcrypt);角色:admin / director(教務主任)/ scheduler(教學組長)/ teacher |
@@ -503,6 +507,7 @@ stateDiagram-v2
 
 > **2026-07-09 使用者定案:不設「邀請/婉拒」流程。** 台灣實務上教學組長指派代課前必先口頭徵得教師同意,系統通知只是正式告知。指派即生效;被指派教師收到通知後可一鍵「**確認收到**」(通知層的已讀確認旗標,不影響課務狀態),組長在看板可見各筆確認狀態並可對未確認者再次提醒。此設計較原「邀請中→接受/婉拒」大幅簡化狀態機與 UI。
 
+- **代導(v1.4.0)**:與受影響節次平行、以天為單位的另一條線。請假登記時一併展開;指派即生效並通知;銷假時已過完的日子保留(照算),其餘轉已取消並通知代導教師。升級前已登記的假單不補產生。長期代理導師不走代導,直接改 `class_unit.homeroom_teacher_id`。
 - **代課推薦排序**:該時段空堂(硬性)→ 同科目 → 當日已有課(已在校)→ 本月代課鐘點少者優先(公平)。每位候選人顯示排序理由。
 - **調課(swap)**:選甲教師受影響節次 ↔ 乙教師某節次,系統驗證交換後雙方及兩班均無衝突才允許。
 - **通知管道(2026-07-09 健檢時評估更新)**:以 `NotificationChannel` 介面分層,MVP 實作兩個 channel——**站內通知**(永遠可用)與 **Email**(SMTP 設定後啟用);v2 以 adapter 增 **webhook** 與 **LINE**。LINE 評估結論:LINE Notify 已於 2025-03 終止服務,個人化 LINE 通知須各校自申請 LINE 官方帳號走 Messaging API(免費額度約 200 則/月,超量付費),且推播需要經由加好友綁定取得的內部 userId(教師自填的 LINE ID 無法直接推播,僅供人工聯絡)——建置成本掛在各校行政端,故列 v2 選配,MVP 不阻塞。教師「手機」欄位僅供人工聯絡,不做簡訊(需付費)。收件人解析:`teacher.user_id` → 站內;`teacher.email` → Email(教師無帳號、僅有 Email 時仍可收信)。教師端所有操作(查課表/請假/確認代課)必須手機瀏覽器可完成。
