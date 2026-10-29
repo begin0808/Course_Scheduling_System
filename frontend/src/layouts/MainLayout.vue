@@ -4,7 +4,7 @@ import { computed, h, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import NotificationBell from '@/components/NotificationBell.vue'
-import { getUpdateStatus, getVersion } from '@/api/system'
+import { SOURCE_URL, getUpdateStatus, getVersion } from '@/api/system'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -127,8 +127,9 @@ async function onLogout() {
         :options="menuOptions"
         :default-expanded-keys="['basedata-group', 'scheduling-group']"
       />
-      <div v-if="version && !collapsed" class="version" data-testid="app-version">
-        版本 {{ version }}
+      <div v-if="!collapsed" class="version">
+        <div v-if="version" data-testid="app-version">版本 {{ version }}</div>
+        <a :href="SOURCE_URL" target="_blank" rel="noopener" data-testid="app-source">原始碼(AGPL-3.0)</a>
       </div>
     </n-layout-sider>
 
@@ -162,5 +163,6 @@ async function onLogout() {
 
 <style scoped>
 .version { padding: 12px 20px; font-size: 12px; opacity: 0.6; }
+.version a { color: inherit; }
 .update-link { text-decoration: none; }
 </style>

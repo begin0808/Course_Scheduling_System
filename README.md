@@ -1,13 +1,13 @@
 # 排課與調代課系統 · Course Scheduling System
 
 [![CI](https://github.com/begin0808/Course_Scheduling_System/actions/workflows/ci.yml/badge.svg)](https://github.com/begin0808/Course_Scheduling_System/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 **開源免費、單校自架、純 Web 的中小學排課與調代課系統。** 適用國小、國中、普通型高中、綜合型高中、技術型高中,以**教學組長**的日常工作流程為中心設計。
 
 從學期基礎資料、手動與自動排課(OR-Tools CP-SAT 引擎),到學期中最繁瑣的請假、代課、調課、通知與鐘點統計,一套涵蓋。以 Docker Compose 一鍵部署在校內一台主機上,資料不出校。
 
-> **English summary:** A free, open-source (MIT), self-hosted, web-based course-scheduling and teacher-substitution system for Taiwanese K–12 schools. It covers the school-timetabling office's full workflow: semester/period setup, manual drag-and-drop scheduling, automatic scheduling via an OR-Tools CP-SAT engine with human-readable conflict explanation, and the day-to-day of leave requests, substitute assignment, notifications, and substitution-hour reporting. One school, one self-hosted deployment (no multi-tenant SaaS). One-command Docker Compose install. UI is Traditional Chinese with Taiwan educational terminology.
+> **English summary:** A free, open-source (AGPL-3.0), self-hosted, web-based course-scheduling and teacher-substitution system for Taiwanese K–12 schools. It covers the school-timetabling office's full workflow: semester/period setup, manual drag-and-drop scheduling, automatic scheduling via an OR-Tools CP-SAT engine with human-readable conflict explanation, and the day-to-day of leave requests, substitute assignment, notifications, and substitution-hour reporting. One school, one self-hosted deployment (no multi-tenant SaaS). One-command Docker Compose install. UI is Traditional Chinese with Taiwan educational terminology.
 
 ---
 
@@ -132,11 +132,11 @@ docker compose up -d      # 首次會建置映像,需數分鐘
 
 ## 專案狀態
 
-**v1.4.0 已發行(2026-10-29)。** 六大里程碑 M0–M5 全部完成,功能齊備並經完整驗收(後端 710 項單元/整合測試、55 項 Playwright 端對端測試涵蓋全部 20 個頁面,每次提交皆對真實 Docker 全棧跑過)。官方映像(amd64 + arm64)已發布於 GHCR。
+**v1.4.1 已發行(2026-10-30)。** 六大里程碑 M0–M5 全部完成,功能齊備並經完整驗收(後端 710 項單元/整合測試、56 項 Playwright 端對端測試涵蓋全部 20 個頁面,每次提交皆對真實 Docker 全棧跑過)。官方映像(amd64 + arm64)已發布於 GHCR。
 
-v1.4.0 新增**代導**(導師請假當天由誰代他帶班,當天沒課也算、半天也算;可印代導通知單,月結分開記全天與半天天數;⚠️ 資料表結構變更,升級前會自動備份);v1.3.5 修正**併班**選不到老師(改列出這一節正在上課的老師),調課單加上記號說明;v1.3.4 讓跑班群組、導師、任教科目等下拉選單都能**打字搜尋**;v1.3.3 的儀表板新增**即時概況**(現在這一節各班在上什麼課、誰在上,已套用當天的調代課);v1.3.2 新增**重設管理員密碼**的指令(忘了密碼或第一次就登不進去時,不必刪資料或還原備份);v1.3.1 新增**帳號管理**(系統管理員可設定教學組長、教務主任的帳號);v1.3.0 支援**單雙週課程**(同一節單週、雙週輪流上不同的課,排課、請假代課、調課、巡堂表、鐘點都分單雙週;⚠️ 首次改動資料表結構,升級前請先備份);v1.2.19 支援**日薪代課**(國小常見:月結統計把鐘點與日薪分開列)並可**整批指派代課**(整張假單或整天一次派給同一位老師);v1.2.18 可**檢查課表**(發布前列出衝堂、教師不可排時段等衝突;事後修改不可排時段時當場提示已排的課);v1.2.17 修正登入按一次送出兩筆請求(輸錯密碼約第 3 次就被鎖定);v1.2.15、v1.2.16 修正跑班群組的兩個問題(同一位老師在群組裡重複配課時自動排課會排出撞課的課表;同一格有多筆同科目配課時,手動排課把每日節數重複計算);v1.2.12~v1.2.14 可列印**巡堂表**並匯出 Excel(依當天的調代課結果產生,社團另出分組巡堂單);v1.2.10、v1.2.11 讓**國中小、完全中學**跨部上課的老師,課表與通知單都標出實際上課時間,兩部節數不同(國中七節、高中八節)也不會漏課;v1.2.9 可一次匯出**全校教師課表**(總表與批次打包);v1.2.8 可用 Excel **批次更新既有教師**(新學年職務異動),並能**停用/啟用教師登入帳號**(離職教師保留歷史紀錄又進不來);v1.2.7 補上**學期起訖日期**的填寫與修改(先前畫面上無處可填,導致請假被擋);v1.2.6 修掉第一批外部使用者回報的三個問題(教師帳號首次登入卡死、無法事後補開教師帳號、未排課務清單過長時拖不動),並可在畫面上自行修改與重設密碼;v1.2.5 可列印**教師代課通知單與班級代課通知單**(照學校紙本格式,代課時可選計費方式);v1.2.4 的調代課處理會寫出處置方式(代課或調課、哪天補課);v1.2.3 起系統會顯示目前版本,並在有新版時提醒系統管理員(只提醒、不自動升級);v1.2.2 可列印**教師調課通知單與班級調課通知單**(照學校紙本格式);v1.2.1 補上**調課**的操作畫面——請假(含研習)的節次可直接列出雙方都有空的對調節次,支援跨週(最多四週)與連堂,補課日也會出現在今日看板。v1.2.0 起另有**一鍵示範資料**,裝好後兩分鐘內就能看到一張排好的全校課表。
+v1.4.1 起改採 **AGPL-3.0 授權**(見下方「授權」;功能與資料都沒有變動);v1.4.0 新增**代導**(導師請假當天由誰代他帶班,當天沒課也算、半天也算;可印代導通知單,月結分開記全天與半天天數;⚠️ 資料表結構變更,升級前會自動備份);v1.3.5 修正**併班**選不到老師(改列出這一節正在上課的老師),調課單加上記號說明;v1.3.4 讓跑班群組、導師、任教科目等下拉選單都能**打字搜尋**;v1.3.3 的儀表板新增**即時概況**(現在這一節各班在上什麼課、誰在上,已套用當天的調代課);v1.3.2 新增**重設管理員密碼**的指令(忘了密碼或第一次就登不進去時,不必刪資料或還原備份);v1.3.1 新增**帳號管理**(系統管理員可設定教學組長、教務主任的帳號);v1.3.0 支援**單雙週課程**(同一節單週、雙週輪流上不同的課,排課、請假代課、調課、巡堂表、鐘點都分單雙週;⚠️ 首次改動資料表結構,升級前請先備份);v1.2.19 支援**日薪代課**(國小常見:月結統計把鐘點與日薪分開列)並可**整批指派代課**(整張假單或整天一次派給同一位老師);v1.2.18 可**檢查課表**(發布前列出衝堂、教師不可排時段等衝突;事後修改不可排時段時當場提示已排的課);v1.2.17 修正登入按一次送出兩筆請求(輸錯密碼約第 3 次就被鎖定);v1.2.15、v1.2.16 修正跑班群組的兩個問題(同一位老師在群組裡重複配課時自動排課會排出撞課的課表;同一格有多筆同科目配課時,手動排課把每日節數重複計算);v1.2.12~v1.2.14 可列印**巡堂表**並匯出 Excel(依當天的調代課結果產生,社團另出分組巡堂單);v1.2.10、v1.2.11 讓**國中小、完全中學**跨部上課的老師,課表與通知單都標出實際上課時間,兩部節數不同(國中七節、高中八節)也不會漏課;v1.2.9 可一次匯出**全校教師課表**(總表與批次打包);v1.2.8 可用 Excel **批次更新既有教師**(新學年職務異動),並能**停用/啟用教師登入帳號**(離職教師保留歷史紀錄又進不來);v1.2.7 補上**學期起訖日期**的填寫與修改(先前畫面上無處可填,導致請假被擋);v1.2.6 修掉第一批外部使用者回報的三個問題(教師帳號首次登入卡死、無法事後補開教師帳號、未排課務清單過長時拖不動),並可在畫面上自行修改與重設密碼;v1.2.5 可列印**教師代課通知單與班級代課通知單**(照學校紙本格式,代課時可選計費方式);v1.2.4 的調代課處理會寫出處置方式(代課或調課、哪天補課);v1.2.3 起系統會顯示目前版本,並在有新版時提醒系統管理員(只提醒、不自動升級);v1.2.2 可列印**教師調課通知單與班級調課通知單**(照學校紙本格式);v1.2.1 補上**調課**的操作畫面——請假(含研習)的節次可直接列出雙方都有空的對調節次,支援跨週(最多四週)與連堂,補課日也會出現在今日看板。v1.2.0 起另有**一鍵示範資料**,裝好後兩分鐘內就能看到一張排好的全校課表。
 
-**請直接從最新版開始安裝**(見上方快速開始);`v1.4.0` 是目前建議使用的版本。各版變更見 [CHANGELOG](CHANGELOG.md),開發歷程見 [docs/tasks.md](docs/tasks.md)。
+**請直接從最新版開始安裝**(見上方快速開始);`v1.4.1` 是目前建議使用的版本。各版變更見 [CHANGELOG](CHANGELOG.md),開發歷程見 [docs/tasks.md](docs/tasks.md)。
 
 系統仍在實際校園環境試用中,若你是第一批使用者,歡迎加入 [LINE 社群](https://line.me/ti/g2/hP0Lg7mqvE5rvWg0sE9MHI-QsLkd94Cfp3wKcg) 或透過 [Issues](https://github.com/begin0808/Course_Scheduling_System/issues) 回報任何問題。
 
@@ -157,6 +157,14 @@ v1.4.0 新增**代導**(導師請假當天由誰代他帶班,當天沒課也算�
 
 ## 授權
 
-[MIT](LICENSE) — 可自由使用、修改、散布。歡迎各校自架與二次開發。
+自 **v1.4.1** 起採用 [GNU Affero 通用公共授權第 3 版(AGPL-3.0)](LICENSE)。
+Copyright (C) 2026 國立南大附中 李佳恩 與本專案貢獻者。
 
-執行時使用的第三方元件與其授權見 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)(皆與 MIT 相容)。
+- **學校自架、使用、修改都免費**,不需要申請,也沒有使用人數或年限的限制。
+- **修改後再提供給別人使用時,必須公開修改後的完整原始碼**,而且同樣採用 AGPL-3.0。不論是把程式交給別人,還是架成網站讓其他學校從網路上使用,都算「提供給別人使用」。
+- 這樣規定是為了讓所有改良都能回饋給每一所學校,不會被包裝成封閉的商業產品販售。
+- 系統的登入頁與側邊欄有「原始碼」連結。修改過程式再提供給別人使用的人,請把連結改成自己修改後的原始碼位置(`frontend/src/api/system.ts` 的 `SOURCE_URL`)。
+
+**v1.4.0 以前(含)的版本以 MIT 授權發布**,那些版本仍照 MIT 使用;v1.4.1 起的新版本適用 AGPL-3.0。
+
+執行時使用的第三方元件與其授權見 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)(皆與 AGPL-3.0 相容)。

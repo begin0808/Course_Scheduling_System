@@ -33,3 +33,11 @@ test('登入:在密碼欄按 Enter 只送一筆請求', async ({ page }) => {
 test('登入:在帳號欄按 Enter 只送一筆請求', async ({ page }) => {
   expect(await attempts(page, () => page.getByPlaceholder('請輸入帳號').press('Enter'))).toBe(1)
 })
+
+// AGPL-3.0(v1.4.1):還沒登入的人也要拿得到原始碼
+test('登入頁有原始碼連結', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByTestId('login-source')).toContainText('AGPL-3.0')
+  await expect(page.getByTestId('login-source').getByRole('link', { name: '原始碼' }))
+    .toHaveAttribute('href', /github\.com\/begin0808\/Course_Scheduling_System/)
+})

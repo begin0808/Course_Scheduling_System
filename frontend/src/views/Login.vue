@@ -3,6 +3,7 @@ import { NButton, NCard, NForm, NFormItem, NInput, useMessage } from 'naive-ui'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
+import { SOURCE_URL } from '@/api/system'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -54,6 +55,17 @@ async function onSubmit() {
           登入
         </n-button>
       </n-form>
+      <template #footer>
+        <div class="source" data-testid="login-source">
+          開源軟體(AGPL-3.0)·
+          <a :href="SOURCE_URL" target="_blank" rel="noopener">原始碼</a>
+        </div>
+      </template>
     </n-card>
   </div>
 </template>
+
+<style scoped>
+.source { font-size: 12px; text-align: center; color: #555; }
+.source a { color: inherit; }
+</style>

@@ -2,7 +2,7 @@
 
 > 版本:v1.0(2026-07-07)
 > 狀態:規劃定稿,交棒開發依據 [tasks.md](tasks.md)
-> 授權:MIT
+> 授權:AGPL-3.0(v1.4.1 起;v1.4.0 以前為 MIT)
 > 已定技術棧:**Python 3.12 + FastAPI + OR-Tools CP-SAT + Vue 3 + PostgreSQL 16 + Docker Compose**
 
 ---

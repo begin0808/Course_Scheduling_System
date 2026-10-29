@@ -30,6 +30,8 @@ test('系統管理:三張卡片渲染、可立即備份並刪除備份', async (
   const versionCard = page.getByTestId('version-card')
   await expect(versionCard.getByTestId('version-current')).not.toHaveText('讀取中…', { timeout: 20_000 })
   await expect(page.getByTestId('app-version')).toContainText('版本')
+  // AGPL-3.0(v1.4.1):側邊欄要有原始碼連結
+  await expect(page.getByTestId('app-source')).toHaveAttribute('href', /github\.com\/begin0808\/Course_Scheduling_System/)
   await expect(versionCard.getByTestId('version-check')).toBeVisible()
   await expect(versionCard.getByText(/上次檢查/)).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/system-1-page.png` })
