@@ -22,6 +22,11 @@ const boardDateLabel = computed(() =>
   board.value ? `${board.value.date}(${WEEKDAYS[board.value.weekday % 7]})` : '')
 const pendingCount = computed(() =>
   board.value ? board.value.entries.filter((e) => !e.disposed).length : 0)
+// 代導(v1.4.0):今天導師請假、還沒安排代導的班
+const coverPending = computed(() =>
+  board.value ? board.value.homeroom_covers.filter((c) => c.status === 'pending').length : 0)
+const hasToday = computed(() =>
+  !!board.value && (board.value.entries.length > 0 || board.value.homeroom_covers.length > 0))
 
 onMounted(async () => {
   try {
@@ -65,13 +70,20 @@ onMounted(async () => {
     <LiveOverviewCard v-if="semester" :semester-id="semester.id" />
 
     <n-card v-if="semester && board" data-testid="dash-today" :title="`今日調代課 · ${boardDateLabel}`">
-      <n-space v-if="board.entries.length" vertical>
+      <n-space v-if="hasToday" vertical>
         <n-space align="center">
           <n-statistic label="今日異動" :value="board.entries.length" />
+          <n-statistic
+            v-if="board.homeroom_covers.length" label="今日代導"
+            :value="board.homeroom_covers.length" data-testid="dash-covers"
+          />
           <n-tag v-if="pendingCount" type="warning" data-testid="dash-pending">
             尚有 {{ pendingCount }} 節待安排
           </n-tag>
-          <n-tag v-else type="success">今日皆已安排</n-tag>
+          <n-tag v-if="coverPending" type="warning" data-testid="dash-cover-pending">
+            尚有 {{ coverPending }} 班待安排代導
+          </n-tag>
+          <n-tag v-if="!pendingCount && !coverPending" type="success">今日皆已安排</n-tag>
         </n-space>
         <div>
           <n-button type="primary" @click="router.push({ name: 'daily-board' })">

@@ -16,6 +16,7 @@ from app.api import (
     demo,
     exports,
     health,
+    homeroom_covers,
     imports,
     leaves,
     notifications,
@@ -103,6 +104,7 @@ app.include_router(solver.router, prefix="/api")
 app.include_router(exports.router, prefix="/api")
 app.include_router(leaves.router, prefix="/api")
 app.include_router(substitutions.router, prefix="/api")
+app.include_router(homeroom_covers.router, prefix="/api")
 app.include_router(substitution_log.router, prefix="/api")
 app.include_router(substitution_stats.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")

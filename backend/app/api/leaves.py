@@ -11,11 +11,18 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_active_user, require_roles
 from app.core.db import get_db
 from app.models.audit import AuditLog
-from app.models.leave import LEAVE_TYPE_CN, AffectedStatus, LeaveRequest, LeaveType
+from app.models.leave import (
+    LEAVE_TYPE_CN,
+    AffectedStatus,
+    HomeroomCover,
+    LeaveRequest,
+    LeaveType,
+)
 from app.models.semester import Semester
 from app.models.user import Role, User
 from app.schemas.leave import (
     AffectedPeriodOut,
+    HomeroomCoverOut,
     LeaveCancelled,
     LeaveRequestIn,
     LeaveRequestOut,
@@ -41,6 +48,16 @@ def _get_semester(db: Session, semester_id: int) -> Semester:
     if sem is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到學期")
     return sem
+
+
+def cover_out(c: HomeroomCover) -> HomeroomCoverOut:
+    return HomeroomCoverOut(
+        id=c.id, date=c.date, weekday=c.weekday, class_name=c.class_name,
+        part_label=c.part_label, is_half_day=c.is_half_day,
+        status=leave_service.cover_status(c), no_cover=c.no_cover,
+        handler_teacher_id=c.handler_teacher_id,
+        handler_name=c.handler.name if c.handler else None,
+    )
 
 
 def _serialize(leave: LeaveRequest) -> LeaveRequestOut:
@@ -71,6 +88,9 @@ def _serialize(leave: LeaveRequest) -> LeaveRequestOut:
             )
             for p in periods
         ],
+        homeroom_covers=[cover_out(c) for c in leave.homeroom_covers],
+        cover_pending_count=sum(
+            1 for c in leave.homeroom_covers if c.status == AffectedStatus.pending.value),
     )
 
 
@@ -128,6 +148,7 @@ def create_leave(
             f"{teacher.name} {leave_service.range_text(leave)}"
             f" {LEAVE_TYPE_CN.get(leave.leave_type, '')},"
             f"受影響 {len(leave.affected_periods)} 節"
+            + (f",代導 {len(leave.homeroom_covers)} 天次" if leave.homeroom_covers else "")
         )[:500],
     ))
     db.commit()
@@ -189,19 +210,23 @@ def cancel_leave(
     """
     leave = _get_leave(db, leave_id, user)
     try:
-        revoked = leave_service.cancel(db, leave, actor_name=user.username)
+        revoked, revoked_covers = leave_service.cancel(db, leave, actor_name=user.username)
     except leave_service.LeaveError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
-    notified = sorted({p.handler.name for p in revoked if p.handler})
+    notified = sorted({p.handler.name for p in revoked if p.handler}
+                      | {c.handler.name for c in revoked_covers if c.handler})
+    detail = f"{leave.teacher.name} 銷假,取消 {len(revoked)} 節已指派代課"
+    if revoked_covers:
+        detail += f"、{len(revoked_covers)} 天次已安排代導"
     db.add(AuditLog(
         user_id=user.id, username=user.username, action="cancel_leave",
-        target_type="leave_request", target_id=leave.id,
-        detail=f"{leave.teacher.name} 銷假,取消 {len(revoked)} 節已指派代課"[:500],
+        target_type="leave_request", target_id=leave.id, detail=detail[:500],
     ))
     db.commit()
     return LeaveCancelled(
-        id=leave.id, status=leave.status, revoked_count=len(revoked), notified_teachers=notified
+        id=leave.id, status=leave.status, revoked_count=len(revoked),
+        revoked_cover_count=len(revoked_covers), notified_teachers=notified,
     )
 
 

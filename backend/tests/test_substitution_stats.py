@@ -195,7 +195,7 @@ def test_export_xlsx(w):
     assert "spreadsheetml" in r.headers["content-type"]
 
     wb = load_workbook(io.BytesIO(r.content))
-    assert wb.sheetnames == ["彙總", "明細"]
+    assert wb.sheetnames == ["彙總", "明細", "代導明細"]   # v1.4.0 加代導
     detail = wb["明細"]
     headers = [c.value for c in detail[1]]
     assert headers[:8] == ["教師", "日期", "節次", "班級", "科目", "原任教師", "假別", "處置"]

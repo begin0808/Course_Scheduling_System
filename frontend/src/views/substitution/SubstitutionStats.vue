@@ -60,6 +60,13 @@ const totalDailyDays = computed(() =>
   (report.value?.summaries ?? []).reduce((n, s) => n + s.daily_days, 0))
 const hasDaily = computed(() => (report.value?.details ?? []).some((d) => d.pay_kind === 'daily'))
 const hasShared = computed(() => (report.value?.details ?? []).some((d) => d.daily_shared))
+// 代導(v1.4.0):同一份報表,只分開記全天、半天,代導費由學校自己換算
+const hasCover = computed(() => (report.value?.cover_details ?? []).length > 0)
+const hasAny = computed(() => !!report.value?.details.length || hasCover.value)
+const coverFull = computed(() =>
+  (report.value?.summaries ?? []).reduce((n, s) => n + s.cover_full_days, 0))
+const coverHalf = computed(() =>
+  (report.value?.summaries ?? []).reduce((n, s) => n + s.cover_half_days, 0))
 const PAY: Record<string, { label: string; type: 'success' | 'info' | 'default' }> = {
   hourly: { label: '計費', type: 'success' },
   daily: { label: '日薪', type: 'info' },
@@ -122,7 +129,7 @@ onMounted(async () => {
         data-testid="stats-teacher" @update:value="reload"
       />
       <n-button
-        v-if="canManage && report?.details.length" type="primary"
+        v-if="canManage && hasAny" type="primary"
         data-testid="stats-export" @click="onExport"
       >
         匯出 Excel
@@ -137,6 +144,9 @@ onMounted(async () => {
       <n-tag v-if="hasDaily" type="info" data-testid="stats-total-daily">
         日薪合計 {{ totalDailyDays }} 天
       </n-tag>
+      <n-tag v-if="hasCover" type="info" data-testid="stats-total-cover">
+        代導合計 全天 {{ coverFull }} 天、半天 {{ coverHalf }} 天
+      </n-tag>
     </n-space>
 
     <n-alert v-if="hasDaily" type="info" :show-icon="true" data-testid="stats-daily-note">
@@ -148,17 +158,19 @@ onMounted(async () => {
     </n-alert>
 
     <n-empty
-      v-if="report && !report.details.length && !loading"
+      v-if="report && !hasAny && !loading"
       description="本月無代課紀錄" data-testid="stats-empty"
     />
 
-    <template v-else-if="report?.details.length">
+    <template v-else-if="report && hasAny">
       <!-- 彙總:每位教師 -->
       <table v-if="canManage" class="data-table" data-testid="stats-summary">
         <thead>
           <tr>
             <th>教師</th><th>代課節數</th><th>{{ hasDaily ? '鐘點計費節數' : '計費節數' }}</th>
             <th v-if="hasDaily">日薪天數</th>
+            <th v-if="hasCover">代導全天</th>
+            <th v-if="hasCover">代導半天</th>
           </tr>
         </thead>
         <tbody>
@@ -176,12 +188,14 @@ onMounted(async () => {
               </template>
               <template v-else>—</template>
             </td>
+            <td v-if="hasCover" data-testid="stats-cover-full">{{ s.cover_full_days || '—' }}</td>
+            <td v-if="hasCover" data-testid="stats-cover-half">{{ s.cover_half_days || '—' }}</td>
           </tr>
         </tbody>
       </table>
 
       <!-- 明細:逐節 -->
-      <table class="data-table" data-testid="stats-detail">
+      <table v-if="report.details.length" class="data-table" data-testid="stats-detail">
         <thead>
           <tr>
             <th v-if="canManage">教師</th>
@@ -208,6 +222,32 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
+
+      <!-- 代導明細:逐天 -->
+      <template v-if="hasCover">
+        <h3 class="sub-title">代導明細</h3>
+        <n-text depth="3">
+          代導以天為單位,一班一天算一次;半天假的代導另外計算,代導費請依學校規定換算。
+        </n-text>
+        <table class="data-table" data-testid="stats-cover-detail">
+          <thead>
+            <tr>
+              <th v-if="canManage">教師</th>
+              <th>日期</th><th>班級</th><th>時段</th><th>原導師</th><th>假別</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(d, i) in report.cover_details" :key="i" data-testid="stats-cover-row">
+              <td v-if="canManage">{{ d.handler_name }}</td>
+              <td>{{ withWeekday(d.date) }}</td>
+              <td>{{ d.class_name }}</td>
+              <td>{{ d.part_label }}</td>
+              <td>{{ d.absent_teacher_name }}</td>
+              <td>{{ d.leave_type_label }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </template>
   </n-space>
 </template>
@@ -219,4 +259,5 @@ onMounted(async () => {
   white-space: nowrap;
 }
 .data-table th { background: rgba(128, 128, 128, 0.08); font-weight: 600; }
+.sub-title { margin: 8px 0 0; font-size: 16px; }
 </style>

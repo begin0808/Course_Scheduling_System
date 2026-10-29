@@ -11,6 +11,7 @@ from app.core.db import get_db
 from app.models.semester import Semester
 from app.models.user import Role, User
 from app.schemas.substitution_stats import (
+    CoverDetailOut,
     MonthlyReportOut,
     StatDetailOut,
     TeacherSummaryOut,
@@ -35,6 +36,10 @@ def _report_out(report: stats_service.MonthlyReport) -> MonthlyReportOut:
         details=[
             StatDetailOut(**{f: getattr(d, f) for f in StatDetailOut.model_fields})
             for d in report.details
+        ],
+        cover_details=[
+            CoverDetailOut(**{f: getattr(d, f) for f in CoverDetailOut.model_fields})
+            for d in report.cover_details
         ],
     )
 
@@ -94,7 +99,7 @@ def export_substitution_stats(
     db: Session = Depends(get_db),
     _: User = Depends(viewer),
 ) -> Response:
-    """匯出某月代課鐘點 Excel(彙總 + 明細兩張表)。"""
+    """匯出某月代課鐘點 Excel(彙總 + 明細 + 代導明細三張表)。"""
     _get_semester(db, semester_id)
     _check_month(month)
     report = stats_service.monthly_report(db, semester_id, year, month, teacher_id=teacher_id)

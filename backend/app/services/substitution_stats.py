@@ -16,6 +16,9 @@
 
 **銷假的節次不計**:銷假會把未完成的節次轉為 `cancelled`(那堂課沒上),故排除;
 已完成(completed)的節次即使事後銷假仍保留(課上過了,鐘點照算)。
+
+**代導(v1.4.0)放在同一份報表**:組長月底只看一份。代導以天為單位,只分開記
+「全天幾天、半天幾天」,代導費由學校自己換算(各縣市標準不同,系統不算錢)。
 """
 
 import io
@@ -27,7 +30,7 @@ from openpyxl.styles import Font
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.leave import LEAVE_TYPE_CN, AffectedPeriod, AffectedStatus
+from app.models.leave import LEAVE_TYPE_CN, AffectedPeriod, AffectedStatus, HomeroomCover
 from app.models.substitution import (
     DAILY_FUNDING,
     SUBSTITUTION_TYPE_CN,
@@ -63,6 +66,20 @@ class StatDetail:
 PAY_KIND_CN = {"hourly": "鐘點", "daily": "日薪", "none": "不計"}
 
 
+@dataclass(frozen=True, slots=True)
+class CoverDetail:
+    """一列代導明細:某教師某天代導某班。"""
+
+    handler_teacher_id: int
+    handler_name: str
+    date: _Date
+    class_name: str
+    part_label: str
+    is_half_day: bool
+    absent_teacher_name: str
+    leave_type_label: str
+
+
 def pay_kind(sub: Substitution) -> str:
     if sub.type == SubstitutionType.substitute.value and sub.funding_source == DAILY_FUNDING:
         return "daily"
@@ -78,6 +95,8 @@ class TeacherSummary:
     daily_days: int = 0      # 日薪天數
     daily_periods: int = 0   # 日薪那幾天共代了幾節(供核對)
     daily_shared_days: int = 0  # 其中幾天是與其他日薪代課老師分擔的
+    cover_full_days: int = 0    # 代導全天(天次:一班一天算一次)
+    cover_half_days: int = 0    # 代導半天
 
 
 @dataclass
@@ -86,6 +105,7 @@ class MonthlyReport:
     month: int
     summaries: list[TeacherSummary] = field(default_factory=list)
     details: list[StatDetail] = field(default_factory=list)
+    cover_details: list[CoverDetail] = field(default_factory=list)
 
 
 def _next_month(year: int, month: int) -> date:
@@ -165,9 +185,47 @@ def monthly_report(
                 if is_shared:
                     s.daily_shared_days += 1
 
+    for cover in _covers(db, semester_id, month_start, month_end, teacher_id):
+        handler = cover.handler
+        if handler is None:
+            continue
+        leave = cover.leave_request
+        report.cover_details.append(CoverDetail(
+            handler_teacher_id=handler.id, handler_name=handler.name, date=cover.date,
+            class_name=cover.class_name, part_label=cover.part_label,
+            is_half_day=cover.is_half_day,
+            absent_teacher_name=leave.teacher.name if leave.teacher else "(已移除)",
+            leave_type_label=LEAVE_TYPE_CN.get(leave.leave_type, leave.leave_type),
+        ))
+        s = summaries.get(handler.id)
+        if s is None:
+            s = TeacherSummary(teacher_id=handler.id, teacher_name=handler.name)
+            summaries[handler.id] = s
+        if cover.is_half_day:
+            s.cover_half_days += 1
+        else:
+            s.cover_full_days += 1
+
     report.details.sort(key=lambda d: (d.handler_name, d.date, d.period_no))
+    report.cover_details.sort(key=lambda d: (d.handler_name, d.date, d.class_name))
     report.summaries = sorted(summaries.values(), key=lambda s: s.teacher_name)
     return report
+
+
+def _covers(
+    db: Session, semester_id: int, month_start: date, month_end: date, teacher_id: int | None
+) -> list[HomeroomCover]:
+    """當月有人代導的日子:銷假取消的不算;已代過的即使事後銷假仍保留(狀態不會變成取消)。"""
+    stmt = select(HomeroomCover).where(
+        HomeroomCover.semester_id == semester_id,
+        HomeroomCover.status == AffectedStatus.resolved.value,
+        HomeroomCover.handler_teacher_id.isnot(None),
+        HomeroomCover.date >= month_start,
+        HomeroomCover.date < month_end,
+    )
+    if teacher_id is not None:
+        stmt = stmt.where(HomeroomCover.handler_teacher_id == teacher_id)
+    return list(db.scalars(stmt))
 
 
 def _shared_daily_days(
@@ -202,12 +260,15 @@ _DETAIL_HEADERS = (
     "教師", "日期", "節次", "班級", "科目", "原任教師", "假別", "處置", "計費", "經費來源",
     "計酬", "備註",
 )
-_SUMMARY_HEADERS = ("教師", "代課節數", "鐘點計費節數", "日薪天數", "日薪節數", "備註")
+_SUMMARY_HEADERS = (
+    "教師", "代課節數", "鐘點計費節數", "日薪天數", "日薪節數", "代導全天", "代導半天", "備註",
+)
+_COVER_HEADERS = ("教師", "日期", "班級", "時段", "原導師", "假別")
 _SHARED_NOTE = "當日與其他日薪代課分擔"
 
 
 def build_workbook(report: MonthlyReport) -> bytes:
-    """匯出兩張表:彙總(每位教師)+ 明細(逐節)。回傳 xlsx bytes。"""
+    """匯出三張表:彙總(每位教師)+ 明細(逐節)+ 代導明細(逐天)。回傳 xlsx bytes。"""
     wb = Workbook()
 
     ws_sum = wb.active
@@ -217,7 +278,7 @@ def build_workbook(report: MonthlyReport) -> bytes:
         note = f"其中 {s.daily_shared_days} 天與其他日薪代課分擔" if s.daily_shared_days else ""
         ws_sum.append([
             s.teacher_name, s.handled_count, s.billable_count,
-            s.daily_days, s.daily_periods, note,
+            s.daily_days, s.daily_periods, s.cover_full_days, s.cover_half_days, note,
         ])
 
     ws_detail = wb.create_sheet("明細")
@@ -230,7 +291,15 @@ def build_workbook(report: MonthlyReport) -> bytes:
             PAY_KIND_CN[d.pay_kind], _SHARED_NOTE if d.daily_shared else "",
         ])
 
-    for ws in (ws_sum, ws_detail):
+    ws_cover = wb.create_sheet("代導明細")
+    ws_cover.append(list(_COVER_HEADERS))
+    for c in report.cover_details:
+        ws_cover.append([
+            c.handler_name, c.date.isoformat(), c.class_name, c.part_label,
+            c.absent_teacher_name, c.leave_type_label,
+        ])
+
+    for ws in (ws_sum, ws_detail, ws_cover):
         for cell in ws[1]:
             cell.font = Font(bold=True)
         for col in ws.columns:

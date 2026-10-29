@@ -10,6 +10,9 @@
 5. 寫成 `affected_period` 快照。
 
 只看**已發布**課表:草稿隨時會變,拿草稿去找代課老師沒有意義。
+
+請假的若是導師,另依「他帶的班 × 請假期間的上課日」展開代導(`homeroom_cover`,v1.4.0),
+與課表無關——導師當天沒課,班上也要有人帶。
 """
 
 from collections.abc import Iterator
@@ -21,11 +24,12 @@ from sqlalchemy.orm import Session
 from app.core import clock
 from app.core.week_parity import runs_in_week, week_parity
 from app.models.assignment import AssignmentTeacher, CourseAssignment
-from app.models.basedata import Room, Subject, Teacher
+from app.models.basedata import ClassUnit, Room, Subject, Teacher
 from app.models.leave import (
     LEAVE_TYPE_CN,
     AffectedPeriod,
     AffectedStatus,
+    HomeroomCover,
     LeaveRequest,
     LeaveStatus,
 )
@@ -199,6 +203,51 @@ def expand(db: Session, leave: LeaveRequest) -> list[AffectedPeriod]:
     return out
 
 
+# 班級沒有可用的節次表時,保守當作週一到週五上課
+_DEFAULT_WEEKDAYS = 5
+
+
+def expand_covers(db: Session, leave: LeaveRequest) -> list[HomeroomCover]:
+    """請假教師若是導師,依他帶的班 × 請假期間的上課日展開代導。呼叫端負責 commit。
+
+    以天為單位、與課表無關(課表沒發布也照樣展開)。上課日依該班節次表的一週天數判斷,
+    和受影響節次相同;半天假記下該日的請假時段,統計時「半天」另外算。
+    """
+    classes = list(db.scalars(
+        select(ClassUnit).where(
+            ClassUnit.semester_id == leave.semester_id,
+            ClassUnit.homeroom_teacher_id == leave.teacher_id,
+        ).order_by(ClassUnit.name)
+    ))
+    if not classes:
+        return []
+
+    exp = _Expander(db)
+    out: list[HomeroomCover] = []
+    for klass in classes:
+        table = pt_service.resolve_period_table(db, klass)
+        for day in school_dates(leave.start_date, leave.end_date):
+            if table is not None:
+                if not exp.is_school_day(table.id, day):
+                    continue
+            elif day.isoweekday() > _DEFAULT_WEEKDAYS:
+                continue
+            begin, finish = _leave_window(leave, day)
+            out.append(HomeroomCover(
+                leave_request_id=leave.id, semester_id=leave.semester_id,
+                class_id=klass.id, class_name=klass.name, grade=klass.grade,
+                date=day, weekday=day.isoweekday(), from_time=begin, to_time=finish,
+                status=AffectedStatus.pending.value, no_cover=False,
+            ))
+    out.sort(key=lambda c: (c.date, c.class_name))
+    return out
+
+
+def cover_is_past(day: date) -> bool:
+    """代導以天為單位:那一天過完了才算代過(當天仍可改派、銷假仍會取消)。"""
+    return day < clock.school_today()
+
+
 def validate(semester: Semester, start: date, end: date) -> None:
     if end < start:
         raise LeaveError("結束日期不可早於開始日期")
@@ -246,24 +295,31 @@ def create(
 
     for period in expand(db, leave):
         db.add(period)
+    for cover in expand_covers(db, leave):
+        db.add(cover)
     db.flush()
 
     if notify_teacher:
         # 組長代登:當事人要知道有人替他請了假
+        body = f"{range_text(leave)},共 {len(leave.affected_periods)} 節課受影響"
+        if leave.homeroom_covers:
+            body += f";導師班需代導 {len(leave.homeroom_covers)} 天次"
         notifications.notify(
             db, semester_id=semester.id, teacher_id=teacher.id,
             type=NotificationType.leave_registered,
             title=f"{created_by_name} 已為您登記{LEAVE_TYPE_CN[leave.leave_type]}",
-            body=f"{range_text(leave)},共 {len(leave.affected_periods)} 節課受影響",
+            body=body,
         )
     return leave
 
 
-def cancel(db: Session, leave: LeaveRequest, *, actor_name: str) -> list[AffectedPeriod]:
-    """銷假:級聯取消所有受影響節次,並通知已被指派的代課教師。
+def cancel(
+    db: Session, leave: LeaveRequest, *, actor_name: str
+) -> tuple[list[AffectedPeriod], list[HomeroomCover]]:
+    """銷假:級聯取消所有受影響節次與代導,並通知已被指派的代課/代導教師。
 
-    回傳「原本已指派、現在被取消」的節次。已完成的節次不動——那堂課已經上過了,
-    事後銷假不能把歷史抹掉(鐘點統計要照算)。
+    回傳「原本已指派、現在被取消」的節次與代導。已完成的不動——那堂課已經上過了、
+    那天已經代導過了,事後銷假不能把歷史抹掉(鐘點與代導統計要照算)。
     """
     if leave.status == LeaveStatus.cancelled.value:
         raise LeaveError("此假單已銷假")
@@ -298,6 +354,26 @@ def cancel(db: Session, leave: LeaveRequest, *, actor_name: str) -> list[Affecte
             body=f"以下 {len(periods)} 節課不需要您代課了:{detail}",
         )
 
+    # 代導:已經過完的日子保留(代過了,代導費照算),其餘取消並通知代導老師
+    revoked_covers: list[HomeroomCover] = []
+    covers_by_handler: dict[int, list[HomeroomCover]] = {}
+    for cover in leave.homeroom_covers:
+        if cover.status == AffectedStatus.cancelled.value or cover_is_past(cover.date):
+            continue
+        if cover.status == AffectedStatus.resolved.value and cover.handler_teacher_id:
+            revoked_covers.append(cover)
+            covers_by_handler.setdefault(cover.handler_teacher_id, []).append(cover)
+        cover.status = AffectedStatus.cancelled.value
+
+    for handler_id, covers in covers_by_handler.items():
+        detail = "、".join(f"{c.date}({c.part_label}){c.class_name}" for c in covers)
+        notifications.notify(
+            db, semester_id=leave.semester_id, teacher_id=handler_id,
+            type=NotificationType.substitution_cancelled,
+            title=f"原訂代導已取消({leave.teacher.name} 銷假)",
+            body=f"以下 {len(covers)} 天不需要您代導了:{detail}",
+        )
+
     notifications.notify(
         db, semester_id=leave.semester_id, teacher_id=leave.teacher_id,
         type=NotificationType.leave_cancelled,
@@ -305,7 +381,7 @@ def cancel(db: Session, leave: LeaveRequest, *, actor_name: str) -> list[Affecte
         body=f"{range_text(leave)} 的{LEAVE_TYPE_CN[leave.leave_type]}已銷假",
     )
     db.flush()
-    return revoked
+    return revoked, revoked_covers
 
 
 def range_text(leave: LeaveRequest) -> str:
@@ -329,3 +405,10 @@ def effective_status(status: str, day: date, end_time: time | None) -> str:
     if status == AffectedStatus.resolved.value and clock.is_past_slot(day, end_time):
         return AffectedStatus.completed.value
     return status
+
+
+def cover_status(cover: HomeroomCover) -> str:
+    """代導的顯示狀態:已安排且那天已過完 = 已完成。"""
+    if cover.status == AffectedStatus.resolved.value and cover_is_past(cover.date):
+        return AffectedStatus.completed.value
+    return cover.status

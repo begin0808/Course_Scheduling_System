@@ -21,6 +21,20 @@ export interface AffectedPeriod {
   swap_period_name: string
 }
 
+/** 代導(v1.4.0):請假的導師帶的班,某一天由誰代導 */
+export interface HomeroomCover {
+  id: number
+  date: string
+  weekday: number
+  class_name: string
+  part_label: string // 全天 / 上午 / 下午 / 10:00~14:00
+  is_half_day: boolean
+  status: 'pending' | 'resolved' | 'completed' | 'cancelled'
+  no_cover: boolean // 已確認「不需代導」
+  handler_teacher_id: number | null
+  handler_name: string | null
+}
+
 export interface LeaveRequest {
   id: number
   semester_id: number
@@ -39,12 +53,15 @@ export interface LeaveRequest {
   affected_count: number
   pending_count: number
   affected_periods: AffectedPeriod[]
+  homeroom_covers: HomeroomCover[]
+  cover_pending_count: number // 還沒安排的代導(天次)
 }
 
 export interface LeaveCancelled {
   id: number
   status: string
   revoked_count: number
+  revoked_cover_count: number
   notified_teachers: string[]
 }
 

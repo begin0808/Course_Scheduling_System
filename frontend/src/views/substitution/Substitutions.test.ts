@@ -18,7 +18,7 @@ const leave = {
   leave_type_label: '病假', start_date: '2026-10-07', start_time: null, end_date: '2026-10-07',
   end_time: null, reason: '', status: 'registered', created_by_name: 'admin',
   created_at: '2026-10-01T08:00:00', affected_count: 1, pending_count: 1,
-  affected_periods: [affected],
+  affected_periods: [affected], homeroom_covers: [], cover_pending_count: 0,
 }
 const swapOptions = {
   affected_period_id: 11, date_from: '2026-10-05', date_to: '2026-10-18',
@@ -148,5 +148,60 @@ describe('調代課處理:調課', () => {
       type: 'swap', handler_teacher_id: 2, swap_entry_id: 77, swap_date: '2026-10-08',
       swap_period_no: 3,
     })
+  })
+})
+
+// 代導(v1.4.0):導師請假,當天一節課都沒有,假單也要出現,讓組長安排代導
+describe('調代課處理:代導', () => {
+  const cover = (id: number, date: string, status = 'pending') => ({
+    id, date, weekday: 3, class_name: '701', part_label: '全天', is_half_day: false,
+    status, no_cover: false, handler_teacher_id: null, handler_name: null,
+  })
+  const homeroomLeave = {
+    ...leave, affected_count: 0, pending_count: 0, affected_periods: [],
+    homeroom_covers: [cover(21, '2026-10-07'), cover(22, '2026-10-08')], cover_pending_count: 2,
+  }
+
+  it('沒有課的導師假單也列出來,標示待代導天數', async () => {
+    stubFetch(homeroomLeave)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-leave"]').text()).toContain('待代導 2 天')
+    expect(wrapper.find('[data-testid="sub-leave"]').text()).not.toContain('待處理')
+    expect(wrapper.findAll('[data-testid="sub-cover"]')).toHaveLength(2)
+  })
+
+  it('指派整段:送出代導老師與 whole_leave', async () => {
+    const calls = stubFetch(homeroomLeave)
+    const options = [{
+      teacher_id: 2, teacher_name: '陳師', group: 'same_grade_homeroom',
+      group_label: '同年級導師', note: '702 導師',
+    }]
+    const base = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (String(url).includes('/options')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ options }) } as Response)
+      }
+      if (String(url).includes('/homeroom-covers/') && init?.method === 'PUT') {
+        calls.push({ url: String(url), method: 'PUT', body: JSON.parse(String(init.body)) })
+        return Promise.resolve({
+          ok: true, status: 200, json: () => Promise.resolve({ assigned: 2, skipped: [] }),
+        } as Response)
+      }
+      return base(url, init)
+    })
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    await wrapper.find('[data-testid="sub-cover-handle"]').trigger('click')
+    await flushPromises()
+    const Subs = wrapper.findComponent(Substitutions)
+    ;(Subs.vm as unknown as { coverTeacher: number | null }).coverTeacher = 2
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-cover-assign-all"]').text()).toContain('指派整段(2 天)')
+    await wrapper.find('[data-testid="sub-cover-assign-all"]').trigger('click')
+    await flushPromises()
+    const put = calls.find((c) => c.method === 'PUT')
+    expect(put?.url).toBe('/api/homeroom-covers/21')
+    expect(put?.body).toEqual({ handler_teacher_id: 2, whole_leave: true })
   })
 })

@@ -4,6 +4,8 @@ from datetime import date, time
 
 from pydantic import BaseModel
 
+from app.schemas.homeroom_cover import CoverLogOut
+
 # 欄位名 date/start_time 會遮蔽同名型別,故以別名標註型別
 _Date = date
 _Time = time
@@ -94,6 +96,7 @@ class DailyBoardOut(BaseModel):
     school_name: str
     semester_label: str
     entries: list[LogEntryOut] = []
+    homeroom_covers: list[CoverLogOut] = []  # 當天的代導(v1.4.0)
 
 
 class LiveCellOut(BaseModel):

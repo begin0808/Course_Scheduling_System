@@ -12,6 +12,9 @@ const loading = ref(true)
 
 // 只列已安排的處置(通知單是公告安排,待處理的不上榜)
 const rows = computed<LogEntry[]>(() => (board.value?.entries ?? []).filter((e) => e.disposed))
+// 代導(v1.4.0):同樣只公告已安排代導老師的班
+const covers = computed(() =>
+  (board.value?.homeroom_covers ?? []).filter((c) => c.handler_name && c.status !== 'cancelled'))
 const dateLabel = computed(() =>
   board.value ? `${board.value.date}(${WEEKDAYS[board.value.weekday % 7]})` : '')
 const printedAt = new Date().toLocaleString('zh-TW', { hour12: false })
@@ -66,9 +69,11 @@ onMounted(async () => {
         </div>
       </header>
 
-      <p v-if="!rows.length" class="empty" data-testid="print-empty">本日無調代課安排。</p>
+      <p v-if="!rows.length && !covers.length" class="empty" data-testid="print-empty">
+        本日無調代課安排。
+      </p>
 
-      <table v-else class="grid" data-testid="print-table">
+      <table v-if="rows.length" class="grid" data-testid="print-table">
         <thead>
           <tr>
             <th style="width: 12%">節次</th>
@@ -91,6 +96,21 @@ onMounted(async () => {
             <td>{{ e.sub_type_label }}</td>
             <td>{{ handlerText(e) }}</td>
             <td class="note">{{ noteText(e) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table v-if="covers.length" class="grid covers" data-testid="print-covers">
+        <thead>
+          <tr><th>代導班級</th><th>時段</th><th>原導師</th><th>假別</th><th>代導教師</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in covers" :key="c.id" data-testid="print-cover-row">
+            <td>{{ c.class_name }}</td>
+            <td>{{ c.part_label }}</td>
+            <td>{{ c.absent_teacher_name }}</td>
+            <td>{{ c.leave_type_label }}</td>
+            <td>{{ c.handler_name }}</td>
           </tr>
         </tbody>
       </table>
@@ -126,6 +146,7 @@ onMounted(async () => {
 .grid th, .grid td { border: 1px solid #000; padding: 6px 8px; text-align: center; }
 .grid th { background: #eee; }
 .grid td.note { text-align: left; }
+.grid.covers { margin-top: 16px; }
 .room { color: #444; }
 .empty { text-align: center; padding: 40px 0; font-size: 15px; }
 .foot {

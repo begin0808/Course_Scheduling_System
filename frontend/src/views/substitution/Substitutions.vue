@@ -2,10 +2,13 @@
 import {
   NAlert, NButton, NCard, NEmpty, NModal, NSelect, NSpace, NSwitch, NTag, NText, useMessage,
 } from 'naive-ui'
+import type { SelectGroupOption, SelectOption } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
+import { assignCover, clearCover, getCoverOptions, openCoverSlips } from '@/api/homeroomCovers'
+import type { CoverOption } from '@/api/homeroomCovers'
 import { listLeaves } from '@/api/leaves'
-import type { AffectedPeriod, LeaveRequest } from '@/api/leaves'
+import type { AffectedPeriod, HomeroomCover, LeaveRequest } from '@/api/leaves'
 import { listSemesters } from '@/api/semesters'
 import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
@@ -62,9 +65,17 @@ function shortDate(iso: string): string {
 
 const semesterOptions = computed(() => semesters.value.map((s) => ({ label: s.label, value: s.id })))
 
-// 只顯示還有待處理節次的假單(已全部處理或已銷假的收起來)
+// 只顯示有節次或有代導的假單(已銷假的收起來)
 const activeLeaves = computed(() =>
-  leaves.value.filter((l) => l.status === 'registered' && l.affected_count > 0))
+  leaves.value.filter((l) => l.status === 'registered'
+    && (l.affected_count > 0 || l.homeroom_covers.length > 0)))
+
+function leaveTitle(l: LeaveRequest): string {
+  const parts = [l.teacher_name, l.leave_type_label]
+  if (l.affected_count) parts.push(`待處理 ${l.pending_count} 節`)
+  if (l.homeroom_covers.length) parts.push(`待代導 ${l.cover_pending_count} 天`)
+  return parts.join(' · ')
+}
 
 async function reload() {
   if (!sid.value) return
@@ -332,6 +343,106 @@ async function undo(p: AffectedPeriod) {
   await reload()
 }
 
+// ── 代導(v1.4.0):導師請假那天由誰代他帶班。以天為單位,有課的老師也能代導 ──
+const coverOpenId = ref<number | null>(null)
+const coverOptions = ref<CoverOption[]>([])
+const coverTeacher = ref<number | null>(null)
+const coverBusy = ref(false)
+
+// 下拉選單依序分組:同年級導師 → 該班任課老師 → 其他老師
+const coverSelectOptions = computed(() => {
+  const groups: (SelectGroupOption & { children: SelectOption[] })[] = []
+  for (const o of coverOptions.value) {
+    let g = groups.find((x) => x.key === o.group)
+    if (!g) {
+      g = { type: 'group', label: o.group_label, key: o.group, children: [] }
+      groups.push(g)
+    }
+    g.children.push({
+      label: o.note ? `${o.teacher_name}(${o.note})` : o.teacher_name, value: o.teacher_id,
+    })
+  }
+  return groups
+})
+
+async function openCover(c: HomeroomCover) {
+  if (coverOpenId.value === c.id) {
+    coverOpenId.value = null
+    return
+  }
+  coverOpenId.value = c.id
+  coverTeacher.value = null
+  coverOptions.value = (await getCoverOptions(c.id)).options
+}
+
+/** 同一張假單、同一班,除了這天以外還沒安排的日子 */
+function restCount(l: LeaveRequest, c: HomeroomCover): number {
+  return l.homeroom_covers.filter((x) => x.id !== c.id && x.class_name === c.class_name
+    && x.status === 'pending').length
+}
+
+async function assignCoverTo(c: HomeroomCover, wholeLeave: boolean) {
+  if (coverTeacher.value === null) return
+  const name = coverOptions.value.find((o) => o.teacher_id === coverTeacher.value)?.teacher_name
+  coverBusy.value = true
+  try {
+    const r = await assignCover(
+      c.id, { handler_teacher_id: coverTeacher.value, whole_leave: wholeLeave })
+    if (r.skipped.length) {
+      message.warning(
+        `已指派 ${name} 代導 ${r.assigned} 天;沒派成:`
+        + r.skipped.map((x) => `${shortDate(x.date)}(${x.reason})`).join('、'),
+        { duration: 8000 })
+    } else {
+      message.success(`已指派 ${name} 代導 ${c.class_name}(${r.assigned} 天)`)
+    }
+    coverOpenId.value = null
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '指派失敗')
+  } finally {
+    coverBusy.value = false
+  }
+}
+
+async function markNoCover(c: HomeroomCover) {
+  try {
+    await assignCover(c.id, { no_cover: true })
+    message.success(`${shortDate(c.date)} ${c.class_name} 設為不需代導`)
+    coverOpenId.value = null
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '設定失敗')
+  }
+}
+
+async function undoCover(c: HomeroomCover) {
+  try {
+    await clearCover(c.id)
+    message.info('已撤回,退回待代導')
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '撤回失敗')
+  }
+}
+
+function coverPrintIds(l: LeaveRequest): number[] {
+  return l.homeroom_covers
+    .filter((c) => c.handler_name && c.status !== 'cancelled')
+    .map((c) => c.id)
+}
+
+function printCovers(ids: number[]) {
+  if (sid.value) openCoverSlips(sid.value, ids)
+}
+
+const COVER_STATUS: Record<HomeroomCover['status'], { type: string; label: string }> = {
+  pending: { type: 'warning', label: '待代導' },
+  resolved: { type: 'success', label: '已安排' },
+  completed: { type: 'info', label: '已完成' },
+  cancelled: { type: 'default', label: '已取消' },
+}
+
 const STATUS: Record<AffectedPeriod['status'], { type: string; label: string }> = {
   pending: { type: 'warning', label: '待處理' },
   resolved: { type: 'success', label: '已確認' },
@@ -365,10 +476,11 @@ function candidateTagType(c: Candidate): string {
       <template v-else>
         <n-card
           v-for="l in activeLeaves" :key="l.id" size="small" data-testid="sub-leave"
-          :title="`${l.teacher_name} · ${l.leave_type_label} · 待處理 ${l.pending_count} 節`"
+          :title="leaveTitle(l)"
         >
           <template
-            v-if="pendingOf(l).length > 1 || swapIds(l).length || substituteIds(l).length"
+            v-if="pendingOf(l).length > 1 || swapIds(l).length || substituteIds(l).length
+              || coverPrintIds(l).length"
             #header-extra
           >
             <n-space size="small">
@@ -389,6 +501,12 @@ function candidateTagType(c: Candidate): string {
                 @click="printSlips('substitute', substituteIds(l))"
               >
                 列印代課單({{ substituteIds(l).length }} 節)
+              </n-button>
+              <n-button
+                v-if="coverPrintIds(l).length" size="small" data-testid="sub-print-leave-cover"
+                @click="printCovers(coverPrintIds(l))"
+              >
+                列印代導單({{ coverPrintIds(l).length }} 天)
               </n-button>
             </n-space>
           </template>
@@ -607,6 +725,88 @@ function candidateTagType(c: Candidate): string {
               </n-card>
             </div>
           </n-space>
+
+          <!-- 代導(v1.4.0):請假的是導師,他帶的班每天要有人帶 -->
+          <div
+            v-if="l.homeroom_covers.length" :class="['covers', { 'covers-sep': l.affected_count }]"
+            data-testid="sub-covers"
+          >
+            <n-text strong>代導</n-text>
+            <n-text depth="3">({{ l.teacher_name }} 是導師,請假期間每天要有人帶班)</n-text>
+            <div v-for="c in l.homeroom_covers" :key="c.id" class="cover" data-testid="sub-cover">
+              <n-space align="center" :wrap="false">
+                <n-tag size="small" :type="COVER_STATUS[c.status].type as never">
+                  {{ COVER_STATUS[c.status].label }}
+                </n-tag>
+                <n-text style="min-width: 260px">
+                  {{ withWeekday(c.date) }} {{ c.part_label }} · {{ c.class_name }}
+                </n-text>
+                <n-text
+                  v-if="c.no_cover || c.handler_name" type="success"
+                  data-testid="sub-cover-handler"
+                >
+                  {{ c.no_cover ? '不需代導' : `代導 → ${c.handler_name}` }}
+                </n-text>
+                <n-button
+                  v-if="c.status === 'pending'" size="small" type="primary"
+                  data-testid="sub-cover-handle" @click="openCover(c)"
+                >
+                  {{ coverOpenId === c.id ? '收合' : '安排代導' }}
+                </n-button>
+                <n-button
+                  v-else-if="c.status === 'resolved'" size="small" tertiary
+                  data-testid="sub-cover-undo" @click="undoCover(c)"
+                >
+                  撤回
+                </n-button>
+                <n-button
+                  v-if="c.handler_name && c.status !== 'cancelled'" size="small" tertiary
+                  data-testid="sub-cover-print" @click="printCovers([c.id])"
+                >
+                  列印代導單
+                </n-button>
+              </n-space>
+
+              <n-card
+                v-if="coverOpenId === c.id" size="small" embedded style="margin: 8px 0 8px 40px"
+                data-testid="sub-cover-panel"
+              >
+                <n-space vertical size="small">
+                  <n-text depth="3">
+                    代導不是上課,有課的老師也可以代導;當天整天請假的老師不會列出。
+                  </n-text>
+                  <n-space align="center">
+                    <n-select
+                      v-model:value="coverTeacher" :options="coverSelectOptions" filterable
+                      placeholder="選擇代導老師(可打字搜尋)" style="width: 300px"
+                      data-testid="sub-cover-teacher"
+                    />
+                    <n-button
+                      size="small" type="primary" :disabled="coverTeacher === null"
+                      :loading="coverBusy" data-testid="sub-cover-assign"
+                      @click="assignCoverTo(c, false)"
+                    >
+                      指派這一天
+                    </n-button>
+                    <n-button
+                      v-if="restCount(l, c)" size="small" type="primary" ghost
+                      :disabled="coverTeacher === null" :loading="coverBusy"
+                      data-testid="sub-cover-assign-all" @click="assignCoverTo(c, true)"
+                    >
+                      指派整段({{ restCount(l, c) + 1 }} 天)
+                    </n-button>
+                  </n-space>
+                  <n-space size="small" align="center">
+                    <n-text depth="3">或</n-text>
+                    <n-button size="tiny" data-testid="sub-cover-none" @click="markNoCover(c)">
+                      不需代導
+                    </n-button>
+                    <n-text depth="3">(例如整班校外教學)</n-text>
+                  </n-space>
+                </n-space>
+              </n-card>
+            </div>
+          </div>
         </n-card>
       </template>
     </n-space>
@@ -674,6 +874,8 @@ function candidateTagType(c: Candidate): string {
 
 <style scoped>
 .batch-skips { margin: 4px 0 6px; padding-left: 20px; }
+.covers-sep { margin-top: 12px; padding-top: 8px; border-top: 1px dashed rgba(128, 128, 128, 0.35); }
+.cover { margin-top: 6px; }
 .swap { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(128, 128, 128, 0.35); }
 .swap-intro { display: block; margin-bottom: 6px; }
 .swap-partner { margin: 6px 0; }

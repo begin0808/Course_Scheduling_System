@@ -38,6 +38,12 @@ const routes = [
     component: () => import('@/views/substitution/SlipsPrint.vue'),
   },
   {
+    // 代導通知單列印頁(v1.4.0):一位代導老師一張
+    path: '/homeroom-cover-slips/print',
+    name: 'homeroom-cover-slips-print',
+    component: () => import('@/views/substitution/CoverSlipsPrint.vue'),
+  },
+  {
     // 巡堂表列印頁(A4 橫式),不套側邊欄
     path: '/patrol-sheets/print',
     name: 'patrol-sheets-print',

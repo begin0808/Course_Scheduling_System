@@ -16,6 +16,7 @@ from datetime import date, datetime, time
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -113,6 +114,10 @@ class LeaveRequest(Base):
     affected_periods: Mapped[list["AffectedPeriod"]] = relationship(
         back_populates="leave_request", cascade="all, delete-orphan", lazy="selectin",
     )
+    homeroom_covers: Mapped[list["HomeroomCover"]] = relationship(
+        back_populates="leave_request", cascade="all, delete-orphan", lazy="selectin",
+        order_by="(HomeroomCover.date, HomeroomCover.class_name)",
+    )
 
     @property
     def is_half_day(self) -> bool:
@@ -173,3 +178,66 @@ class AffectedPeriod(Base):
     # 唯讀:讓清單直接知道這節是代課還是調課(例如要不要顯示「列印調課單」),不必逐節回頭查
     substitution: Mapped["Substitution | None"] = relationship(
         viewonly=True, lazy="selectin", uselist=False)
+
+
+class HomeroomCover(Base):
+    """代導(v1.4.0):導師請假那天,由誰代他帶班(早自習、午休、導師時間、放學)。
+
+    和 `AffectedPeriod` 不同,它**以天為單位、與課表無關**——導師當天一節課都沒有,
+    班上照樣需要有人帶。請假登記時,依「請假教師是哪些班的導師」×「請假期間的上課日」
+    各展開一筆。半天假也要代導,記下該日的請假時段,統計時「全天」「半天」分開算,
+    代導費怎麼給由學校自己換算(各縣市標準不同,系統不算錢)。
+
+    同樣是快照:班名、年級在展開當下寫死,事後改班名或換導師不影響已登記的代導。
+    """
+
+    __tablename__ = "homeroom_covers"
+    __table_args__ = (
+        UniqueConstraint("leave_request_id", "class_name", "date", name="uq_homeroom_covers_day"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    leave_request_id: Mapped[int] = mapped_column(
+        ForeignKey("leave_requests.id", ondelete="CASCADE"), index=True
+    )
+    semester_id: Mapped[int] = mapped_column(
+        ForeignKey("semesters.id", ondelete="CASCADE"), index=True
+    )
+    # 溯源用;班級刪除後設為 NULL,班名快照仍在
+    class_id: Mapped[int | None] = mapped_column(
+        ForeignKey("class_units.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    class_name: Mapped[str] = mapped_column(String(32))
+    grade: Mapped[int] = mapped_column(Integer, default=0)
+
+    date: Mapped[date] = mapped_column(Date, index=True)
+    weekday: Mapped[int] = mapped_column(Integer)
+    # 該日的請假時段(同 leaves._leave_window):兩端皆空 = 全天;否則為半天
+    from_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    to_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+
+    status: Mapped[str] = mapped_column(String(20), default=AffectedStatus.pending.value)
+    no_cover: Mapped[bool] = mapped_column(Boolean, default=False)  # 已確認「不需代導」
+    handler_teacher_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teachers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    assigned_by_name: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    leave_request: Mapped[LeaveRequest] = relationship(back_populates="homeroom_covers")
+    handler: Mapped[Teacher | None] = relationship(lazy="selectin")
+
+    @property
+    def is_half_day(self) -> bool:
+        return self.from_time is not None or self.to_time is not None
+
+    @property
+    def part_label(self) -> str:
+        """全天 / 上午 / 下午 / 10:00~14:00(兩端都有時間的半天假)。"""
+        if self.from_time is None and self.to_time is None:
+            return "全天"
+        if self.from_time is None:
+            return "上午"
+        if self.to_time is None:
+            return "下午"
+        return f"{self.from_time:%H:%M}~{self.to_time:%H:%M}"
