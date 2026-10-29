@@ -12,7 +12,7 @@ const leave = (id: number) => ({
   leave_type_label: '病假', start_date: '2026-09-02', start_time: null,
   end_date: '2026-09-02', end_time: null, reason: '', status: 'registered',
   created_by_name: 'admin', created_at: '2026-09-01T08:00:00',
-  affected_count: 0, pending_count: 0, affected_periods: [],
+  affected_count: 0, pending_count: 0, affected_periods: [], homeroom_covers: [], cover_pending_count: 0,
 })
 
 function stubFetch(rows: number) {

@@ -21,6 +21,7 @@ from app.api import (
     basedata,
     demo,
     exports,
+    homeroom_covers,
     imports,
     leaves,
     notifications,
@@ -92,6 +93,7 @@ def env():
     application.include_router(wizard.router, prefix="/api")
     application.include_router(leaves.router, prefix="/api")
     application.include_router(substitutions.router, prefix="/api")
+    application.include_router(homeroom_covers.router, prefix="/api")
     application.include_router(substitution_log.router, prefix="/api")
     application.include_router(substitution_stats.router, prefix="/api")
     application.include_router(notifications.router, prefix="/api")

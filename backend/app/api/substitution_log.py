@@ -10,6 +10,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
+from app.api.homeroom_covers import cover_log_out
 from app.core.auth import require_roles
 from app.core.clock import school_now
 from app.core.db import get_db
@@ -21,6 +22,7 @@ from app.schemas.substitution_log import (
     LogEntryOut,
     PatrolSheetsOut,
 )
+from app.services import homeroom_covers as cover_service
 from app.services import live_overview, patrol_sheets, patrol_xlsx
 from app.services import settings as app_settings
 from app.services import substitution_log as log_service
@@ -58,6 +60,11 @@ def daily_board(
         school_name=app_settings.school_name(db),
         semester_label=sem.label,
         entries=[_entry_out(e) for e in entries],
+        homeroom_covers=[
+            cover_log_out(c) for c in sorted(
+                cover_service.query(db, semester_id, date_from=day, date_to=day),
+                key=lambda c: c.class_name)
+        ],
     )
 
 

@@ -7,6 +7,8 @@ import { listSemesters } from '@/api/semesters'
 import { getSubstitutionLog } from '@/api/substitutionLog'
 import type { LogEntry } from '@/api/substitutionLog'
 import { openSlips } from '@/api/substitutions'
+import { listCovers, openCoverSlips } from '@/api/homeroomCovers'
+import type { CoverLog } from '@/api/homeroomCovers'
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
@@ -30,6 +32,7 @@ const teacherId = ref<number | null>(null)
 const range = ref<[number, number] | null>(null)
 const leaveType = ref<string | null>(null)
 const entries = ref<LogEntry[]>([])
+const covers = ref<CoverLog[]>([]) // 代導紀錄(v1.4.0):以天為單位,另列一張表
 const loading = ref(false)
 
 // 後端的保護性上限(substitution_log.MAX_ROWS)。取到剛好這麼多筆,幾乎必然是被截斷了——
@@ -44,13 +47,20 @@ const leaveTypeOptions = computed(() =>
 async function reload() {
   if (sid.value === null) return
   loading.value = true
+  const dateFrom = range.value ? toISODate(range.value[0]) : null
+  const dateTo = range.value ? toISODate(range.value[1]) : null
   try {
-    entries.value = await getSubstitutionLog(sid.value, {
-      teacherId: teacherId.value,
-      dateFrom: range.value ? toISODate(range.value[0]) : null,
-      dateTo: range.value ? toISODate(range.value[1]) : null,
-      leaveType: leaveType.value,
-    })
+    const [rows, coverRows] = await Promise.all([
+      getSubstitutionLog(sid.value, {
+        teacherId: teacherId.value, dateFrom, dateTo, leaveType: leaveType.value,
+      }),
+      listCovers(sid.value, { teacherId: teacherId.value, dateFrom, dateTo }),
+    ])
+    entries.value = rows
+    // 代導沒有假別以外的篩選欄位;選了假別就照假別過濾
+    covers.value = leaveType.value
+      ? coverRows.filter((c) => c.leave_type_label === leaveTypes.value[leaveType.value!])
+      : coverRows
   } finally {
     loading.value = false
   }
@@ -83,6 +93,26 @@ const substituteIds = computed(() => entries.value
   .filter((e) => (e.sub_type === 'substitute' || e.sub_type === 'merge')
     && e.status !== 'cancelled')
   .map((e) => e.affected_period_id))
+
+const coverIds = computed(() => covers.value
+  .filter((c) => c.handler_name && c.status !== 'cancelled')
+  .map((c) => c.id))
+
+function printCoverSlips() {
+  if (sid.value) openCoverSlips(sid.value, coverIds.value)
+}
+
+function coverText(c: CoverLog): string {
+  if (c.no_cover) return '不需代導'
+  return c.handler_name ? `代導 · ${c.handler_name}` : '—'
+}
+
+const COVER_STATUS: Record<CoverLog['status'], { type: string; label: string }> = {
+  pending: { type: 'warning', label: '待代導' },
+  resolved: { type: 'success', label: '已安排' },
+  completed: { type: 'info', label: '已完成' },
+  cancelled: { type: 'default', label: '已取消' },
+}
 
 function printSlips(kind: 'swap' | 'substitute') {
   if (sid.value) openSlips(kind, sid.value, kind === 'swap' ? swapIds.value : substituteIds.value)
@@ -142,6 +172,12 @@ function statusType(e: LogEntry): string {
       >
         列印這些紀錄中的代課單({{ substituteIds.length }} 節)
       </n-button>
+      <n-button
+        v-if="coverIds.length" size="small" data-testid="log-print-cover-slips"
+        @click="printCoverSlips"
+      >
+        列印這些紀錄中的代導單({{ coverIds.length }} 天)
+      </n-button>
     </n-space>
 
     <n-alert v-if="truncated" type="warning" :bordered="false" data-testid="log-truncated">
@@ -172,6 +208,30 @@ function statusType(e: LogEntry): string {
         </tr>
       </tbody>
     </table>
+
+    <template v-if="covers.length">
+      <h3 class="sub-title">代導紀錄</h3>
+      <table class="data-table" data-testid="log-covers">
+        <thead>
+          <tr><th>日期</th><th>時段</th><th>班級</th><th>原導師</th><th>假別</th><th>處置</th><th>狀態</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in covers" :key="c.id" data-testid="log-cover-row">
+            <td>{{ withWeekday(c.date) }}</td>
+            <td>{{ c.part_label }}</td>
+            <td>{{ c.class_name }}</td>
+            <td>{{ c.absent_teacher_name }}</td>
+            <td>{{ c.leave_type_label }}</td>
+            <td>{{ coverText(c) }}</td>
+            <td>
+              <n-tag size="small" :type="COVER_STATUS[c.status].type as never">
+                {{ COVER_STATUS[c.status].label }}
+              </n-tag>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
   </n-space>
 </template>
 
@@ -182,4 +242,5 @@ function statusType(e: LogEntry): string {
   white-space: nowrap;
 }
 .data-table th { background: rgba(128, 128, 128, 0.08); font-weight: 600; }
+.sub-title { margin: 8px 0 0; font-size: 16px; }
 </style>

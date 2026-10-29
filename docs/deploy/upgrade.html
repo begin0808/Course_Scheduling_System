@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</a><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -189,6 +189,10 @@
       <blockquote>
       <p><strong>開始前先備份。</strong> 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見<a href="backup.html">備份指南</a>。</p>
       </blockquote>
+      <h2 id="升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</h2>
+      <p>v1.4.0 新增一張「代導」用的資料表,<strong>既有的資料表與資料都不動</strong>。和 v1.3.0 一樣,<code>api</code> 容器發現資料庫結構
+      需要升級時,<strong>會先自動備份一次再升級</strong>(見下一節)。升級前已登記的假單不會補產生代導,只有升級後新登記的假單才有。</p>
+      <p>要退回 v1.3.x,請看下方「從 v1.4.0 退回 v1.3.x」。</p>
       <h2 id="升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</h2>
       <p>v1.3.0 是第一個<strong>改動資料表結構</strong>的版本(新增單雙週課程用的欄位)。升級本身已在 v1.2.0、v1.2.10、
       v1.2.19 三個版本的實際資料上驗證過:課表、配課、鐘點、請假、代課、統計、巡堂表升級前後完全相同。</p>
@@ -213,7 +217,7 @@
       #    https://raw.githubusercontent.com/begin0808/Course_Scheduling_System/main/docker-compose.yml
       
       # 3) 選擇版本:編輯 .env
-      #    釘選版本(可控):IMAGE_TAG=v1.3.5
+      #    釘選版本(可控):IMAGE_TAG=v1.4.0
       #    永遠最新:        IMAGE_TAG=latest
       
       # 4) 拉新映像並重啟
@@ -233,7 +237,7 @@
       <hr />
       <h2 id="關於版本釘選">關於版本釘選</h2>
       <ul>
-      <li><strong>正式環境建議 <code>IMAGE_TAG=v1.3.5</code> 這樣釘住特定版本</strong>,你才能決定何時升級、升到哪一版,而不是每次 <code>pull</code> 都可能變動。</li>
+      <li><strong>正式環境建議 <code>IMAGE_TAG=v1.4.0</code> 這樣釘住特定版本</strong>,你才能決定何時升級、升到哪一版,而不是每次 <code>pull</code> 都可能變動。</li>
       <li>想升級時,把 <code>IMAGE_TAG</code> 改成新版本號,再 <code>docker compose pull &amp;&amp; up -d</code>。</li>
       <li>各版本的變更內容見專案根目錄的 <a href="../../CHANGELOG.html">CHANGELOG.md</a>;破壞性變更(若有)會在該版本明確標註 ⚠️ 與對應處置。</li>
       </ul>
@@ -247,6 +251,16 @@
       <blockquote>
       <p>⚠️ <strong>注意資料庫遷移方向</strong>:若新版本引入了資料表結構變更,退回舊映像後其程式可能不認得新結構。<strong>最保險的退回方式是:退回舊映像 + 還原「升級前那份備份」</strong>(見<a href="backup.html">備份指南</a>的還原流程)。若該次升級的 CHANGELOG 未標註 schema 變更,則單純換映像即可。</p>
       </blockquote>
+      <h3 id="從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</h3>
+      <p>v1.4.0 改了資料表結構,<strong>直接把版本號改回 v1.3.x,舊版會啟動失敗</strong>。兩種退回方式擇一:</p>
+      <ul>
+      <li><strong>方式一:用升級前自動備份還原</strong>——做法同下方「從 v1.3.0 退回 v1.2.x」的方式一。升級後才登記的請假、調代課、代導不會保留。</li>
+      <li><strong>方式二:退回指令(資料保留,只移除代導)</strong>——在 <code>docker-compose.yml</code> 所在資料夾,<strong>先以 v1.4.0 執行</strong>:</li>
+      </ul>
+      <p><code>bash
+        docker compose run --rm --entrypoint alembic api downgrade 0018_alternate_weeks</code></p>
+      <p>這會移除代導用的資料表(已安排的代導會一併刪除),課表、請假、代課等其他資料都不動。
+        接著把 <code>.env</code> 的 <code>IMAGE_TAG</code> 改回 v1.3.x,執行 <code>docker compose pull</code> 與 <code>docker compose up -d</code>。</p>
       <h3 id="從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</h3>
       <p>v1.3.0 改了資料表結構,<strong>直接把版本號改回 v1.2.x,舊版會啟動失敗</strong>(它不認得新的結構版本)。兩種退回方式擇一:</p>
       <p><strong>方式一:用升級前自動備份還原(建議)</strong></p>

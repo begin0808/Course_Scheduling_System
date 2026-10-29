@@ -30,6 +30,21 @@ class AffectedPeriodOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class HomeroomCoverOut(BaseModel):
+    """代導(v1.4.0):請假的導師帶的班,某一天由誰代導。"""
+
+    id: int
+    date: date
+    weekday: int
+    class_name: str
+    part_label: str          # 全天 / 上午 / 下午 / 10:00~14:00
+    is_half_day: bool
+    status: str              # pending / resolved / completed / cancelled
+    no_cover: bool           # 已確認「不需代導」
+    handler_teacher_id: int | None = None
+    handler_name: str | None = None
+
+
 class LeaveRequestIn(BaseModel):
     """時間為空 = 該端點整天。單日 + 起訖時間 = 半天假。"""
 
@@ -60,11 +75,14 @@ class LeaveRequestOut(BaseModel):
     affected_count: int = 0
     pending_count: int = 0
     affected_periods: list[AffectedPeriodOut] = []
+    homeroom_covers: list[HomeroomCoverOut] = []
+    cover_pending_count: int = 0  # 還沒安排的代導(天次)
 
 
 class LeaveCancelled(BaseModel):
     id: int
     status: str
     revoked_count: int  # 原本已指派、現在被取消的節次數
+    revoked_cover_count: int = 0  # 原本已安排、現在被取消的代導(天次)
     notified_teachers: list[str] = []
 

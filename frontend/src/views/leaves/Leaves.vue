@@ -97,10 +97,13 @@ async function onSubmit() {
       end_time: form.value.halfDay ? toTime(form.value.endTime) : null,
       reason: form.value.reason,
     })
+    const covers = created.homeroom_covers.length
+      ? `;導師班需代導 ${created.homeroom_covers.length} 天次,請到「調代課處理」安排`
+      : ''
     message.success(
-      created.affected_count
+      (created.affected_count
         ? `已登記,共 ${created.affected_count} 節課受影響`
-        : '已登記(這段期間沒有課)',
+        : '已登記(這段期間沒有課)') + covers,
     )
     form.value.reason = ''
     await reload()
@@ -114,7 +117,7 @@ async function onSubmit() {
 async function onCancel(leave: LeaveRequest) {
   const result = await cancelLeave(leave.id)
   if (result.notified_teachers.length) {
-    message.success(`已銷假,已通知 ${result.notified_teachers.join('、')} 取消代課`)
+    message.success(`已銷假,已通知 ${result.notified_teachers.join('、')} 取消代課或代導`)
   } else {
     message.success('已銷假')
   }
@@ -232,11 +235,17 @@ function rangeText(l: LeaveRequest): string {
             <n-tag v-else type="warning" size="small" data-testid="lv-pending">
               待處理 {{ l.pending_count }} 節
             </n-tag>
+            <n-tag
+              v-if="l.status !== 'cancelled' && l.homeroom_covers.length" type="warning"
+              size="small" data-testid="lv-cover-pending"
+            >
+              待代導 {{ l.cover_pending_count }} 天
+            </n-tag>
             <n-popconfirm v-if="l.status === 'registered'" @positive-click="onCancel(l)">
               <template #trigger>
                 <n-button size="small" tertiary type="error" data-testid="lv-cancel">銷假</n-button>
               </template>
-              銷假將取消所有受影響節次的處置,已被指派的代課教師會收到取消通知。確定?
+              銷假將取消所有受影響節次的處置與代導,已被指派的代課、代導教師會收到取消通知。確定?
             </n-popconfirm>
           </n-space>
         </template>
@@ -272,6 +281,11 @@ function rangeText(l: LeaveRequest): string {
               </tr>
             </tbody>
           </table>
+          <n-text v-if="l.homeroom_covers.length" data-testid="lv-covers">
+            代導:{{ [...new Set(l.homeroom_covers.map((c) => c.class_name))].join('、') }}
+            共 {{ l.homeroom_covers.length }} 天次
+            <n-text depth="3">(請到「調代課處理」安排代導老師)</n-text>
+          </n-text>
           <n-text depth="3">登記人:{{ l.created_by_name }}</n-text>
         </n-space>
       </n-card>

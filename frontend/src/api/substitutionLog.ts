@@ -2,6 +2,7 @@
 
 import { apiGet, apiPut } from '@/api/client'
 import { download } from '@/api/exports'
+import type { CoverLog } from '@/api/homeroomCovers'
 
 export interface LogEntry {
   affected_period_id: number
@@ -42,6 +43,7 @@ export interface DailyBoard {
   school_name: string
   semester_label: string
   entries: LogEntry[]
+  homeroom_covers: CoverLog[] // 當天的代導(v1.4.0)
 }
 
 export interface LogFilters {

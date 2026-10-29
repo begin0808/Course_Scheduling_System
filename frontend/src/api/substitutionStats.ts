@@ -20,6 +20,18 @@ export interface StatDetail {
   daily_shared: boolean // 日薪:當日與其他日薪代課老師分擔
 }
 
+/** 代導明細(v1.4.0):以天為單位,全天/半天分開記 */
+export interface CoverDetail {
+  handler_teacher_id: number
+  handler_name: string
+  date: string
+  class_name: string
+  part_label: string
+  is_half_day: boolean
+  absent_teacher_name: string
+  leave_type_label: string
+}
+
 export interface TeacherSummary {
   teacher_id: number
   teacher_name: string
@@ -28,6 +40,8 @@ export interface TeacherSummary {
   daily_days: number // 日薪天數
   daily_periods: number // 日薪那幾天共代了幾節
   daily_shared_days: number // 其中幾天與其他日薪代課老師分擔
+  cover_full_days: number // 代導全天(一班一天算一次)
+  cover_half_days: number // 代導半天
 }
 
 export interface MonthlyReport {
@@ -35,6 +49,7 @@ export interface MonthlyReport {
   month: number
   summaries: TeacherSummary[]
   details: StatDetail[]
+  cover_details: CoverDetail[]
 }
 
 function qs(sid: number, year: number, month: number, teacherId?: number | null): string {

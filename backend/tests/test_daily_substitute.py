@@ -181,9 +181,10 @@ def test_export_has_daily_columns(w):
     r = w.client.get(f"/api/substitution-stats/export{w.q}&year={WED.year}&month={WED.month}")
     wb = load_workbook(io.BytesIO(r.content))
     summary = [[c.value for c in row] for row in wb["彙總"].iter_rows()]
-    assert summary[0] == ["教師", "代課節數", "鐘點計費節數", "日薪天數", "日薪節數", "備註"]
+    assert summary[0] == ["教師", "代課節數", "鐘點計費節數", "日薪天數", "日薪節數",
+                          "代導全天", "代導半天", "備註"]   # v1.4.0 加代導兩欄
     chen = next(row for row in summary if row[0] == "陳師")
-    assert chen[1:5] == [1, 0, 1, 1] and "分擔" in chen[5]
+    assert chen[1:5] == [1, 0, 1, 1] and "分擔" in chen[7]
     detail = [[c.value for c in row] for row in wb["明細"].iter_rows()]
     assert detail[0][-2:] == ["計酬", "備註"]
     assert detail[1][-2] == "日薪" and "分擔" in detail[1][-1]

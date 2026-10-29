@@ -158,7 +158,7 @@ function statusType(e: LogEntry): string {
     <n-text v-if="board" depth="3" data-testid="board-datelabel">{{ dateLabel }}</n-text>
 
     <n-empty
-      v-if="board && !board.entries.length && !loading"
+      v-if="board && !board.entries.length && !board.homeroom_covers.length && !loading"
       description="今日無調代課" data-testid="board-empty" style="padding: 40px 0"
     />
 
@@ -186,6 +186,27 @@ function statusType(e: LogEntry): string {
         </tr>
       </tbody>
     </table>
+
+    <!-- 代導(v1.4.0):今天哪些班的導師請假、由誰代導 -->
+    <template v-if="board?.homeroom_covers.length">
+      <h3 class="sub-title">今日代導</h3>
+      <table class="data-table" data-testid="board-covers">
+        <thead>
+          <tr><th>班級</th><th>時段</th><th>原導師</th><th>假別</th><th>代導</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in board.homeroom_covers" :key="c.id" data-testid="board-cover-row">
+            <td>{{ c.class_name }}</td>
+            <td>{{ c.part_label }}</td>
+            <td>{{ c.absent_teacher_name }}</td>
+            <td>{{ c.leave_type_label }}</td>
+            <td :class="{ pending: c.status === 'pending' }">
+              {{ c.no_cover ? '不需代導' : (c.handler_name ?? '待安排') }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
   </n-space>
 </template>
 
@@ -196,4 +217,5 @@ function statusType(e: LogEntry): string {
 }
 .data-table th { background: rgba(128, 128, 128, 0.08); font-weight: 600; }
 .pending { color: #e08000; }
+.sub-title { margin: 8px 0 0; font-size: 16px; }
 </style>
