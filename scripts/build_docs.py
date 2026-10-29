@@ -391,7 +391,7 @@ PAGE = """<!doctype html>
       <div class="foot">
         本頁由 <code>docs/{src}</code> 自動產生(<code>scripts/build_docs.py</code>)。
         要修改內容請改 Markdown 原始檔,不要直接編輯這份 HTML。<br>
-        排課與調代課系統 · MIT 授權 · <a href="https://github.com/begin0808/Course_Scheduling_System">GitHub</a>
+        排課與調代課系統 · AGPL-3.0 授權 · <a href="https://github.com/begin0808/Course_Scheduling_System">GitHub</a>
       </div>
     </div>
   </main>

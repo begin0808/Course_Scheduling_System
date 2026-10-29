@@ -13,6 +13,10 @@ export interface UpdateStatus {
   error: string // 最近一次查詢失敗的原因(例如主機不能連外)
 }
 
+// 原始碼位置(v1.4.1 起 AGPL-3.0):登入頁與側邊欄的「原始碼」連結指向這裡。
+// AGPL 第 13 條要求透過網路提供服務時,要讓使用者拿得到原始碼;
+// 改過程式再提供給別人使用的人,要把這裡改成自己改過的原始碼位置。
+export const SOURCE_URL = 'https://github.com/begin0808/Course_Scheduling_System'
 export const RELEASES_URL = 'https://github.com/begin0808/Course_Scheduling_System/releases'
 export const UPGRADE_GUIDE_URL =
   'https://github.com/begin0808/Course_Scheduling_System/blob/main/docs/deploy/upgrade.md'
