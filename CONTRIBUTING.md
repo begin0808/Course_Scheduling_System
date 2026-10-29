@@ -130,4 +130,4 @@ E2E_BASE_URL=http://localhost:<port> npm run e2e:manual
 
 ## 授權
 
-貢獻即表示你同意以 [AGPL-3.0](LICENSE) 授權釋出你的貢獻(v1.4.1 起;v1.4.0 以前的版本為 MIT)。
+貢獻即表示你同意以 [AGPL-3.0-or-later](LICENSE)(第 3 版或任何更新的版本)授權釋出你的貢獻(v1.4.1 起;v1.4.0 以前的版本為 MIT)。
