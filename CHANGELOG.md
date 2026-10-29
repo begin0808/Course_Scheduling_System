@@ -18,7 +18,7 @@
 `ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.4.1`
 
 ### 變更
-- **授權由 MIT 改為 [GNU AGPL-3.0](LICENSE)**(第 3 版或任何更新的版本,AGPL-3.0-or-later)。v1.4.0 以前(含)的版本以 MIT 發布,那些版本仍適用 MIT;v1.4.1 起的新版本適用 AGPL-3.0。
+- **授權由 MIT 改為 [GNU AGPL-3.0](LICENSE)**(僅第 3 版,AGPL-3.0-only)。v1.4.0 以前(含)的版本以 MIT 發布,那些版本仍適用 MIT;v1.4.1 起的新版本適用 AGPL-3.0。
 - 登入頁與側邊欄(版本號下方)新增「原始碼」連結,指向本專案的 GitHub(AGPL-3.0 第 13 條:透過網路提供服務時,要讓使用者拿得到原始碼)。修改過程式再提供給別人使用的人,請把連結改成自己修改後的原始碼位置(`frontend/src/api/system.ts` 的 `SOURCE_URL`)。
 - [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 改寫為與 AGPL-3.0 的相容說明(所用第三方元件皆相容,不需要更換)。
 
