@@ -10,7 +10,7 @@ import Substitutions from './Substitutions.vue'
 const affected = {
   id: 11, date: '2026-10-07', weekday: 3, period_no: 2, period_name: '第一節',
   start_time: null, end_time: null, subject_name: '國文', class_names: '701', room_name: '',
-  status: 'pending', handler_teacher_id: null, handler_name: null, sub_type: null,
+  status: 'pending', is_past: false, handler_teacher_id: null, handler_name: null, sub_type: null,
   swap_date: null, swap_period_name: '',
 }
 const leave = {
@@ -155,7 +155,7 @@ describe('調代課處理:調課', () => {
 describe('調代課處理:代導', () => {
   const cover = (id: number, date: string, status = 'pending') => ({
     id, date, weekday: 3, class_name: '701', part_label: '全天', is_half_day: false,
-    status, no_cover: false, handler_teacher_id: null, handler_name: null,
+    status, is_past: false, no_cover: false, handler_teacher_id: null, handler_name: null,
   })
   const homeroomLeave = {
     ...leave, affected_count: 0, pending_count: 0, affected_periods: [],
@@ -203,5 +203,35 @@ describe('調代課處理:代導', () => {
     const put = calls.find((c) => c.method === 'PUT')
     expect(put?.url).toBe('/api/homeroom-covers/21')
     expect(put?.body).toEqual({ handler_teacher_id: 2, whole_leave: true })
+  })
+})
+
+// 補登(v1.4.2):臨時找人代課、事後才登記請假,節次已經過了
+describe('調代課處理:補登已經過去的節次', () => {
+  const pastLeave = { ...leave, affected_periods: [{ ...affected, is_past: true }] }
+
+  it('標示待補登,按鈕寫補登;展開後說明不通知,也不能調課', async () => {
+    stubFetch(pastLeave)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-status"]').text()).toBe('待補登')
+    const btn = wrapper.find('[data-testid="sub-handle"]')
+    expect(btn.text()).toBe('補登')
+    await btn.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-backfill-hint"]').text()).toContain('不會通知老師')
+    expect(wrapper.find('[data-testid="sub-swap"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sub-merge"]').exists()).toBe(true)
+  })
+
+  it('還沒過的節次照舊:待處理、處理、可以調課', async () => {
+    stubFetch(leave)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-status"]').text()).toBe('待處理')
+    await wrapper.find('[data-testid="sub-handle"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-backfill-hint"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sub-swap"]').exists()).toBe(true)
   })
 })

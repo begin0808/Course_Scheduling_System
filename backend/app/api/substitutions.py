@@ -146,6 +146,7 @@ def assign_substitution(
 ):
     """指派處置(代課/調課/併班/自習/不處理);指派即生效並通知處理教師。"""
     affected = _get_affected(db, affected_id)
+    backfill = sub_service.is_backfill(affected)
     try:
         sub = sub_service.assign(
             db, affected,
@@ -162,7 +163,8 @@ def assign_substitution(
         user_id=user.id, username=user.username, action="assign_substitution",
         target_type="affected_period", target_id=affected.id,
         detail=(
-            f"{affected.leave_request.teacher.name} {affected.date} {affected.period_name}"
+            ("補登 " if backfill else "")
+            + f"{affected.leave_request.teacher.name} {affected.date} {affected.period_name}"
             f" → {SUBSTITUTION_TYPE_CN.get(sub.type, sub.type)}"
             + (f"({sub.handler.name})" if sub.handler else "")
         )[:500],
@@ -205,6 +207,7 @@ def assign_substitutions_batch(
     leave = db.get(LeaveRequest, leave_id)
     if leave is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到假單")
+    backfills = sum(1 for ap in leave.affected_periods if sub_service.is_backfill(ap))
     try:
         done, skipped = sub_service.assign_batch(
             db, leave,
@@ -225,6 +228,7 @@ def assign_substitutions_batch(
             detail=(
                 f"{leave.teacher.name} {scope} → 代課({handler.name if handler else ''})"
                 f" {len(done)} 節" + (f",{len(skipped)} 節未派" if skipped else "")
+                + (",含補登已過去的節次" if backfills else "")
             )[:500],
         ))
     db.commit()

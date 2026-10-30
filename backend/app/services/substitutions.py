@@ -3,6 +3,10 @@
 指派即生效:建立/更新處置 → 受影響節次轉『已確認』並記下處理教師 → 通知處理教師。
 沒有邀請/婉拒;通知只是正式告知 +「確認收到」。
 
+**補登**(v1.4.2,組長回報):臨時找人代課、事後才登記請假時,節次已經過了還是「待處理」。
+這些節次可以補登處置,直接成為已完成並列入鐘點統計;**不通知**(老師已經去上過課了),
+也**不能補登調課**(調課要安排之後的補課節次)。已處理過、已過去的節次仍然不能改或撤回。
+
 各處置的鐘點:代課計、併班/自習/不處理不計(§5.4 月結)。
 調課(swap)要驗兩位教師交換後都無衝突,拒絕時說出是誰在哪一節撞課。
 """
@@ -77,10 +81,15 @@ def assign(
     """對一個受影響節次做處置。呼叫端負責 commit。"""
     if affected.status == AffectedStatus.cancelled.value:
         raise SubstitutionError("此節次已因銷假取消,無法處置")
-    if affected.status == AffectedStatus.completed.value or clock.is_past_slot(
-        affected.date, affected.end_time
+    backfill = is_backfill(affected)
+    if affected.status == AffectedStatus.completed.value or (
+        clock.is_past_slot(affected.date, affected.end_time) and not backfill
     ):
         raise SubstitutionError("此節次已結束,無法變更處置")
+    if backfill and affected.leave_request.status == LeaveStatus.cancelled.value:
+        raise SubstitutionError("此假單已銷假")
+    if backfill and sub_type == SubstitutionType.swap.value:
+        raise SubstitutionError("這一節已經過了,無法補登調課(調課要安排之後的補課節次),請改登代課")
     if sub_type not in set(SubstitutionType):
         raise SubstitutionError(f"未知的處置方式:{sub_type}")
 
@@ -114,9 +123,15 @@ def assign(
     affected.handler_teacher_id = handler.id if handler else None
     db.flush()
 
-    if handler is not None:
+    if handler is not None and not backfill:
         _notify_handler(db, affected, sub, handler)
     return sub
+
+
+def is_backfill(affected: AffectedPeriod) -> bool:
+    """已經過去、還沒處理的節次:現在指派就是補登(不通知、不能調課)。"""
+    return affected.status == AffectedStatus.pending.value and clock.is_past_slot(
+        affected.date, affected.end_time)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,8 +160,9 @@ def assign_batch(
     """把一張假單(或其中一天)還沒處理的節次,一次指派給同一位代課老師(#36)。
 
     導師請整天或好幾天假時,一節一節點同一位代課老師要點幾十次。這裡逐節沿用 `assign`
-    ——檢查規則完全一樣——派得成的就派,派不成的(代課老師那一節自己有課、節次已結束)
-    跳過並回報原因,由組長另外找人。已經處理過的節次不動。呼叫端負責 commit。
+    ——檢查規則完全一樣——派得成的就派,派不成的(代課老師那一節自己有課)
+    跳過並回報原因,由組長另外找人。已經過去、還沒處理的節次一併補登(不通知);
+    已經處理過的節次不動。呼叫端負責 commit。
     """
     pending = sorted(
         (

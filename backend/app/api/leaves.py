@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.core.auth import get_active_user, require_roles
 from app.core.db import get_db
 from app.models.audit import AuditLog
@@ -55,6 +56,7 @@ def cover_out(c: HomeroomCover) -> HomeroomCoverOut:
         id=c.id, date=c.date, weekday=c.weekday, class_name=c.class_name,
         part_label=c.part_label, is_half_day=c.is_half_day,
         status=leave_service.cover_status(c), no_cover=c.no_cover,
+        is_past=leave_service.cover_is_past(c.date),
         handler_teacher_id=c.handler_teacher_id,
         handler_name=c.handler.name if c.handler else None,
     )
@@ -81,6 +83,7 @@ def _serialize(leave: LeaveRequest) -> LeaveRequestOut:
                     "handler_teacher_id",
                 )},
                 status=leave_service.effective_status(p.status, p.date, p.end_time),
+                is_past=clock.is_past_slot(p.date, p.end_time),
                 handler_name=p.handler.name if p.handler else None,
                 sub_type=p.substitution.type if p.substitution else None,
                 swap_date=p.substitution.swap_date if p.substitution else None,
