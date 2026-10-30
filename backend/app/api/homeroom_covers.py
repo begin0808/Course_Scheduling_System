@@ -77,6 +77,8 @@ def assign_cover(
 ):
     """指派代導老師,或標記不需代導;whole_leave 時同一班其他還沒安排的日子一起指派。"""
     cover = _get_cover(db, cover_id)
+    rest = cover.leave_request.homeroom_covers if body.whole_leave else [cover]
+    backfill = any(cover_service.is_backfill(c) for c in rest)
     try:
         done, skipped = cover_service.assign(
             db, cover, handler_teacher_id=body.handler_teacher_id, no_cover=body.no_cover,
@@ -89,7 +91,8 @@ def assign_cover(
     db.add(AuditLog(
         user_id=user.id, username=user.username, action="assign_homeroom_cover",
         target_type="homeroom_cover", target_id=cover.id,
-        detail=(f"{cover.leave_request.teacher.name} 請假,{cover.class_name} "
+        detail=(("補登 " if backfill else "")
+                + f"{cover.leave_request.teacher.name} 請假,{cover.class_name} "
                 f"{', '.join(str(c.date) for c in done)} {who}")[:500],
     ))
     db.commit()

@@ -14,6 +14,7 @@ export interface AffectedPeriod {
   class_names: string
   room_name: string
   status: 'pending' | 'resolved' | 'completed' | 'cancelled'
+  is_past: boolean // 已經過去;還沒處理的話就是「待補登」(v1.4.2,補登不通知、不能調課)
   handler_teacher_id: number | null
   handler_name: string | null
   sub_type: string | null // 已處置時的處置方式(substitute/swap/…)
@@ -31,6 +32,7 @@ export interface HomeroomCover {
   is_half_day: boolean
   status: 'pending' | 'resolved' | 'completed' | 'cancelled'
   no_cover: boolean // 已確認「不需代導」
+  is_past: boolean // 那天已經過了;還沒安排的話就是「待補登」(v1.4.2)
   handler_teacher_id: number | null
   handler_name: string | null
 }

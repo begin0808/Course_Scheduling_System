@@ -228,13 +228,16 @@ def test_cancel_leave_cancels_future_covers_and_keeps_days_already_covered(env2,
 
 
 def test_past_day_cannot_be_changed(env2, monkeypatch):  # noqa: F811
+    """已安排、那天已經過了:不能改派。(還沒安排的過去日子可以補登,見 test_backfill)"""
     w = env2
     w.teacher("王師")
     w.teacher("陳師")
+    w.teacher("林師")
     _homeroom(w, "701", "王師")
     cover_id = _leave(w, "王師", MON)["homeroom_covers"][0]["id"]
+    _assign(w, cover_id, handler_teacher_id=w.teachers["陳師"])
     monkeypatch.setattr(clock, "school_today", lambda: TUE)
-    code, body = _assign(w, cover_id, handler_teacher_id=w.teachers["陳師"])
+    code, body = _assign(w, cover_id, handler_teacher_id=w.teachers["林師"])
     assert code == 409 and "已經過了" in body["detail"]
 
 

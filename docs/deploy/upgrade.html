@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v141授權改為-agpl-30">升級到 v1.4.1:授權改為 AGPL-3.0</a><a class="lv2" href="#升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</a><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v142可以補登事後才登記的請假">升級到 v1.4.2:可以補登事後才登記的請假</a><a class="lv2" href="#升級到-v141授權改為-agpl-30">升級到 v1.4.1:授權改為 AGPL-3.0</a><a class="lv2" href="#升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</a><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -189,6 +189,8 @@
       <blockquote>
       <p><strong>開始前先備份。</strong> 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見<a href="backup.html">備份指南</a>。</p>
       </blockquote>
+      <h2 id="升級到-v142可以補登事後才登記的請假">升級到 v1.4.2:可以補登事後才登記的請假</h2>
+      <p>v1.4.2 沒有資料表變更,照下方方式 A 或方式 B 一般升級即可。</p>
       <h2 id="升級到-v141授權改為-agpl-30">升級到 v1.4.1:授權改為 AGPL-3.0</h2>
       <p>v1.4.1 只改了授權(由 MIT 改為 AGPL-3.0),並在登入頁與側邊欄加上「原始碼」連結。<strong>功能與資料表都沒有變動</strong>,
       照下方方式 A 或方式 B 一般升級即可;從 v1.3.x 或更早的版本升上來,一樣會經過 v1.4.0 的資料表變更(會先自動備份)。</p>

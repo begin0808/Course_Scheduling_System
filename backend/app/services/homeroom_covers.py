@@ -135,11 +135,18 @@ def options(db: Session, cover: HomeroomCover) -> list[CoverOption]:
     return out
 
 
-def _check_open(cover: HomeroomCover) -> None:
+def is_backfill(cover: HomeroomCover) -> bool:
+    """已經過去、還沒安排的代導:現在指派就是補登(v1.4.2,不通知)。"""
+    return cover.status == AffectedStatus.pending.value and leaves.cover_is_past(cover.date)
+
+
+def _check_open(cover: HomeroomCover, *, allow_backfill: bool = False) -> None:
     if cover.status == AffectedStatus.cancelled.value:
         raise CoverError("這一天的代導已因銷假取消")
-    if leaves.cover_is_past(cover.date):
+    if leaves.cover_is_past(cover.date) and not (allow_backfill and is_backfill(cover)):
         raise CoverError("這一天已經過了,無法變更代導")
+    if cover.leave_request.status == LeaveStatus.cancelled.value:
+        raise CoverError("此假單已銷假")
 
 
 def _handler(db: Session, cover: HomeroomCover, teacher_id: int) -> Teacher:
@@ -162,7 +169,8 @@ def _set(db: Session, cover: HomeroomCover, handler: Teacher | None, actor_name:
     cover.no_cover = handler is None
     cover.handler_teacher_id = handler.id if handler else None
     cover.assigned_by_name = actor_name
-    if handler is not None and previous != handler.id:
+    # 補登(那天已經過了)不通知:老師已經代導過了
+    if handler is not None and previous != handler.id and not leaves.cover_is_past(cover.date):
         absent = cover.leave_request.teacher
         notifications.notify(
             db, semester_id=cover.semester_id, teacher_id=handler.id,
@@ -196,7 +204,7 @@ def assign(
     `whole_leave`:同一張假單、同一班其他還沒安排的日子一起指派(多天的假一次派完)。
     派不成的日子(那位老師當天整天請假)跳過並回報原因,仍維持待代導。
     """
-    _check_open(cover)
+    _check_open(cover, allow_backfill=True)
     handler: Teacher | None = None
     if not no_cover:
         if handler_teacher_id is None:
@@ -210,7 +218,7 @@ def assign(
         rest = [
             c for c in cover.leave_request.homeroom_covers
             if c.id != cover.id and c.class_name == cover.class_name
-            and c.status == AffectedStatus.pending.value and not leaves.cover_is_past(c.date)
+            and c.status == AffectedStatus.pending.value
         ]
         for c in rest:
             if handler is not None and on_full_day_leave(db, handler.id, c.date):

@@ -20,6 +20,8 @@ class AffectedPeriodOut(BaseModel):
     class_names: str
     room_name: str
     status: str  # pending / resolved / completed / cancelled
+    # 已經過去、還沒處理:畫面標「待補登」,補登不通知、不能調課(v1.4.2)
+    is_past: bool = False
     handler_teacher_id: int | None = None
     handler_name: str | None = None
     sub_type: str | None = None  # 已處置時的處置方式(substitute/swap/…),未處置為空
@@ -41,6 +43,7 @@ class HomeroomCoverOut(BaseModel):
     is_half_day: bool
     status: str              # pending / resolved / completed / cancelled
     no_cover: bool           # 已確認「不需代導」
+    is_past: bool = False    # 那天已經過了(還沒安排的話就是待補登,v1.4.2)
     handler_teacher_id: int | None = None
     handler_name: str | None = None
 

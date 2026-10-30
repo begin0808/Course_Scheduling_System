@@ -450,6 +450,15 @@ const STATUS: Record<AffectedPeriod['status'], { type: string; label: string }> 
   cancelled: { type: 'default', label: '已取消' },
 }
 
+// 補登(v1.4.2):臨時找人代課、事後才登記請假,節次已經過了還是待處理。
+// 補登不通知老師(已經去上過課了)、不能調課;補登後和其他過去的節次一樣不能再改
+function statusOf(x: AffectedPeriod | HomeroomCover, table: typeof STATUS) {
+  return x.status === 'pending' && x.is_past ? { type: 'error', label: '待補登' } : table[x.status]
+}
+
+const hasPastPending = computed(() =>
+  !!batchLeave.value && pendingOf(batchLeave.value).some((p) => p.is_past))
+
 function candidateTagType(c: Candidate): string {
   if (c.same_subject) return 'success'
   if (c.at_school_that_day) return 'info'
@@ -513,8 +522,8 @@ function candidateTagType(c: Candidate): string {
           <n-space vertical size="small">
             <div v-for="p in l.affected_periods" :key="p.id" data-testid="sub-period">
               <n-space align="center" :wrap="false">
-                <n-tag size="small" :type="STATUS[p.status].type as never">
-                  {{ STATUS[p.status].label }}
+                <n-tag size="small" :type="statusOf(p, STATUS).type as never" data-testid="sub-status">
+                  {{ statusOf(p, STATUS).label }}
                 </n-tag>
                 <n-text style="min-width: 260px">
                   {{ withWeekday(p.date) }} {{ p.period_name }} ·
@@ -530,7 +539,7 @@ function candidateTagType(c: Candidate): string {
                   v-if="p.status === 'pending'" size="small" type="primary"
                   data-testid="sub-handle" @click="openPeriod(p)"
                 >
-                  {{ openId === p.id ? '收合' : '處理' }}
+                  {{ openId === p.id ? '收合' : p.is_past ? '補登' : '處理' }}
                 </n-button>
                 <n-button
                   v-else-if="p.status === 'resolved'" size="small" tertiary
@@ -560,6 +569,10 @@ function candidateTagType(c: Candidate): string {
                 data-testid="sub-panel"
               >
                 <n-space vertical size="small">
+                  <n-alert v-if="p.is_past" type="info" :bordered="false" data-testid="sub-backfill-hint">
+                    這一節已經過了:補登後直接列入代課鐘點統計,不會通知老師。
+                    補登後就不能再修改或撤回,請確認後再按。
+                  </n-alert>
                   <n-text v-if="loadingRec" depth="3">計算可代教師中…</n-text>
 
                   <template v-else-if="rec">
@@ -603,7 +616,9 @@ function candidateTagType(c: Candidate): string {
 
                   <n-space size="small" style="margin-top: 8px">
                     <n-text depth="3">或改採:</n-text>
+                    <!-- 調課要安排之後的補課節次,已經過去的節次無法補登調課 -->
                     <n-button
+                      v-if="!p.is_past"
                       size="tiny" :type="swapOpen ? 'primary' : 'default'"
                       data-testid="sub-swap" @click="toggleSwap(p)"
                     >
@@ -735,8 +750,11 @@ function candidateTagType(c: Candidate): string {
             <n-text depth="3">({{ l.teacher_name }} 是導師,請假期間每天要有人帶班)</n-text>
             <div v-for="c in l.homeroom_covers" :key="c.id" class="cover" data-testid="sub-cover">
               <n-space align="center" :wrap="false">
-                <n-tag size="small" :type="COVER_STATUS[c.status].type as never">
-                  {{ COVER_STATUS[c.status].label }}
+                <n-tag
+                  size="small" :type="statusOf(c, COVER_STATUS).type as never"
+                  data-testid="sub-cover-status"
+                >
+                  {{ statusOf(c, COVER_STATUS).label }}
                 </n-tag>
                 <n-text style="min-width: 260px">
                   {{ withWeekday(c.date) }} {{ c.part_label }} · {{ c.class_name }}
@@ -751,7 +769,7 @@ function candidateTagType(c: Candidate): string {
                   v-if="c.status === 'pending'" size="small" type="primary"
                   data-testid="sub-cover-handle" @click="openCover(c)"
                 >
-                  {{ coverOpenId === c.id ? '收合' : '安排代導' }}
+                  {{ coverOpenId === c.id ? '收合' : c.is_past ? '補登代導' : '安排代導' }}
                 </n-button>
                 <n-button
                   v-else-if="c.status === 'resolved'" size="small" tertiary
@@ -772,6 +790,9 @@ function candidateTagType(c: Candidate): string {
                 data-testid="sub-cover-panel"
               >
                 <n-space vertical size="small">
+                  <n-alert v-if="c.is_past" type="info" :bordered="false" data-testid="sub-cover-backfill-hint">
+                    這一天已經過了:補登後直接列入代導統計,不會通知老師。補登後就不能再修改或撤回。
+                  </n-alert>
                   <n-text depth="3">
                     代導不是上課,有課的老師也可以代導;當天整天請假的老師不會列出。
                   </n-text>
@@ -819,6 +840,9 @@ function candidateTagType(c: Candidate): string {
         <n-text depth="3">
           把這張假單還沒處理的節次,一次指派給同一位代課老師。已經處理過的節次不會更動;
           代課老師自己有課的節次會跳過,並列出來讓你另外找人。
+        </n-text>
+        <n-text v-if="hasPastPending" depth="3" data-testid="sub-batch-backfill">
+          已經過去、還沒處理的節次會一併補登:直接列入鐘點統計,不會通知老師。
         </n-text>
         <n-space align="center">
           <n-text style="min-width: 70px">代課老師</n-text>
