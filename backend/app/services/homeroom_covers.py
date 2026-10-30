@@ -167,7 +167,9 @@ def _set(db: Session, cover: HomeroomCover, handler: Teacher | None, actor_name:
         _notify_cancelled(db, cover, previous, actor_name)
     cover.status = AffectedStatus.resolved.value
     cover.no_cover = handler is None
-    cover.handler_teacher_id = handler.id if handler else None
+    # 設關聯而不是只設 id:handler 是 selectin 預先載入的,只改 id 的話同一個請求裡
+    # cover.handler 還是舊值(操作紀錄曾因此寫成「由  代導」,名字空白)
+    cover.handler = handler
     cover.assigned_by_name = actor_name
     # 補登(那天已經過了)不通知:老師已經代導過了
     if handler is not None and previous != handler.id and not leaves.cover_is_past(cover.date):
@@ -238,7 +240,7 @@ def clear(db: Session, cover: HomeroomCover, *, actor_name: str) -> None:
         _notify_cancelled(db, cover, cover.handler_teacher_id, actor_name)
     cover.status = AffectedStatus.pending.value
     cover.no_cover = False
-    cover.handler_teacher_id = None
+    cover.handler = None
     cover.assigned_by_name = ""
     db.flush()
 

@@ -342,3 +342,19 @@ def test_leave_time_window_values_are_kept(env2):  # noqa: F811
     cover = w.db.scalar(select(HomeroomCover))
     assert (cover.from_time, cover.to_time) == (time(10, 0), time(14, 0))
     assert cover.part_label == "10:00~14:00"
+
+
+def test_audit_log_names_the_cover_teacher(env2):  # noqa: F811
+    """操作紀錄要寫出代導老師是誰(v1.4.0~v1.4.2 寫成「由  代導」,名字空白)。"""
+    from app.models.audit import AuditLog
+
+    w = env2
+    w.teacher("王師")
+    w.teacher("陳師")
+    _homeroom(w, "701", "王師")
+    cover_id = _leave(w, "王師", MON)["homeroom_covers"][0]["id"]
+    _assign(w, cover_id, handler_teacher_id=w.teachers["陳師"])
+    detail = w.db.scalars(select(AuditLog).where(
+        AuditLog.action == "assign_homeroom_cover")).all()[-1].detail
+    assert detail.endswith("由 陳師 代導"), detail
+
