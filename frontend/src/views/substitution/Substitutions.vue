@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import {
-  NAlert, NButton, NCard, NEmpty, NModal, NSelect, NSpace, NSwitch, NTag, NText, useMessage,
+  NAlert, NButton, NCard, NCheckbox, NCheckboxGroup, NDatePicker, NEmpty, NInput, NModal,
+  NPopconfirm, NSelect, NSpace, NSwitch, NTag, NText, useMessage,
 } from 'naive-ui'
 import type { SelectGroupOption, SelectOption } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
 import { assignCover, clearCover, getCoverOptions, openCoverSlips } from '@/api/homeroomCovers'
 import type { CoverOption } from '@/api/homeroomCovers'
-import { listLeaves } from '@/api/leaves'
-import type { AffectedPeriod, HomeroomCover, LeaveRequest } from '@/api/leaves'
+import { cancelLeave, createSwapRequest, getDayPeriods, listLeaves } from '@/api/leaves'
+import type { AffectedPeriod, DayPeriod, HomeroomCover, LeaveRequest } from '@/api/leaves'
 import { listSemesters } from '@/api/semesters'
 import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
@@ -71,6 +72,11 @@ const activeLeaves = computed(() =>
   leaves.value.filter((l) => l.status === 'registered'
     && (l.affected_count > 0 || l.homeroom_covers.length > 0)))
 
+// 沒有請假的調課(v1.4.5):只能選調課,不產生代導,不出現在請假登記
+function isSwapOnly(l: LeaveRequest | undefined): boolean {
+  return l?.leave_type === 'swap_only'
+}
+
 function leaveTitle(l: LeaveRequest): string {
   const parts = [l.teacher_name, l.leave_type_label]
   if (l.affected_count) parts.push(`待處理 ${l.pending_count} 節`)
@@ -131,6 +137,12 @@ async function openPeriod(p: AffectedPeriod) {
   openId.value = p.id
   rec.value = null
   resetSwap()
+  // 沒有請假的調課只能調課:不必算代課推薦,直接列出可對調節次
+  if (isSwapOnly(leaveOf(p))) {
+    swapOpen.value = true
+    await loadSwap(p)
+    return
+  }
   countsHours.value = true
   funding.value = defaultFunding(leaveOf(p))
   loadingRec.value = true
@@ -384,6 +396,79 @@ async function runBatch() {
   }
 }
 
+// ── 新增調課(未請假,v1.4.5):選老師、日期、勾節次,建好直接列出可對調節次 ──
+const nsShow = ref(false)
+const nsTeacher = ref<number | null>(null)
+const nsDate = ref<number | null>(null)
+const nsPeriods = ref<DayPeriod[] | null>(null)
+const nsSelected = ref<number[]>([])
+const nsReason = ref('')
+const nsBusy = ref(false)
+const activeTeacherOptions = computed(() =>
+  teachers.value.filter((t) => t.is_active).map((t) => ({ label: t.name, value: t.id })))
+
+/** 本機日期,不用 toISOString——那會轉成 UTC,台灣時區的凌晨會倒退一天 */
+function isoOf(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function openNewSwap() {
+  nsTeacher.value = null
+  nsDate.value = null
+  nsPeriods.value = null
+  nsSelected.value = []
+  nsReason.value = ''
+  nsShow.value = true
+}
+
+async function loadDayPeriods() {
+  nsSelected.value = []
+  nsPeriods.value = null
+  if (!sid.value || nsTeacher.value === null || nsDate.value === null) return
+  nsPeriods.value = await getDayPeriods(nsTeacher.value, sid.value, isoOf(nsDate.value))
+}
+
+function dayPeriodNote(p: DayPeriod): string {
+  if (p.is_past) return '已經上過'
+  if (p.taken_by) return `已在「${p.taken_by}」裡`
+  return ''
+}
+
+async function createNewSwap() {
+  if (!sid.value || nsTeacher.value === null || nsDate.value === null) return
+  nsBusy.value = true
+  try {
+    const created = await createSwapRequest(sid.value, {
+      teacher_id: nsTeacher.value, date: isoOf(nsDate.value),
+      period_nos: nsSelected.value, reason: nsReason.value,
+    })
+    nsShow.value = false
+    await reload()
+    message.success('已建立,請選一個對調節次')
+    const first = created.affected_periods[0]
+    if (first) await openPeriod(first)
+  } catch (e) {
+    message.error((e as ApiError).message || '建立失敗')
+  } finally {
+    nsBusy.value = false
+  }
+}
+
+async function cancelSwapOnly(l: LeaveRequest) {
+  try {
+    const r = await cancelLeave(l.id)
+    message.success(r.notified_teachers.length
+      ? `已取消調課,已通知 ${r.notified_teachers.join('、')}`
+      : '已取消調課')
+    openId.value = null
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '取消失敗')
+  }
+}
+
 async function undo(p: AffectedPeriod) {
   await clearSubstitution(p.id)
   message.info('已撤回處置,退回待處理')
@@ -524,6 +609,9 @@ function candidateTagType(c: Candidate): string {
           :value="sid" :options="semesterOptions" style="width: 220px"
           placeholder="選擇學期" @update:value="onSemesterChange"
         />
+        <n-button v-if="sid" type="primary" ghost data-testid="sub-new-swap" @click="openNewSwap">
+          新增調課(未請假)
+        </n-button>
       </n-space>
 
       <n-empty v-if="!sid" description="請先建立學期" />
@@ -536,12 +624,20 @@ function candidateTagType(c: Candidate): string {
         >
           <template
             v-if="pendingOf(l).length > 1 || swapIds(l).length || substituteIds(l).length
-              || coverPrintIds(l).length || substituteOnlyIds(l).length"
+              || coverPrintIds(l).length || substituteOnlyIds(l).length || isSwapOnly(l)"
             #header-extra
           >
             <n-space size="small">
+              <n-popconfirm v-if="isSwapOnly(l)" @positive-click="cancelSwapOnly(l)">
+                <template #trigger>
+                  <n-button size="small" tertiary type="error" data-testid="sub-cancel-swap">
+                    取消這筆調課
+                  </n-button>
+                </template>
+                取消後照原課表上課;已經成立的調課會通知對方。確定?
+              </n-popconfirm>
               <n-button
-                v-if="pendingOf(l).length > 1" size="small" type="primary" ghost
+                v-if="pendingOf(l).length > 1 && !isSwapOnly(l)" size="small" type="primary" ghost
                 data-testid="sub-batch-open" @click="openBatch(l)"
               >
                 整批指派代課
@@ -628,13 +724,17 @@ function candidateTagType(c: Candidate): string {
                 data-testid="sub-panel"
               >
                 <n-space vertical size="small">
+                  <n-text v-if="isSwapOnly(l)" depth="3" data-testid="sub-swaponly-hint">
+                    {{ l.teacher_name }}沒有請假,只能選調課:請另一位老師來上這一節,
+                    {{ l.teacher_name }}再找一天補回對方的一節。
+                  </n-text>
                   <n-alert v-if="p.is_past" type="info" :bordered="false" data-testid="sub-backfill-hint">
                     這一節已經過了:補登後直接列入代課鐘點統計,不會通知老師。
                     補登後就不能再修改或撤回,請確認後再按。
                   </n-alert>
                   <n-text v-if="loadingRec" depth="3">計算可代教師中…</n-text>
 
-                  <template v-else-if="rec">
+                  <template v-else-if="rec && !isSwapOnly(l)">
                     <n-alert
                       v-if="!rec.candidates.length" type="warning" :bordered="false"
                       data-testid="sub-nocandidate"
@@ -673,7 +773,7 @@ function candidateTagType(c: Candidate): string {
                     </template>
                   </template>
 
-                  <n-space size="small" style="margin-top: 8px">
+                  <n-space v-if="!isSwapOnly(l)" size="small" style="margin-top: 8px">
                     <n-text depth="3">或改採:</n-text>
                     <!-- 調課要安排之後的補課節次,已經過去的節次無法補登調課 -->
                     <n-button
@@ -890,6 +990,58 @@ function candidateTagType(c: Candidate): string {
         </n-card>
       </template>
     </n-space>
+
+    <n-modal
+      v-model:show="nsShow" preset="card" style="max-width: 560px" title="新增調課(未請假)"
+      data-testid="sub-new-swap-modal"
+    >
+      <n-space vertical>
+        <n-text depth="3">
+          老師沒有請假,只是要和別人調課時用這裡。勾選要調的節次後,
+          會直接列出可以對調的節次。這筆不會出現在「請假登記」,也不算請假。
+        </n-text>
+        <n-space align="center">
+          <n-text style="min-width: 40px">教師</n-text>
+          <n-select
+            v-model:value="nsTeacher" :options="activeTeacherOptions"
+            filterable placeholder="選擇教師" style="width: 200px" data-testid="sub-ns-teacher"
+            @update:value="loadDayPeriods"
+          />
+          <n-text style="min-width: 40px">日期</n-text>
+          <n-date-picker
+            v-model:value="nsDate" type="date" data-testid="sub-ns-date"
+            @update:value="loadDayPeriods"
+          />
+        </n-space>
+        <n-text v-if="nsPeriods && !nsPeriods.length" depth="3" data-testid="sub-ns-empty">
+          這一天他沒有課(週末、沒排課,或課表尚未發布)。
+        </n-text>
+        <n-checkbox-group v-else-if="nsPeriods" v-model:value="nsSelected">
+          <n-space vertical size="small">
+            <n-checkbox
+              v-for="p in nsPeriods" :key="p.period_no" :value="p.period_no"
+              :disabled="p.is_past || !!p.taken_by" data-testid="sub-ns-period"
+            >
+              {{ p.period_name }} · {{ p.class_names }} {{ p.subject_name }}
+              <n-text v-if="dayPeriodNote(p)" depth="3">({{ dayPeriodNote(p) }})</n-text>
+            </n-checkbox>
+          </n-space>
+        </n-checkbox-group>
+        <n-input
+          v-model:value="nsReason" placeholder="事由(選填,例如:參加研習)" maxlength="200"
+          data-testid="sub-ns-reason"
+        />
+        <n-space justify="end">
+          <n-button @click="nsShow = false">取消</n-button>
+          <n-button
+            type="primary" :loading="nsBusy" :disabled="!nsSelected.length"
+            data-testid="sub-ns-create" @click="createNewSwap"
+          >
+            下一步:選對調節次
+          </n-button>
+        </n-space>
+      </n-space>
+    </n-modal>
 
     <n-modal
       :show="!!billingLeave" preset="card" style="max-width: 480px" data-testid="sub-billing"

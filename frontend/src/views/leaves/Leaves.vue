@@ -64,7 +64,8 @@ function toTime(ts: number | null): string | null {
 
 async function reload() {
   if (!sid.value) return
-  leaves.value = await listLeaves(sid.value)
+  // 沒有請假的調課(v1.4.5)只在「調代課處理」與「調代課紀錄」出現,不算請假
+  leaves.value = (await listLeaves(sid.value)).filter((l) => l.leave_type !== 'swap_only')
   if (canManage.value) {
     teachers.value = await listTeachers(sid.value)
   }

@@ -73,6 +73,28 @@ class LeaveUpdateIn(BaseModel):
     reason: str | None = Field(default=None, max_length=200)
 
 
+class DayPeriodOut(BaseModel):
+    """這位老師這一天的一節課(新增調課時勾選,v1.4.5)。"""
+
+    period_no: int
+    period_name: str
+    start_time: time | None = None
+    end_time: time | None = None
+    class_names: str
+    subject_name: str
+    is_past: bool          # 已經上過:不能調課
+    taken_by: str = ""     # 已經在別張假單/調課裡:那張的假別名稱
+
+
+class SwapRequestIn(BaseModel):
+    """新增調課(未請假,v1.4.5):老師沒請假,只是要把這幾節和別人調。"""
+
+    teacher_id: int
+    date: date
+    period_nos: list[int]
+    reason: str = Field(default="", max_length=200)
+
+
 class LeaveRequestOut(BaseModel):
     id: int
     semester_id: int

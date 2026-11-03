@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.core.week_parity import runs_in_week, week_parity
 from app.models.assignment import AssignmentTeacher, CourseAssignment
-from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus
+from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus, LeaveType
 from app.models.period import Period
 from app.models.semester import Semester
 from app.models.substitution import Substitution
@@ -185,6 +185,8 @@ class Availability:
                 LeaveRequest.status == LeaveStatus.registered.value,
                 LeaveRequest.start_date <= when,
                 LeaveRequest.end_date >= when,
+                # 未請假的調課:人在學校,不算請假(v1.4.5)
+                LeaveRequest.leave_type != LeaveType.swap_only.value,
             )
         ).all()
         for start_date, start_time, end_date, end_time in rows:
