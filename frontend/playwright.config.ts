@@ -35,5 +35,7 @@ export default defineConfig({
     },
     { name: 'perf', use: chrome, testMatch: '**/perf-page-load.spec.ts' },
     { name: 'manual', use: chrome, testMatch: '**/manual-shots.spec.ts' },
+    // 操作示範影片(scripts/video/build_video.py 呼叫;CI 不跑)
+    { name: 'video', use: chrome, testMatch: '**/*.video.ts' },
   ],
 })
