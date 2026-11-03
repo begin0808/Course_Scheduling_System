@@ -14,7 +14,7 @@ import {
 import type {
   PreflightIssue, PreflightReport, RelaxableOption, SolveJob,
 } from '@/api/solver'
-import { listTimetables } from '@/api/timetables'
+import { createTimetable, listTimetables } from '@/api/timetables'
 import type { TimetableBrief } from '@/api/timetables'
 
 const message = useMessage()
@@ -95,7 +95,13 @@ onUnmounted(stopPolling)
 
 async function reload() {
   if (!sid.value) return
-  const all = await listTimetables(sid.value)
+  let all = await listTimetables(sid.value)
+  // 新學期還沒有任何課表:跟排課工作台一樣自動建「草稿A」。否則組長配完課直接來這頁,
+  // 「來源草稿」是空的、「開始排課」按不下去,畫面上又沒說為什麼。
+  if (all.length === 0) {
+    await createTimetable(sid.value, '草稿A')
+    all = await listTimetables(sid.value)
+  }
   drafts.value = all.filter((t) => t.status === 'draft')
   sourceId.value = drafts.value[0]?.id ?? null
   check.value = await preflight(sid.value)
@@ -238,6 +244,9 @@ function openResult() {
               開始排課
             </n-button>
           </n-space>
+          <n-alert v-if="!drafts.length" type="warning" :bordered="false" data-testid="as-no-draft">
+            目前沒有草稿可以當排課起點(課表都已發布或封存)。請到「版本與發布」把課表「複製」成新草稿。
+          </n-alert>
           <n-text depth="3">
             鎖定的格位會維持原位;其餘已排的課會作為求解起點,結果寫成新草稿,來源草稿不動。
           </n-text>
