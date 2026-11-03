@@ -34,3 +34,8 @@ frontend/playwright-report/
 frontend/test-results/
 frontend/blob-report/
 frontend/.cache/
+
+# 操作示範影片的暫存(語音、錄影、合成中間檔)
+frontend/video-out/
+# 做好的示範影片先存在本機(檔案大,不進版本庫)
+docs/影片/
