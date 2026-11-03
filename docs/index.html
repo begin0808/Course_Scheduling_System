@@ -526,10 +526,11 @@
         <p><span class="path"><b>調代課</b><i>›</i><b>請假登記</b></span></p>
         <p>老師可以自己登記請假,教學組長也能代登。</p>
         <ol class="steps">
-          <li><span class="st-t">選教師、假別</span>(公假/事假/病假…)。</li>
+          <li><span class="st-t">選教師、假別</span>(公假/事假/病假…)。假別沒有預設值,一定要選(v1.4.4 起)。</li>
           <li><span class="st-t">填請假起訖</span>——可整天、半天、多天、跨週。</li>
           <li><span class="st-t">系統自動展開受影響節次</span>——依已發布課表,列出這段期間他原本要上的每一節。跨週末只會展開上課日。</li>
         </ol>
+        <div class="cal tip"><div class="lab">💡 假別登錯了:修改假單(v1.4.4)</div><p>假單卡片右上角按「<strong>修改</strong>」,可以改<strong>假別</strong>與<strong>事由</strong>;受影響的節次、代課、代導都不動,也不通知。日期或時間登記錯了,請銷假後重新登記。</p><p>改假別時,<strong>已安排代課的計費方式不會跟著變</strong>,需要的話請到「調代課處理」按「修改計費方式」一併修改(見 8.2)。</p></div>
         <div class="cal note"><div class="lab">📌 銷假</div><p>若要銷假,系統會級聯處理:已指派的代課老師會收到取消通知;已經上完的課不受影響(鐘點照算)。</p></div>
         <div class="cal note"><div class="lab">📌 請假的是導師</div><p>請假的老師若是某班導師,系統另外為那個班的<strong>每個上課日</strong>產生一筆「待代導」——當天他一節課都沒有也一樣(v1.4.0 起)。半天假也會產生,標示上午或下午。安排方式見 8.2 的「代導」。</p></div>
         <figure class="shot"><img src="manual-img/07-leaves.png" alt="請假登記頁(展開的受影響節次清單)" loading="lazy"><figcaption><b>請假登記</b>頁(展開的受影響節次清單)</figcaption></figure>
@@ -551,6 +552,12 @@
         <div class="cal tip"><div class="lab">💡 代課推薦</div><p>選「代課」時,系統會列出<strong>推薦清單</strong>:優先「當節有空 + 同科目」,並附人話理由(如「同科目教師 · 當天已在校 · 本月已代 2 節」)。已排很滿的老師會自動排後面。</p></div>
         <div class="cal note"><div class="lab">📌 指派即生效</div><p>指派後<strong>立即生效</strong>——沒有「邀請/婉拒」流程(實務上組長多半已事先口頭徵得同意)。通知只是正式告知 + 請對方確認收到。若要撤回,退回待處理即可。</p></div>
         <div class="cal note"><div class="lab">📌 計費方式</div><p>選「代課」時,推薦清單上方有<strong>計費方式</strong>選單(公費代課/自費代課/日薪代課/課務自理/不支鐘點),會印在代課通知單上。預設依假別帶入:<strong>事假</strong>帶「自費代課」,其餘帶「公費代課」;學校規定不同時可以直接改,也可以自行輸入其他寫法。</p></div>
+        <div class="cal tip"><div class="lab">💡 計費方式登錯了:修改計費方式(v1.4.4)</div><p>代課的處置會寫出計費方式,例如「代課 → 陳師(公費代課)」。登錯時:</p>
+          <ul>
+            <li><strong>整張假單一起改</strong>:假單卡片右上角「<strong>修改計費方式(N 節)</strong>」。</li>
+            <li><strong>只改一節</strong>:該節旁的「<strong>改計費</strong>」。</li>
+          </ul>
+          <p>可以改計費方式與「代課鐘點 計入/不計」。<strong>已經上過的代課也可以改</strong>(代課老師不變,只改怎麼付錢);不會通知老師,月結統計與代課單會跟著更新。</p></div>
         <div class="cal tip"><div class="lab">💡 事後才登記的假:補登(v1.4.2)</div><p>臨時找人代課、當天來不及登記,事後才把假補進系統時,已經過去的節次會標示「<strong>待補登</strong>」,按鈕寫「<strong>補登</strong>」。照平常方式選代課老師(或併班、自習、不處理)即可,補登後直接成為「已完成」並列入當月代課鐘點統計。</p>
           <ul>
             <li><strong>不會通知老師</strong>:老師已經去上過課了,只留在統計裡。</li>
@@ -796,7 +803,7 @@
 
         <div class="foot">
           <p>排課與調代課系統 · 教學組長操作手冊 · v1.1 ·  開源免費(AGPL-3.0)· 單校自架</p>
-          <p>本手冊隨系統版本更新;截圖對應系統 v1.2.9(8.8 巡堂表為 v1.2.12),文字內容已更新至 v1.4.3。</p>
+          <p>本手冊隨系統版本更新;截圖對應系統 v1.2.9(8.8 巡堂表為 v1.2.12),文字內容已更新至 v1.4.4。</p>
         </div>
       </section>
 

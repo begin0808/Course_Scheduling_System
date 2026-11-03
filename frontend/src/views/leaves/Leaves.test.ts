@@ -45,3 +45,25 @@ describe('Leaves 清單上限', () => {
     expect(wrapper.find('[data-testid="lv-truncated"]').exists()).toBe(false)
   })
 })
+
+// 假別沒有預設、一定要選(v1.4.4):先前預設病假,組長登公假沒改到
+describe('Leaves 假別一定要選', () => {
+  it('沒選假別不能送出', async () => {
+    const wrapper = await mountLeaves(0)
+    type Form = {
+      form: { teacherId: number | null; leaveType: string | null; startDate: number | null; endDate: number | null }
+      canSubmit: boolean
+    }
+    const vm = wrapper.findComponent(Leaves).vm as unknown as Form
+    expect(vm.form.leaveType).toBeNull()
+    vm.form.teacherId = 1
+    vm.form.startDate = Date.now()
+    vm.form.endDate = Date.now()
+    await flushPromises()
+    expect(vm.canSubmit).toBe(false)
+    vm.form.leaveType = 'official'
+    await flushPromises()
+    expect(vm.canSubmit).toBe(true)
+  })
+})
+

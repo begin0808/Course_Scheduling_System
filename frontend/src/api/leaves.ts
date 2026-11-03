@@ -1,6 +1,6 @@
 // 請假登記與受影響節次(M4-1)。
 
-import { apiGet, apiPost } from '@/api/client'
+import { apiGet, apiPost, request } from '@/api/client'
 
 export interface AffectedPeriod {
   id: number
@@ -20,6 +20,8 @@ export interface AffectedPeriod {
   sub_type: string | null // 已處置時的處置方式(substitute/swap/…)
   swap_date: string | null // 調課才有:請假教師回來補課的日期
   swap_period_name: string
+  funding_source: string // 代課的計費方式(v1.4.4 起可事後修改)
+  counts_toward_hours: boolean | null
 }
 
 /** 代導(v1.4.0):請假的導師帶的班,某一天由誰代導 */
@@ -84,6 +86,11 @@ export const listLeaves = (semesterId: number): Promise<LeaveRequest[]> =>
 
 export const createLeave = (semesterId: number, body: NewLeave): Promise<LeaveRequest> =>
   apiPost(`/leaves?semester_id=${semesterId}`, body)
+
+/** 修改假別與事由(v1.4.4)。日期、時間不能改;已安排代課的計費方式不會跟著變 */
+export const updateLeave = (
+  leaveId: number, body: { leave_type?: string; reason?: string },
+): Promise<LeaveRequest> => request<LeaveRequest>('PATCH', `/leaves/${leaveId}`, body)
 
 export const cancelLeave = (leaveId: number): Promise<LeaveCancelled> =>
   apiPost(`/leaves/${leaveId}/cancel`)

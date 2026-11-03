@@ -11,7 +11,7 @@ const affected = {
   id: 11, date: '2026-10-07', weekday: 3, period_no: 2, period_name: '第一節',
   start_time: null, end_time: null, subject_name: '國文', class_names: '701', room_name: '',
   status: 'pending', is_past: false, handler_teacher_id: null, handler_name: null, sub_type: null,
-  swap_date: null, swap_period_name: '',
+  swap_date: null, swap_period_name: '', funding_source: '', counts_toward_hours: null,
 }
 const leave = {
   id: 5, semester_id: 1, teacher_id: 1, teacher_name: '王師', leave_type: 'sick',
@@ -235,3 +235,53 @@ describe('調代課處理:補登已經過去的節次', () => {
     expect(wrapper.find('[data-testid="sub-swap"]').exists()).toBe(true)
   })
 })
+
+// 修改計費方式(v1.4.4):假別登錯,計費方式跟著帶錯;已經上過的代課也要改得到
+describe('調代課處理:修改計費方式', () => {
+  const done = {
+    ...affected, status: 'completed', is_past: true, sub_type: 'substitute',
+    handler_teacher_id: 2, handler_name: '陳師', funding_source: '公費代課', counts_toward_hours: true,
+  }
+  const doneLeave = { ...leave, pending_count: 0, affected_periods: [done] }
+  type Billing = { billingFunding: string; saveBilling: () => Promise<void> }
+
+  it('代課寫出計費方式;已經上過也有「改計費」,沒有撤回', async () => {
+    stubFetch(doneLeave)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-handler"]').text()).toBe('代課 → 陳師(公費代課)')
+    expect(wrapper.find('[data-testid="sub-billing-one"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sub-undo"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sub-billing-open"]').text()).toContain('修改計費方式(1 節)')
+  })
+
+  it('改一節:送到這一節', async () => {
+    const calls = stubFetch(doneLeave)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    await wrapper.find('[data-testid="sub-billing-one"]').trigger('click')
+    const vm = wrapper.findComponent(Substitutions).vm as unknown as Billing
+    expect(vm.billingFunding).toBe('公費代課')
+    vm.billingFunding = '自費代課'
+    await vm.saveBilling()
+    await flushPromises()
+    const patch = calls.find((c) => c.method === 'PATCH')
+    expect(patch?.url).toBe('/api/affected-periods/11/substitution/billing')
+    expect(patch?.body).toEqual({ funding_source: '自費代課', counts_toward_hours: true })
+  })
+
+  it('整張假單一起改', async () => {
+    const calls = stubFetch(doneLeave)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    await wrapper.find('[data-testid="sub-billing-open"]').trigger('click')
+    const vm = wrapper.findComponent(Substitutions).vm as unknown as Billing
+    vm.billingFunding = '日薪代課'
+    await vm.saveBilling()
+    await flushPromises()
+    const patch = calls.find((c) => c.method === 'PATCH')
+    expect(patch?.url).toBe('/api/leaves/5/substitutions/billing')
+    expect(patch?.body).toMatchObject({ funding_source: '日薪代課' })
+  })
+})
+

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import {
-  NAlert, NButton, NCard, NDatePicker, NEmpty, NInput, NPopconfirm, NSelect, NSpace, NSwitch,
-  NTag, NText, NTimePicker, useMessage,
+  NAlert, NButton, NCard, NDatePicker, NEmpty, NInput, NModal, NPopconfirm, NSelect, NSpace,
+  NSwitch, NTag, NText, NTimePicker, useMessage,
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
 import { listTeachers } from '@/api/basedata'
-import { cancelLeave, createLeave, listLeaveTypes, listLeaves } from '@/api/leaves'
+import { cancelLeave, createLeave, listLeaveTypes, listLeaves, updateLeave } from '@/api/leaves'
 import type { AffectedPeriod, LeaveRequest } from '@/api/leaves'
 import { listSemesters } from '@/api/semesters'
 import { publishedSemesters } from '@/api/timetables'
@@ -32,7 +32,8 @@ const truncated = computed(() => leaves.value.length >= MAX_LEAVE_ROWS)
 
 const form = ref({
   teacherId: null as number | null,
-  leaveType: 'sick',
+  // 假別沒有預設、一定要選(v1.4.4):先前預設病假,組長登公假沒改到,登記後又改不回來
+  leaveType: null as string | null,
   // NDatePicker 給的是 timestamp,送出前才轉成 YYYY-MM-DD
   startDate: null as number | null,
   endDate: null as number | null,
@@ -81,7 +82,7 @@ onMounted(async () => {
 })
 
 const canSubmit = computed(() =>
-  !!sid.value && !!form.value.startDate && !!form.value.endDate
+  !!sid.value && !!form.value.leaveType && !!form.value.startDate && !!form.value.endDate
   && (!canManage.value || !!form.value.teacherId))
 
 async function onSubmit() {
@@ -90,7 +91,7 @@ async function onSubmit() {
   try {
     const created = await createLeave(sid.value, {
       teacher_id: canManage.value ? form.value.teacherId : null,
-      leave_type: form.value.leaveType,
+      leave_type: form.value.leaveType!,
       start_date: toDate(form.value.startDate)!,
       end_date: toDate(form.value.endDate)!,
       start_time: form.value.halfDay ? toTime(form.value.startTime) : null,
@@ -122,6 +123,38 @@ async function onCancel(leave: LeaveRequest) {
     message.success('已銷假')
   }
   await reload()
+}
+
+// 修改假單(v1.4.4):只能改假別與事由。已安排代課的計費方式不會跟著變,要到「調代課處理」改
+const editLeave = ref<LeaveRequest | null>(null)
+const editType = ref('')
+const editReason = ref('')
+const editSaving = ref(false)
+const editHasSubs = computed(() =>
+  !!editLeave.value?.affected_periods.some((p) => p.sub_type === 'substitute'))
+
+function openEdit(l: LeaveRequest) {
+  editLeave.value = l
+  editType.value = l.leave_type
+  editReason.value = l.reason
+}
+
+async function saveEdit() {
+  const l = editLeave.value
+  if (!l) return
+  editSaving.value = true
+  try {
+    await updateLeave(l.id, { leave_type: editType.value, reason: editReason.value })
+    message.success(editHasSubs.value && editType.value !== l.leave_type
+      ? '已修改假別;已安排代課的計費方式沒有變,需要的話請到「調代課處理」修改'
+      : '已修改', { duration: 6000 })
+    editLeave.value = null
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '修改失敗')
+  } finally {
+    editSaving.value = false
+  }
 }
 
 // 已取消不該和「待處理」一樣搶眼——組長掃過這張表時,要一眼看出還有幾節沒人處理。
@@ -179,7 +212,7 @@ function rangeText(l: LeaveRequest): string {
             </template>
             <n-text>假別</n-text>
             <n-select
-              v-model:value="form.leaveType" :options="typeOptions"
+              v-model:value="form.leaveType" :options="typeOptions" placeholder="請選擇"
               style="width: 120px" data-testid="lv-type"
             />
             <n-text>起</n-text>
@@ -241,6 +274,12 @@ function rangeText(l: LeaveRequest): string {
             >
               待代導 {{ l.cover_pending_count }} 天
             </n-tag>
+            <n-button
+              v-if="canManage && l.status === 'registered'" size="small" tertiary
+              data-testid="lv-edit" @click="openEdit(l)"
+            >
+              修改
+            </n-button>
             <n-popconfirm v-if="l.status === 'registered'" @positive-click="onCancel(l)">
               <template #trigger>
                 <n-button size="small" tertiary type="error" data-testid="lv-cancel">銷假</n-button>
@@ -290,6 +329,43 @@ function rangeText(l: LeaveRequest): string {
         </n-space>
       </n-card>
     </template>
+
+    <n-modal
+      :show="!!editLeave" preset="card" style="max-width: 480px" data-testid="lv-edit-modal"
+      :title="`修改假單:${editLeave?.teacher_name ?? ''}`" @update:show="editLeave = null"
+    >
+      <n-space vertical>
+        <n-text depth="3">
+          只能修改假別與事由。日期或時間登記錯了,請銷假後重新登記(已經上過的課不能用這個方式)。
+        </n-text>
+        <n-space align="center">
+          <n-text style="min-width: 40px">假別</n-text>
+          <n-select
+            v-model:value="editType" :options="typeOptions" style="width: 160px"
+            data-testid="lv-edit-type"
+          />
+        </n-space>
+        <n-input
+          v-model:value="editReason" placeholder="事由(選填)" maxlength="200"
+          data-testid="lv-edit-reason"
+        />
+        <n-alert
+          v-if="editHasSubs && editLeave && editType !== editLeave.leave_type"
+          type="warning" :bordered="false" data-testid="lv-edit-billing-hint"
+        >
+          已安排的代課,計費方式<strong>不會自動變更</strong>;需要的話請到「調代課處理」,
+          按假單右上角的「修改計費方式」一併修改。
+        </n-alert>
+        <n-space justify="end">
+          <n-button @click="editLeave = null">取消</n-button>
+          <n-button
+            type="primary" :loading="editSaving" data-testid="lv-edit-save" @click="saveEdit"
+          >
+            儲存
+          </n-button>
+        </n-space>
+      </n-space>
+    </n-modal>
   </n-space>
 </template>
 
