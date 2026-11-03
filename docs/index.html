@@ -442,17 +442,17 @@
       <section class="ch" id="manual">
         <div class="ch-head"><span class="ch-num">05</span><h2>手動排課工作台</h2></div>
         <p><span class="path"><b>排課作業</b><i>›</i><b>排課工作台</b></span></p>
-        <p>工作台是一張<strong>拖拉式週課表</strong>。左側是還沒排的課務清單(附剩餘節數),你把課拖進格子裡即可。適合微調,或想完全手動掌控時使用。</p>
+        <p>工作台是一張<strong>拖拉式週課表</strong>。右側是還沒排的課務清單(附剩餘節數),你把課拖進格子裡即可。適合微調,或想完全手動掌控時使用。</p>
 
         <h3>基本操作</h3>
         <ol class="steps">
-          <li><span class="st-t">從左側清單拖曳</span>——把一筆未排課務拖進課表格子。</li>
+          <li><span class="st-t">從右側清單拖曳</span>——把一筆未排課務拖進課表格子。</li>
           <li><span class="st-t">看即時衝突</span>——可放的位置顯示綠框;有衝突顯示<strong>紅框</strong>,滑上去會浮出原因(用節次名稱說明,如「王老師 週一第一節 已有 302 班數學」)。</li>
           <li><span class="st-t">鎖定重要格位</span>——不希望被更動的課,點鎖定圖示固定住。</li>
-          <li><span class="st-t">移除</span>——把格子裡的課拖回左側清單即取消。</li>
+          <li><span class="st-t">移除</span>——把格子裡的課拖回右側清單即取消。</li>
           <li><span class="st-t">課務很多時</span>——未排清單會自己捲動,課表格固定在畫面上,捲到最底下的卡片一樣拖得進去。</li>
         </ol>
-        <figure class="shot"><img src="manual-img/04-workbench.png" alt="排課工作台(左側未排清單 + 週課表,含一個衝突紅框)" loading="lazy"><figcaption><b>排課工作台</b>(左側未排清單 + 週課表,含一個衝突紅框)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/04-workbench.png" alt="排課工作台(週課表 + 右側未排課務,排到一半的狀態)" loading="lazy"><figcaption><b>排課工作台</b>(週課表 + 右側未排課務,排到一半的狀態)</figcaption></figure>
 
         <h3>好用的輔助</h3>
         <ul>
@@ -502,7 +502,7 @@
           <li><span class="st-t">舊版自動封存</span>——發布新版後,同學期原本已發布的那份會轉為「已封存」。</li>
         </ol>
         <div class="cal note"><div class="lab">📌 為什麼排好的課表還會有衝突</div><p>手動拖放每一步都有檢查、自動排課排出來的也一定合規,所以衝突幾乎都是<strong>課表排好之後又改了資料</strong>造成的:事後把某節設成教師「不可排」、改了配課的任課教師或每週節數、調低每日上限。系統不會自動調動已排的課,只會在「檢查課表」與發布時列出來,由你決定怎麼處理。</p><p>另外,在「教師 → 時段規則」儲存不可排時段時,如果這位老師在那些時段已經有課,<strong>儲存當下就會提示</strong>是哪份課表的哪幾節(規則仍會存好)。</p></div>
-        <figure class="shot"><img src="manual-img/06-versions.png" alt="版本與發布頁(草稿列表,狀態顯示草稿/已發布/已封存)" loading="lazy"><figcaption><b>版本與發布</b>頁(草稿列表,狀態顯示草稿/已發布/已封存)</figcaption></figure>
+        <figure class="shot"><img src="manual-img/06-versions.png" alt="版本與發布頁(草稿列表,自排結果已發布)" loading="lazy"><figcaption><b>版本與發布</b>頁(草稿列表,自排結果已發布)</figcaption></figure>
 
         <div class="cal note"><div class="lab">📌 已發布課表是「定格快照」</div><p>發布後那份課表就固定下來,即使你之後改草稿也不影響它——這樣調代課才有穩定的依據。要更新,就發布新的一份。</p></div>
 
@@ -581,6 +581,7 @@
             <li><strong>代導通知單</strong>:一位代導老師一張,列出日期、時段、班級、原導師與假別,下方有簽收欄。可在單一天旁、假單卡片右上角「列印代導單(N 天)」,或到「調代課紀錄」篩出一週後一次印。</li>
           </ul>
           <p>導師請長假、由另一位老師代理整段時間時,不必每天安排代導:直接到 <span class="path"><b>基礎資料</b><i>›</i><b>班級</b></span> 改該班的導師即可。</p></div>
+        <figure class="shot"><img src="manual-img/15-homeroom-cover.png" alt="調代課處理:導師請假時,假單下方的代導區,展開安排代導" loading="lazy"><figcaption><b>代導</b>:王大明是 701 導師,請假那天假單下方多一區「代導」,點「安排代導」選老師</figcaption></figure>
         <figure class="shot"><img src="manual-img/13-substitute-slips.png" alt="教師代課通知單的列印頁:週課表格式,表頭寫代課教師、請假教師、假別與計費方式" loading="lazy"><figcaption><b>代課通知單</b>列印頁(教師單;往下捲是班級單,按右上角「列印」即可)</figcaption></figure>
 
         <h3>8.3 調課</h3>
@@ -613,13 +614,14 @@
             <li><span class="st-t">按「下一步:選對調節次」</span>——直接列出可以對調的節次,點一個就成立,和一般調課一樣可以印調課單。</li>
           </ol>
           <p>這種調課<strong>只能選調課</strong>(沒有代課、併班、自習),<strong>不算請假</strong>:不會出現在「請假登記」,也不產生代導。要取消時,按卡片右上角的「<strong>取消這筆調課</strong>」。</p></div>
+        <figure class="shot"><img src="manual-img/16-new-swap.png" alt="新增調課(未請假)對話框:選老師、日期,勾要調的節次" loading="lazy"><figcaption><b>新增調課(未請假)</b>:選老師、日期,勾要調的節次,再按「下一步:選對調節次」</figcaption></figure>
         <h3>8.4 通知與確認</h3>
         <p>指派後,代課老師會收到<strong>站內通知</strong>(右上角鈴鐺,含未讀數),若有設定 SMTP 也會收到 <strong>Email</strong>。老師點開可一鍵「確認收到」。</p>
         <p>你可在 <span class="path"><b>調代課</b><i>›</i><b>通知確認看板</b></span> 看到每一筆的確認狀態,對還沒確認的人一鍵「再次提醒」。</p>
 
         <h3>8.5 今日調代課看板</h3>
         <p><span class="path"><b>調代課</b><i>›</i><b>今日調代課</b></span>(儀表板上也有)——一眼看到今天全部異動:誰代誰的課、誰和誰調課、教室有沒有變。可<strong>列印 A4 公告單</strong>(傳統公告格式)貼出來或發群組。導師請假的班,下方另有「<strong>今日代導</strong>」表,寫出由誰代導(v1.4.0)。</p>
-        <figure class="shot"><img src="manual-img/08-daily-board.png" alt="今日調代課看板與 A4 列印通知單" loading="lazy"><figcaption><b>今日調代課看板</b>與 <b>A4 列印通知單</b></figcaption></figure>
+        <figure class="shot"><img src="manual-img/08-daily-board.png" alt="今日調代課看板(上方可列印通知單、巡堂表)" loading="lazy"><figcaption><b>今日調代課看板</b>(上方可列印通知單、巡堂表)</figcaption></figure>
 
         <h3>8.6 調代課紀錄</h3>
         <p><span class="path"><b>調代課</b><i>›</i><b>調代課紀錄</b></span>——歷史查詢,可依教師、日期、假別篩選。查一位老師時,他「缺的課」和他「代的課」都會出現。篩選結果裡有調課時,可以直接「列印這些紀錄中的調課單」。代導另列在下方的「代導紀錄」,也可以「列印這些紀錄中的代導單」(v1.4.0)。</p>
@@ -638,16 +640,6 @@
         <p><strong>想先改再印?用 Excel。</strong>同一組按鈕旁邊有<strong>「當天 Excel」</strong>與<strong>「整週 Excel」</strong>,下載的活頁簿內容與列印頁相同:每天的上午、下午各一個分頁,社團巡堂單另外成頁。可以自己增減欄位、填上巡堂人員或值日,或併進學校原本的巡堂紀錄檔;分頁已設成 A4 橫向一頁寬,不改也能直接印。匯出之後若又有新的調代課,檔案不會跟著變,請重新匯出。</p>
         <div class="cal tip"><div class="lab">💡 提示</div><p>表格下方的「記錄說明」(授課情形、學生學習的代碼)各校不同,系統管理員可到 <span class="path"><b>系統管理</b><i>›</i><b>巡堂表</b></span> 改成貴校的寫法。教室欄只會印出配課時有指定場地的課,其餘留白手寫。巡堂人員不在表上——那一欄是簽名欄。</p></div>
 
-        <div class="cal scene"><div class="lab">🎬 情境:老師今早臨時請病假</div>
-          <p>① 到「請假登記」幫他登病假(今天整天)→ 系統列出他今天 4 節課。② 到「調代課處理」逐節選代課,從推薦清單各挑一位有空同科的老師。③ 對方收到通知、確認收到。④ 到「今日調代課」列印公告單。⑤ 月底「代課鐘點統計」自動把這幾節算進代課老師的鐘點。全程不到幾分鐘。</p>
-        </div>
-        <div class="cal scene"><div class="lab">🎬 情境:老師下週三要出公差,想跟同班老師調課</div>
-          <p>① 到「請假登記」幫王老師登公假(下週三)。② 到「調代課處理」點週三第一節 701 國文的「處理」→「調課」。③ 清單上看到陳老師(也教 701)週四第二節數學有空,點下去。④ 陳老師週三第一節進 701 上課,王老師週四第二節回 701 上課——兩人都收到通知,學生只是兩科前後對換。</p>
-        </div>
-      </section>
-
-      <!-- 09 -->
-      <section class="ch" id="export">
         <h3>8.9 儀表板即時概況(v1.3.3)</h3>
         <p>登入後的<strong>儀表板</strong>多了「<strong>即時概況</strong>」:現在這一節,每一班實際在上什麼課、誰在上。和巡堂表一樣,已經套用當天的調代課——代課、調課、請假待處理的班級會用橘框標出來,紅色的「請假待處理」代表那一節還沒安排人。</p>
         <ul>
@@ -658,6 +650,18 @@
           <li>教學組長、教務主任、系統管理員看得到;一般教師的儀表板不顯示。</li>
         </ul>
         <div class="cal note"><div class="lab">📌 需要節次表的上下課時間</div><p>系統是用節次表的上下課時間判斷「現在是第幾節」。節次表沒填時間的話,會請你到 <span class="path"><b>基礎資料</b><i>›</i><b>學期與節次表</b></span> 補上。用系統範本建立的節次表都已經有時間。</p></div>
+        <figure class="shot"><img src="manual-img/18-dashboard-live.png" alt="儀表板即時概況:上課中第二節,各班在上的課與代課" loading="lazy"><figcaption><b>儀表板即時概況</b>:上課中的這一節各班在上什麼、誰在上;有代課的班會標出來</figcaption></figure>
+
+        <div class="cal scene"><div class="lab">🎬 情境:老師今早臨時請病假</div>
+          <p>① 到「請假登記」幫他登病假(今天整天)→ 系統列出他今天 4 節課。② 到「調代課處理」逐節選代課,從推薦清單各挑一位有空同科的老師。③ 對方收到通知、確認收到。④ 到「今日調代課」列印公告單。⑤ 月底「代課鐘點統計」自動把這幾節算進代課老師的鐘點。全程不到幾分鐘。</p>
+        </div>
+        <div class="cal scene"><div class="lab">🎬 情境:老師下週三要出公差,想跟同班老師調課</div>
+          <p>① 到「請假登記」幫王老師登公假(下週三)。② 到「調代課處理」點週三第一節 701 國文的「處理」→「調課」。③ 清單上看到陳老師(也教 701)週四第二節數學有空,點下去。④ 陳老師週三第一節進 701 上課,王老師週四第二節回 701 上課——兩人都收到通知,學生只是兩科前後對換。</p>
+        </div>
+      </section>
+
+      <!-- 09 -->
+      <section class="ch" id="export">
 
         <div class="ch-head"><span class="ch-num">09</span><h2>匯出課表</h2></div>
         <p>已發布的課表可從 <span class="path"><b>課表查詢</b></span> 頁的匯出按鈕輸出成多種格式。</p>
@@ -674,7 +678,7 @@
           <p>選 PDF 時要在背景產生,全校約十幾秒,按鈕會轉圈,請稍候(v1.4.6 起)。</p>
           <p>範圍是<strong>在職教師</strong>,依姓名排序;<strong>沒有排到課的在職老師也會有一張(空白)課表</strong>,確保發放時不會漏人。設為非在職的教師不列入。場地視角沒有這兩個按鈕。</p></div>
         <div class="cal note"><div class="lab">📌 權限</div><p>單一課表所有登入者都能匯出(課表本就全校可查);全校總表與批次打包限教學組長以上。檔名為中文,直接就能歸檔。</p></div>
-        <figure class="shot"><img src="manual-img/09-timetable-query.png" alt="課表查詢頁的匯出按鈕與匯出的 PDF 課表" loading="lazy"><figcaption><b>課表查詢</b>頁的匯出按鈕與匯出的 PDF 課表</figcaption></figure>
+        <figure class="shot"><img src="manual-img/09-timetable-query.png" alt="課表查詢頁與匯出按鈕(目前課表、全校總表、批次 zip)" loading="lazy"><figcaption><b>課表查詢</b>頁與匯出按鈕(目前課表、全校總表、批次 zip)</figcaption></figure>
       </section>
 
       <!-- 10 -->
@@ -720,7 +724,7 @@
         </ul>
         <div class="cal danger"><div class="lab">🛑 小心</div><p>還原會<strong>覆蓋目前所有資料</strong>。務必確認選對備份檔。所幸有「還原前保護」這道自動備份墊底,誤操作仍可救回。</p></div>
         <div class="cal warn"><div class="lab">⚠️ 異地備援</div><p>備份檔存在同一台主機。<strong>硬碟壞掉就一起沒了</strong>。請定期把備份檔下載到另一台電腦或雲端硬碟(詳見部署文件的「備份與還原」)。</p></div>
-        <figure class="shot"><img src="manual-img/10-backup.png" alt="系統管理 → 資料備份與還原卡片" loading="lazy"><figcaption><b>系統管理 → 資料備份與還原</b>卡片</figcaption></figure>
+        <figure class="shot"><img src="manual-img/10-backup.png" alt="系統管理 → 資料備份與還原卡片(含備份清單)" loading="lazy"><figcaption><b>系統管理 → 資料備份與還原</b>卡片(含備份清單)</figcaption></figure>
 
         <h3>Email 通知(SMTP,選填)</h3>
         <p>填入學校的 SMTP 主機資訊,調代課通知才會寄 Email。<strong>沒設定也沒關係</strong>——系統照常運作,只是僅有站內鈴鐺通知。可按「寄測試信」當場驗證。</p>
@@ -784,6 +788,7 @@
         <p><strong>系統會自動處理的事</strong>:甲老師單週在 701、雙週在 702 不算衝堂;請假時只列出那一週真的有上的課;代課推薦、調課、今日看板、巡堂表都看當天是單週還是雙週;課表與匯出的格子上下列出「單 生科 甲師」「雙 資科 乙師」。</p>
         <p><strong>鐘點</strong>:隔週的課每筆算一半。甲老師單週 701、雙週 702 各 2 節,合計每週 2 節;如果只有單週那筆(例如年級班數是奇數、落單的那一班),算 1 節。</p>
         <div class="cal note"><div class="lab">📌 注意</div><p>單週、雙週兩筆的<strong>每週節數與連堂要相同</strong>,而且各只能一筆;缺一邊時,排課前檢查會提醒。跑班群組不能同時是單雙週組(例如「單週社團、雙週班會」目前不支援),Excel 匯入配課也還不能設定單雙週。</p></div>
+        <figure class="shot"><img src="manual-img/17-alternate-weeks.png" alt="配課管理的單雙週組卡片:703 單週藝術、雙週綜合活動" loading="lazy"><figcaption><b>配課管理 → 單雙週組</b>:703 單週上藝術、雙週上綜合活動</figcaption></figure>
 
         <h4>Q. 怎麼設定教學組長、教務主任的帳號?行政職稱填了,登入還是教師</h4>
         <p>「行政職稱」只用在減課與顯示,不會改變登入權限。請系統管理員到 <span class="path"><b>帳號管理</b></span>:組長本身是教師的話,切到「全部帳號」找到他的帳號,按「設定身分」勾選「教學組長」;要另外開帳號就按「新增帳號」(見第 10 章)。v1.3.0 以前沒有這個畫面,請先用安裝時的系統管理員帳號操作,或升級到 v1.3.1。</p>
@@ -811,7 +816,7 @@
 
         <div class="foot">
           <p>排課與調代課系統 · 教學組長操作手冊 · v1.1 ·  開源免費(AGPL-3.0)· 單校自架</p>
-          <p>本手冊隨系統版本更新;截圖對應系統 v1.2.9(8.8 巡堂表為 v1.2.12),文字內容已更新至 v1.4.7。</p>
+          <p>本手冊隨系統版本更新;截圖與文字內容皆對應系統 v1.4.7。</p>
         </div>
       </section>
 
