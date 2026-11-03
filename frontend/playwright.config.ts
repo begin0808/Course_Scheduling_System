@@ -36,6 +36,7 @@ export default defineConfig({
     { name: 'perf', use: chrome, testMatch: '**/perf-page-load.spec.ts' },
     { name: 'manual', use: chrome, testMatch: '**/manual-shots.spec.ts' },
     // 操作示範影片(scripts/video/build_video.py 呼叫;CI 不跑)
-    { name: 'video', use: chrome, testMatch: '**/*.video.ts' },
+    // 影片:找不到元素時 20 秒就報錯,不要乾等到整支測試逾時
+    { name: 'video', use: { ...chrome, actionTimeout: 20_000 }, testMatch: '**/*.video.ts' },
   ],
 })

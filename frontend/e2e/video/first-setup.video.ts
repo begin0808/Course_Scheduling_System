@@ -61,6 +61,7 @@ test('錄影:第一次設定', async ({ browser, request }) => {
     }
   }
 
+  await d.sync()
   await d.seg('intro', async () => {
     await d.card(script.title, script.subtitle)
   })

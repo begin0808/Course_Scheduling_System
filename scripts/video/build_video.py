@@ -33,7 +33,7 @@ SUB_FONT = "Microsoft JhengHei"
 FULLWIDTH = str.maketrans({",": "，", ";": "；", ":": "：", "!": "！", "?": "？"})  # 字幕用全形標點
 
 
-def docker(args: list[str], work: Path, entry: str = "ffmpeg") -> str:
+def docker(args: list[str], work: Path, entry: str = "ffmpeg", capture_stderr: bool = False) -> str:
     cmd = ["docker", "run", "--rm", "--entrypoint", entry,
            "-v", f"{work.as_posix()}:/w", "-v", f"{FONTS_DIR.as_posix()}:/fonts:ro",
            FFMPEG_IMAGE, *args]
@@ -41,7 +41,7 @@ def docker(args: list[str], work: Path, entry: str = "ffmpeg") -> str:
                        env={**os.environ, "MSYS_NO_PATHCONV": "1"})
     if r.returncode != 0:
         sys.exit(f"ffmpeg 失敗:\n{r.stderr[-3000:]}")
-    return r.stdout
+    return r.stderr if capture_stderr else r.stdout
 
 
 def duration(work: Path, name: str) -> float:
@@ -64,6 +64,25 @@ def write_fixtures(script: dict, work: Path) -> None:
         for row in fx["rows"]:
             ws.append(row)
         wb.save(work / name)
+
+
+def sync_frame(work: Path) -> float:
+    """錄影開頭找第一個「由黑轉亮」的畫格時間(秒)。"""
+    out = docker(["-v", "info", "-t", "60", "-i", "/w/screen.webm", "-vf",
+                  "signalstats,metadata=print:key=lavfi.signalstats.YAVG", "-f", "null", "-"],
+                 work, capture_stderr=True)
+    dark = False
+    t = 0.0
+    for line in out.splitlines():
+        if m := re.search(r"pts_time:([0-9.]+)", line):
+            t = float(m.group(1))
+        elif m := re.search(r"YAVG=([0-9.]+)", line):
+            y = float(m.group(1))
+            if y < 20:
+                dark = True
+            elif dark and y > 60:
+                return t
+    sys.exit("錄影裡找不到對時記號(黑畫面):錄影腳本在片頭前要呼叫 d.sync()")
 
 
 # ── 1. 旁白語音 ──────────────────────────────────────────────
@@ -133,14 +152,17 @@ def mux(script: dict, work: Path, out_mp4: Path) -> None:
     timeline = json.loads((work / "timeline.json").read_text(encoding="utf-8"))
     durs = json.loads((work / "durations.json").read_text(encoding="utf-8"))
     video_len = duration(work, "screen.webm")
-    # 錄影從建立頁面就開始,比計時零點早一點;用總長度差補回來
-    offset = max(0.0, video_len - timeline["end"] / 1000)
-    starts = {s["id"]: s["start"] / 1000 + offset for s in timeline["segments"]}
+    # 對時:錄影裡「黑畫面變亮」的那一格 = 時間軸上的 sync(見 director.ts 的 sync())。
+    # 從那一格開始剪,聲音與字幕的時間都以 sync 為零點。
+    cut = sync_frame(work)
+    sync = timeline["sync"] / 1000
+    starts = {s["id"]: s["start"] / 1000 - sync for s in timeline["segments"]}
+    video_len -= cut
     srt = build_srt(script, starts, durs)
     (work / "subs.srt").write_text(srt, encoding="utf-8")
 
     segs = script["segments"]
-    inputs = ["-i", "/w/screen.webm"]
+    inputs = ["-ss", f"{cut:.3f}", "-i", "/w/screen.webm"]
     for s in segs:
         inputs += ["-i", f"/w/{s['id']}.mp3"]
     delays = ";".join(
