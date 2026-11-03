@@ -17,6 +17,7 @@ from app.models.leave import (
     AffectedStatus,
     HomeroomCover,
     LeaveRequest,
+    LeaveStatus,
     LeaveType,
 )
 from app.models.semester import Semester
@@ -27,6 +28,7 @@ from app.schemas.leave import (
     LeaveCancelled,
     LeaveRequestIn,
     LeaveRequestOut,
+    LeaveUpdateIn,
 )
 from app.services import leaves as leave_service
 from app.services.teachers import current_teacher
@@ -88,6 +90,9 @@ def _serialize(leave: LeaveRequest) -> LeaveRequestOut:
                 sub_type=p.substitution.type if p.substitution else None,
                 swap_date=p.substitution.swap_date if p.substitution else None,
                 swap_period_name=p.substitution.swap_period_name if p.substitution else "",
+                funding_source=p.substitution.funding_source if p.substitution else "",
+                counts_toward_hours=(
+                    p.substitution.counts_toward_hours if p.substitution else None),
             )
             for p in periods
         ],
@@ -201,6 +206,44 @@ def _get_leave(db: Session, leave_id: int, user: User) -> LeaveRequest:
 @router.get("/leaves/{leave_id}", response_model=LeaveRequestOut)
 def get_leave(leave_id: int, db: Session = Depends(get_db), user: User = Depends(get_active_user)):
     return _serialize(_get_leave(db, leave_id, user))
+
+
+@router.patch("/leaves/{leave_id}", response_model=LeaveRequestOut)
+def update_leave(
+    leave_id: int,
+    body: LeaveUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(registrar),
+):
+    """修改假單的假別與事由(v1.4.4,組長回報:假別預設病假,登成病假改不回來)。
+
+    只改紀錄上的資訊,受影響節次與代導不動,也不通知;已安排代課的計費方式**不會跟著變**
+    (組長可能已經手動調過),畫面會提醒到「調代課處理」一併修改。
+    """
+    leave = _get_leave(db, leave_id, user)
+    if leave.status == LeaveStatus.cancelled.value:
+        raise HTTPException(status.HTTP_409_CONFLICT, "此假單已銷假,無法修改")
+    if body.leave_type is not None and body.leave_type not in set(LeaveType):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"未知的假別:{body.leave_type}")
+
+    changes: list[str] = []
+    if body.leave_type is not None and body.leave_type != leave.leave_type:
+        changes.append(
+            f"假別 {LEAVE_TYPE_CN[leave.leave_type]} → {LEAVE_TYPE_CN[body.leave_type]}")
+        leave.leave_type = body.leave_type
+    if body.reason is not None and body.reason != leave.reason:
+        changes.append(f"事由「{leave.reason}」→「{body.reason}」")
+        leave.reason = body.reason
+    if changes:
+        db.add(AuditLog(
+            user_id=user.id, username=user.username, action="update_leave",
+            target_type="leave_request", target_id=leave.id,
+            detail=(f"{leave.teacher.name} {leave_service.range_text(leave)}:"
+                    + ";".join(changes))[:500],
+        ))
+        db.commit()
+        db.refresh(leave)
+    return _serialize(leave)
 
 
 @router.post("/leaves/{leave_id}/cancel", response_model=LeaveCancelled)

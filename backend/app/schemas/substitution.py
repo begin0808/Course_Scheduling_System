@@ -60,6 +60,17 @@ class BatchAssignRequest(BaseModel):
     date: _Date | None = None  # 空 = 整張假單
 
 
+class BillingUpdateIn(BaseModel):
+    """修改代課的計費方式(v1.4.4):代課老師不變,只改「怎麼付錢」。已經過去的節次也可以改。"""
+
+    funding_source: str = Field(min_length=1, max_length=32)
+    counts_toward_hours: bool | None = None  # 空 = 不變
+
+
+class BillingUpdateOut(BaseModel):
+    updated: int  # 改了幾節代課
+
+
 class BatchSkipOut(BaseModel):
     affected_period_id: int
     date: _Date

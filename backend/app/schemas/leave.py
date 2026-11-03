@@ -28,6 +28,9 @@ class AffectedPeriodOut(BaseModel):
     # 調課才有:請假教師回來補課的那一節(讓清單直接寫出「王師 10/8 第二節補課」)
     swap_date: _Date | None = None
     swap_period_name: str = ""
+    # 代課的計費方式與是否計入鐘點(v1.4.4 起可事後修改,畫面要顯示目前的值)
+    funding_source: str = ""
+    counts_toward_hours: bool | None = None
 
     model_config = {"from_attributes": True}
 
@@ -58,6 +61,16 @@ class LeaveRequestIn(BaseModel):
     end_date: date
     end_time: time | None = None
     reason: str = Field(default="", max_length=200)
+
+
+class LeaveUpdateIn(BaseModel):
+    """修改假單(v1.4.4):只能改假別與事由。
+
+    日期、時間不能改——那會改變哪些節次受影響;登記錯日期請銷假重登。
+    """
+
+    leave_type: str | None = None
+    reason: str | None = Field(default=None, max_length=200)
 
 
 class LeaveRequestOut(BaseModel):

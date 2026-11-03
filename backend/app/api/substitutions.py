@@ -25,6 +25,8 @@ from app.schemas.substitution import (
     BatchAssignOut,
     BatchAssignRequest,
     BatchSkipOut,
+    BillingUpdateIn,
+    BillingUpdateOut,
     CandidateOut,
     MergeOptionsOut,
     RecommendationOut,
@@ -243,6 +245,65 @@ def assign_substitutions_batch(
             for s in skipped
         ],
     )
+
+
+def _billing_audit(
+    db: Session, user: User, target_type: str, target_id: int,
+    leave: LeaveRequest, changed: list[AffectedPeriod], body: BillingUpdateIn,
+) -> None:
+    hours = "" if body.counts_toward_hours is None else (
+        ",鐘點計入" if body.counts_toward_hours else ",鐘點不計")
+    where = (f"{changed[0].date} {changed[0].period_name}" if len(changed) == 1
+             else f"{len(changed)} 節")
+    db.add(AuditLog(
+        user_id=user.id, username=user.username, action="update_substitution_billing",
+        target_type=target_type, target_id=target_id,
+        detail=(f"{leave.teacher.name} 的代課 {where} "
+                f"計費方式改為「{body.funding_source}」{hours}")[:500],
+    ))
+
+
+@router.patch(
+    "/affected-periods/{affected_id}/substitution/billing", response_model=BillingUpdateOut)
+def update_substitution_billing(
+    affected_id: int,
+    body: BillingUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(editor),
+):
+    """修改一節代課的計費方式(v1.4.4):代課老師不變;已經過去的節次也可以改,不通知。"""
+    affected = _get_affected(db, affected_id)
+    try:
+        changed = sub_service.update_billing(
+            db, [affected], funding_source=body.funding_source,
+            counts_toward_hours=body.counts_toward_hours)
+    except sub_service.SubstitutionError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    _billing_audit(db, user, "affected_period", affected.id, affected.leave_request, changed, body)
+    db.commit()
+    return BillingUpdateOut(updated=len(changed))
+
+
+@router.patch("/leaves/{leave_id}/substitutions/billing", response_model=BillingUpdateOut)
+def update_leave_billing(
+    leave_id: int,
+    body: BillingUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(editor),
+):
+    """一次修改整張假單所有代課節次的計費方式(v1.4.4)。"""
+    leave = db.get(LeaveRequest, leave_id)
+    if leave is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到假單")
+    try:
+        changed = sub_service.update_billing(
+            db, list(leave.affected_periods), funding_source=body.funding_source,
+            counts_toward_hours=body.counts_toward_hours)
+    except sub_service.SubstitutionError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    _billing_audit(db, user, "leave_request", leave.id, leave, changed, body)
+    db.commit()
+    return BillingUpdateOut(updated=len(changed))
 
 
 @router.get("/substitution-funding-sources", response_model=list[str])

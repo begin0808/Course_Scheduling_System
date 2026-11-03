@@ -1,6 +1,6 @@
 // 調代課處理:代課推薦、指派處置(M4-2)、可對調節次(v1.2.1)、通知單(v1.2.2/v1.2.5)。
 
-import { apiDelete, apiGet, apiPost, apiPut } from '@/api/client'
+import { apiDelete, apiGet, apiPost, apiPut, request } from '@/api/client'
 
 export interface Candidate {
   teacher_id: number
@@ -102,6 +102,16 @@ export interface BatchAssignResult {
 export const assignSubstitutionBatch = (
   leaveId: number, body: BatchAssignBody,
 ): Promise<BatchAssignResult> => apiPost(`/leaves/${leaveId}/substitutions/batch`, body)
+
+// 修改代課的計費方式(v1.4.4):代課老師不變,已經過去的節次也可以改
+export interface BillingBody {
+  funding_source: string
+  counts_toward_hours?: boolean | null
+}
+export const updateBilling = (affectedId: number, body: BillingBody): Promise<{ updated: number }> =>
+  request('PATCH', `/affected-periods/${affectedId}/substitution/billing`, body)
+export const updateLeaveBilling = (leaveId: number, body: BillingBody): Promise<{ updated: number }> =>
+  request('PATCH', `/leaves/${leaveId}/substitutions/billing`, body)
 
 export const clearSubstitution = (affectedId: number): Promise<{ status: string }> =>
   apiDelete(`/affected-periods/${affectedId}/substitution`)

@@ -134,6 +134,35 @@ def is_backfill(affected: AffectedPeriod) -> bool:
         affected.date, affected.end_time)
 
 
+def update_billing(
+    db: Session,
+    periods: list[AffectedPeriod],
+    *,
+    funding_source: str,
+    counts_toward_hours: bool | None,
+) -> list[AffectedPeriod]:
+    """修改代課的計費方式與是否計入鐘點(v1.4.4,組長回報:假別登錯,計費方式跟著帶錯)。
+
+    代課老師不變,只改「怎麼付錢」,所以**已經過去的節次也可以改**——這是「過去的處置不能改」
+    唯一的例外。不通知(只是記帳資訊)。只改處置為代課、且沒被銷假取消的節次。
+    回傳實際改到的節次;一節都沒有時拋錯。呼叫端負責 commit。
+    """
+    changed: list[AffectedPeriod] = []
+    for ap in periods:
+        sub = ap.substitution
+        if (sub is None or sub.type != SubstitutionType.substitute.value
+                or ap.status == AffectedStatus.cancelled.value):
+            continue
+        sub.funding_source = funding_source
+        if counts_toward_hours is not None:
+            sub.counts_toward_hours = counts_toward_hours
+        changed.append(ap)
+    if not changed:
+        raise SubstitutionError("沒有可以修改計費方式的代課節次")
+    db.flush()
+    return changed
+
+
 @dataclass(frozen=True, slots=True)
 class BatchSkip:
     """整批指派時沒派成的一節,以及原因(代課老師那節有課、節次已結束…)。"""

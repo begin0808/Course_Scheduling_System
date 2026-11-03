@@ -76,8 +76,12 @@ test('請假登記:組長代登整天假,展開受影響節次,銷假後級聯�
   // 代登:選教師 → 假別 → 日期
   await page.getByTestId('lv-teacher').click()
   await page.locator('.n-base-select-option', { hasText: '王師' }).click()
+  // 假別沒有預設(v1.4.4):沒選就送不出去
   await fillDate(page, 'lv-start', WED) // 週三
   await fillDate(page, 'lv-end', WED)
+  await expect(page.getByTestId('lv-submit')).toBeDisabled()
+  await page.getByTestId('lv-type').click()
+  await page.locator('.n-base-select-option', { hasText: '病假' }).click()
   await page.getByTestId('lv-reason').locator('input').fill('流感')
   await page.getByTestId('lv-submit').click()
 

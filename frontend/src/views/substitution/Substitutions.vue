@@ -15,6 +15,7 @@ import type { Teacher } from '@/api/basedata'
 import {
   assignSubstitution, assignSubstitutionBatch, clearSubstitution, getMergeOptions,
   getRecommendations, getSwapOptions, listFundingSources, listSubstitutionTypes, openSlips,
+  updateBilling, updateLeaveBilling,
 } from '@/api/substitutions'
 import type {
   BatchSkip, Candidate, MergeOption, Recommendation, SwapOption, SwapOptions, SwapPartner,
@@ -177,7 +178,53 @@ function dispositionText(l: LeaveRequest, p: AffectedPeriod): string {
   if (p.sub_type === 'swap' && p.swap_date) {
     return `${label}${who}(${l.teacher_name} ${shortDate(p.swap_date)} ${p.swap_period_name}補課)`
   }
+  // 代課寫出計費方式:登錯時一眼看得出來(v1.4.4)
+  if (p.sub_type === 'substitute' && p.funding_source) {
+    const hours = p.counts_toward_hours === false ? '·鐘點不計' : ''
+    return `${label}${who}(${p.funding_source}${hours})`
+  }
   return `${label}${who}`
+}
+
+// 修改計費方式(v1.4.4):代課老師不變,只改怎麼付錢,所以已經過去的節次也可以改,不通知。
+// billingPeriod 為空 = 整張假單的代課節次一起改
+const billingLeave = ref<LeaveRequest | null>(null)
+const billingPeriod = ref<AffectedPeriod | null>(null)
+const billingFunding = ref('')
+const billingCounts = ref(true)
+const billingBusy = ref(false)
+
+function substituteOnlyIds(l: LeaveRequest): number[] {
+  return l.affected_periods
+    .filter((p) => p.sub_type === 'substitute' && p.status !== 'cancelled')
+    .map((p) => p.id)
+}
+
+function openBilling(l: LeaveRequest, p: AffectedPeriod | null) {
+  billingLeave.value = l
+  billingPeriod.value = p
+  const first = p ?? l.affected_periods.find((x) => substituteOnlyIds(l).includes(x.id))
+  billingFunding.value = first?.funding_source || defaultFunding(l)
+  billingCounts.value = first?.counts_toward_hours !== false
+}
+
+async function saveBilling() {
+  const l = billingLeave.value
+  if (!l || !billingFunding.value) return
+  billingBusy.value = true
+  try {
+    const body = { funding_source: billingFunding.value, counts_toward_hours: billingCounts.value }
+    const r = billingPeriod.value
+      ? await updateBilling(billingPeriod.value.id, body)
+      : await updateLeaveBilling(l.id, body)
+    message.success(`已修改 ${r.updated} 節代課的計費方式`)
+    billingLeave.value = null
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '修改失敗')
+  } finally {
+    billingBusy.value = false
+  }
 }
 
 function swapIds(l: LeaveRequest): number[] {
@@ -489,7 +536,7 @@ function candidateTagType(c: Candidate): string {
         >
           <template
             v-if="pendingOf(l).length > 1 || swapIds(l).length || substituteIds(l).length
-              || coverPrintIds(l).length"
+              || coverPrintIds(l).length || substituteOnlyIds(l).length"
             #header-extra
           >
             <n-space size="small">
@@ -498,6 +545,12 @@ function candidateTagType(c: Candidate): string {
                 data-testid="sub-batch-open" @click="openBatch(l)"
               >
                 整批指派代課
+              </n-button>
+              <n-button
+                v-if="substituteOnlyIds(l).length" size="small" data-testid="sub-billing-open"
+                @click="openBilling(l, null)"
+              >
+                修改計費方式({{ substituteOnlyIds(l).length }} 節)
               </n-button>
               <n-button
                 v-if="swapIds(l).length" size="small" data-testid="sub-print-leave"
@@ -560,6 +613,12 @@ function candidateTagType(c: Candidate): string {
                   data-testid="sub-print-slip-sub" @click="printSlips('substitute', [p.id])"
                 >
                   列印代課單
+                </n-button>
+                <n-button
+                  v-if="p.sub_type === 'substitute' && p.status !== 'cancelled'"
+                  size="small" tertiary data-testid="sub-billing-one" @click="openBilling(l, p)"
+                >
+                  改計費
                 </n-button>
               </n-space>
 
@@ -831,6 +890,44 @@ function candidateTagType(c: Candidate): string {
         </n-card>
       </template>
     </n-space>
+
+    <n-modal
+      :show="!!billingLeave" preset="card" style="max-width: 480px" data-testid="sub-billing"
+      :title="billingPeriod
+        ? `修改計費方式:${shortDate(billingPeriod.date)} ${billingPeriod.period_name}`
+        : `修改計費方式:${billingLeave?.teacher_name ?? ''} 的代課`"
+      @update:show="billingLeave = null"
+    >
+      <n-space vertical>
+        <n-text depth="3">
+          {{ billingPeriod
+            ? '只改這一節的計費方式,代課老師不變。'
+            : `這張假單的 ${billingLeave ? substituteOnlyIds(billingLeave).length : 0} 節代課一起改,代課老師不變。` }}
+          已經上過的課也可以改;不會通知老師,月結統計會跟著更新。
+        </n-text>
+        <n-space align="center">
+          <n-text style="min-width: 70px">計費方式</n-text>
+          <n-select
+            v-model:value="billingFunding" :options="fundingOptions" filterable tag
+            style="width: 200px" data-testid="sub-billing-funding"
+          />
+        </n-space>
+        <n-space align="center">
+          <n-text style="min-width: 70px">代課鐘點</n-text>
+          <n-switch v-model:value="billingCounts" size="small" data-testid="sub-billing-counts" />
+          <n-text depth="3">{{ billingCounts ? '計入' : '不計' }}</n-text>
+        </n-space>
+        <n-space justify="end">
+          <n-button @click="billingLeave = null">取消</n-button>
+          <n-button
+            type="primary" :loading="billingBusy" :disabled="!billingFunding"
+            data-testid="sub-billing-save" @click="saveBilling"
+          >
+            儲存
+          </n-button>
+        </n-space>
+      </n-space>
+    </n-modal>
 
     <n-modal
       v-model:show="batchShow" preset="card" style="max-width: 560px"
