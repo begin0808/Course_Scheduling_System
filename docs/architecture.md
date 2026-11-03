@@ -433,7 +433,7 @@ flowchart LR
 
 - **MVP:本地帳號**。管理員批次建立教師帳號(匯入 Excel 時一併產生),首次登入強制改密碼;bcrypt 雜湊;session cookie(HttpOnly + SameSite,簽章式無狀態 token)。
 - **Session 撤銷**:token 內嵌密碼指紋(password_hash 尾段),改密碼即令所有既有 session 失效;帳號停用(`is_active=false`)每請求檢查即時生效。
-- **登入防暴力**:連續失敗 5 次鎖定 15 分鐘(M0-2 已實作,參數可設定)。
+- **登入防暴力**:連續失敗 5 次鎖定 15 分鐘(M0-2 已實作,參數可設定)。登入時以 `SELECT ... FOR UPDATE` 鎖住帳號那一列,同一帳號的嘗試排隊處理,同時送出的錯誤密碼不會互相蓋掉失敗次數(#60,v1.4.7);並行行為由 e2e `login-lockout-race.spec.ts` 對 PostgreSQL 驗證。
 - **教育雲端帳號(OpenID Connect)評估**:技術上為標準 OIDC,可行;但各縣市申請流程不一且需學校行政程序,故列 **v2 選配**,MVP 不阻塞。程式面預留:`user.auth_provider` 欄位 + 登入流程策略介面。
 - **個資**:教師個資最小化蒐集(不收身分證全碼);`audit_log` 記錄排課與調代課異動;HTTPS 由 Caddy 處理。
 - **備份還原**:每日 02:00 自動 pg_dump 至 volume(保留 30 份);管理 UI 提供「立即備份、下載、上傳還原」;文件教學 NAS 排程二次備援。

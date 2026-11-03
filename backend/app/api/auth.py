@@ -36,7 +36,14 @@ def _set_session_cookie(response: Response, user: User) -> None:
 
 @router.post("/login", response_model=UserOut)
 def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)) -> UserOut:
-    user = db.scalar(select(User).where(User.username == body.username))
+    # 鎖住這個帳號的那一列(SELECT ... FOR UPDATE),同一帳號的登入嘗試排隊一個一個處理(#60)。
+    # 先前同時送出的請求讀到同一個失敗次數、各自加 1 再寫回,互相蓋掉:同時送 20 次錯誤密碼
+    # 只記到 2 次,帳號不會被鎖。只把「加 1」改成原子操作還不夠——同一批請求都在鎖定前讀到
+    # 「未鎖定」,仍能各試一次密碼;排隊後,第 5 次失敗一鎖定,後面的請求讀到的就是已鎖定。
+    # 列鎖到這個請求 commit/rollback 為止;不同帳號互不影響。SQLite(單元測試)會忽略 FOR UPDATE。
+    user = db.scalar(
+        select(User).where(User.username == body.username).with_for_update()
+    )
     now = datetime.now(UTC)
 
     if user is None:
@@ -50,9 +57,11 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
 
     if locked_until is not None and locked_until > now:
         remaining = int((locked_until - now).total_seconds() // 60) + 1
+        db.rollback()   # 馬上放掉列鎖,排在後面的請求不用等回應送出
         raise HTTPException(status.HTTP_423_LOCKED, f"帳號已鎖定,請於約 {remaining} 分鐘後再試")
 
     if not user.is_active:
+        db.rollback()
         raise HTTPException(status.HTTP_403_FORBIDDEN, "帳號已停用,請洽系統管理員")
 
     if not verify_password(body.password, user.password_hash):

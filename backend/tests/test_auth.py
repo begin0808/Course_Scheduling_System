@@ -47,6 +47,31 @@ def test_lockout_after_5_failures(env):
     assert attempt(PW) == 423
 
 
+def test_login_locks_the_user_row(env):
+    """登入要鎖住帳號那一列(SELECT ... FOR UPDATE),同時送出的錯誤密碼才不會互相蓋掉(#60)。
+
+    SQLite 不支援 FOR UPDATE,測不出真正的並行;這裡確認查詢有帶列鎖,
+    實際並行由 e2e(login-lockout-race.spec.ts,對 PostgreSQL)驗證。
+    """
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+
+    client, db = env
+    make_user(db, "u", PW, roles=[Role.teacher])
+    locked: list[bool] = []
+
+    def spy(state):
+        if state.is_select and "users" in str(state.statement):
+            locked.append(state.statement._for_update_arg is not None)
+
+    event.listen(Session, "do_orm_execute", spy)
+    try:
+        client.post("/api/auth/login", json={"username": "u", "password": "x"})
+    finally:
+        event.remove(Session, "do_orm_execute", spy)
+    assert locked and locked[0] is True        # 第一個查帳號的查詢就上鎖
+
+
 def test_me_requires_auth(env):
     client, _ = env
     assert client.get("/api/auth/me").status_code == 401
