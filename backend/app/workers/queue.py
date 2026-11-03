@@ -128,20 +128,39 @@ def render_export(html: str, fmt: str, *, timeout: int = 90) -> bytes:
     """
     from app.workers.export_job import render_timetable_pdf, render_timetable_png
 
+    func = render_timetable_pdf if fmt == "pdf" else render_timetable_png
+    data = _run_render(func, (html,), timeout, fmt.upper())
+    if not isinstance(data, bytes):
+        raise RenderError(f"課表{fmt.upper()}渲染回傳非預期型別")
+    return data
+
+
+def render_export_set(htmls: list[str], *, split: bool, timeout: int | None = None) -> list[bytes]:
+    """多張課表一次渲染成 PDF(全校總表 PDF / 批次 zip 的 PDF,v1.4.6)。
+
+    逾時預設隨張數放寬:48 張實測約 10 秒,每張多給 2 秒仍綽綽有餘。
+    """
+    from app.workers.export_job import render_timetable_pdf_set
+
+    if timeout is None:
+        timeout = 90 + 2 * len(htmls)
+    data = _run_render(render_timetable_pdf_set, (htmls, split), timeout, "PDF")
+    if not isinstance(data, list) or not all(isinstance(x, bytes) for x in data):
+        raise RenderError("課表PDF渲染回傳非預期型別")
+    return data
+
+
+def _run_render(func, args: tuple, timeout: int, label: str):
     if not ops_worker_available():
         raise RenderError(OPS_WORKER_MISSING)
-    func = render_timetable_pdf if fmt == "pdf" else render_timetable_png
-    job = ops_queue.enqueue(func, html, job_timeout=timeout + 30, result_ttl=120)
+    job = ops_queue.enqueue(func, *args, job_timeout=timeout + 30, result_ttl=120)
     result = _wait_result(job, timeout)
     if result is None or result.type != result.Type.SUCCESSFUL:
         if result is None:
             _cancel_quietly(job)
         detail = getattr(result, "exc_string", None) or "背景忙碌或逾時,請稍後再試"
-        raise RenderError(f"課表{fmt.upper()}渲染失敗:{detail}")
-    data = result.return_value
-    if not isinstance(data, bytes):
-        raise RenderError(f"課表{fmt.upper()}渲染回傳非預期型別")
-    return data
+        raise RenderError(f"課表{label}渲染失敗:{detail}")
+    return result.return_value
 
 
 def solver_busy() -> bool:

@@ -318,30 +318,50 @@ def _teachers(db: Session, semester_id: int) -> list[Teacher]:
     ))
 
 
-def school_workbook(db: Session, semester_id: int, view: str = "class") -> bytes:
-    """全校總表:一個 Excel 檔,每個班級(或每位教師)一個分頁。"""
+def school_grids(
+    db: Session, semester_id: int, view: str = "class",
+) -> tuple[list[tuple[str, Grid]], Meta]:
+    """全校每個班級(或每位在職教師)的課表,連同批次檔的檔名(不含副檔名),依序排好。
+
+    總表 Excel、總表 PDF、批次 zip(Excel/PDF)共用這份清單,順序與檔名一致。
+    同名的老師,第二位起檔名加「(2)」,免得 zip 裡互相蓋掉。
+    """
     pub = _Published(db, semester_id)
     if view == "teacher":
-        grids = [teacher_grid(pub, t) for t in _teachers(db, semester_id)]
+        raw = [(t.name, teacher_grid(pub, t)) for t in _teachers(db, semester_id)]
     else:
-        grids = [class_grid(pub, c) for c in _classes(db, semester_id)]
-    return grids_to_xlsx(grids, pub.meta())
+        raw = [(f"{c.grade}年{c.name}", class_grid(pub, c)) for c in _classes(db, semester_id)]
+    seen: dict[str, int] = {}
+    items = []
+    for name, grid in raw:
+        clean = name.replace("/", "_").replace("\\", "_")
+        seen[clean] = seen.get(clean, 0) + 1
+        items.append((clean if seen[clean] == 1 else f"{clean}({seen[clean]})", grid))
+    return items, pub.meta()
+
+
+def school_workbook(db: Session, semester_id: int, view: str = "class") -> bytes:
+    """全校總表:一個 Excel 檔,每個班級(或每位教師)一個分頁。"""
+    items, meta = school_grids(db, semester_id, view)
+    return grids_to_xlsx([g for _, g in items], meta)
+
+
+def zip_files(files: list[tuple[str, bytes]]) -> bytes:
+    """把 (檔名, 內容) 打包成 zip。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in files:
+            z.writestr(name, data)
+    return buf.getvalue()
 
 
 def batch_zip(db: Session, semester_id: int, view: str = "class") -> bytes:
-    """批次匯出:每個班級(或每位教師)各一個 Excel 檔,打包成 zip。"""
-    pub = _Published(db, semester_id)
-    meta = pub.meta()
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        if view == "teacher":
-            for t in _teachers(db, semester_id):
-                z.writestr(f"{t.name}.xlsx", grids_to_xlsx([teacher_grid(pub, t)], meta))
-        else:
-            for c in _classes(db, semester_id):
-                z.writestr(f"{c.grade}年{c.name}.xlsx",
-                           grids_to_xlsx([class_grid(pub, c)], meta))
-    return buf.getvalue()
+    """批次匯出:每個班級(或每位教師)各一個 Excel 檔,打包成 zip。
+
+    PDF 版要派到 worker 渲染,由 api 層組合(`school_grids` + `grid_to_html` + `zip_files`)。
+    """
+    items, meta = school_grids(db, semester_id, view)
+    return zip_files([(f"{name}.xlsx", grids_to_xlsx([g], meta)) for name, g in items])
 
 
 def class_batch_zip(db: Session, semester_id: int) -> bytes:
