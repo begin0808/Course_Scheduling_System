@@ -285,3 +285,36 @@ describe('調代課處理:修改計費方式', () => {
   })
 })
 
+// 新增調課(未請假,v1.4.5):老師沒請假,只是要和別人調課,只能選調課
+describe('調代課處理:沒有請假的調課', () => {
+  const swapOnly = {
+    ...leave, leave_type: 'swap_only', leave_type_label: '調課(未請假)', pending_count: 2,
+    affected_count: 2, affected_periods: [affected, { ...affected, id: 12, period_name: '第二節' }],
+  }
+
+  it('只能調課:直接列出可對調節次,沒有代課推薦、併班、自習,也不能整批指派', async () => {
+    const calls = stubFetch(swapOnly)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-leave"]').text()).toContain('調課(未請假)')
+    expect(wrapper.find('[data-testid="sub-batch-open"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sub-cancel-swap"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="sub-handle"]').trigger('click')
+    await flushPromises()
+    expect(calls.some((c) => c.url.includes('/recommendations'))).toBe(false)
+    expect(calls.some((c) => c.url.includes('/swap-options'))).toBe(true)
+    expect(wrapper.find('[data-testid="sub-swaponly-hint"]').text()).toContain('只能選調課')
+    expect(wrapper.find('[data-testid="sub-swap-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sub-merge"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sub-selfstudy"]').exists()).toBe(false)
+  })
+
+  it('一般假單照舊:有整批指派,沒有「取消這筆調課」', async () => {
+    stubFetch({ ...swapOnly, leave_type: 'sick', leave_type_label: '病假' })
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="sub-batch-open"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sub-cancel-swap"]').exists()).toBe(false)
+  })
+})
+

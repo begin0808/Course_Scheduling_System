@@ -4,6 +4,8 @@ RBAC:教師只能登記/銷自己的假、只看得到自己的假單;
 教學組長與教務主任可代登、可看全校、可代銷。
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,6 +16,7 @@ from app.core.db import get_db
 from app.models.audit import AuditLog
 from app.models.leave import (
     LEAVE_TYPE_CN,
+    REGISTRABLE_LEAVE_TYPES,
     AffectedStatus,
     HomeroomCover,
     LeaveRequest,
@@ -24,11 +27,13 @@ from app.models.semester import Semester
 from app.models.user import Role, User
 from app.schemas.leave import (
     AffectedPeriodOut,
+    DayPeriodOut,
     HomeroomCoverOut,
     LeaveCancelled,
     LeaveRequestIn,
     LeaveRequestOut,
     LeaveUpdateIn,
+    SwapRequestIn,
 )
 from app.services import leaves as leave_service
 from app.services.teachers import current_teacher
@@ -130,7 +135,8 @@ def create_leave(
 ):
     """登記請假,並依已發布課表展開受影響節次。"""
     sem = _get_semester(db, semester_id)
-    if body.leave_type not in set(LeaveType):
+    # 調課(未請假)走「新增調課」,不從請假登記進來
+    if body.leave_type not in REGISTRABLE_LEAVE_TYPES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"未知的假別:{body.leave_type}")
 
     teacher = _resolve_target_teacher(db, semester_id, body.teacher_id, user)
@@ -223,7 +229,9 @@ def update_leave(
     leave = _get_leave(db, leave_id, user)
     if leave.status == LeaveStatus.cancelled.value:
         raise HTTPException(status.HTTP_409_CONFLICT, "此假單已銷假,無法修改")
-    if body.leave_type is not None and body.leave_type not in set(LeaveType):
+    if leave.leave_type == LeaveType.swap_only.value:
+        raise HTTPException(status.HTTP_409_CONFLICT, "這是沒有請假的調課,不能改成請假")
+    if body.leave_type is not None and body.leave_type not in REGISTRABLE_LEAVE_TYPES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"未知的假別:{body.leave_type}")
 
     changes: list[str] = []
@@ -262,7 +270,9 @@ def cancel_leave(
 
     notified = sorted({p.handler.name for p in revoked if p.handler}
                       | {c.handler.name for c in revoked_covers if c.handler})
-    detail = f"{leave.teacher.name} 銷假,取消 {len(revoked)} 節已指派代課"
+    detail = (f"{leave.teacher.name} 取消調課(未請假),取消 {len(revoked)} 節已成立的調課"
+              if leave.leave_type == LeaveType.swap_only.value
+              else f"{leave.teacher.name} 銷假,取消 {len(revoked)} 節已指派代課")
     if revoked_covers:
         detail += f"、{len(revoked_covers)} 天次已安排代導"
     db.add(AuditLog(
@@ -285,4 +295,64 @@ def list_affected(
 
 @router.get("/leave-types", response_model=dict[str, str])
 def leave_types(_: object = Depends(get_active_user)):
-    return {t.value: LEAVE_TYPE_CN[t] for t in LeaveType}
+    """請假登記可選的假別(不含「調課(未請假)」)。"""
+    return {t.value: LEAVE_TYPE_CN[t] for t in LeaveType if t.value in REGISTRABLE_LEAVE_TYPES}
+
+
+@router.get("/teachers/{teacher_id}/day-periods", response_model=list[DayPeriodOut])
+def teacher_day_periods(
+    teacher_id: int,
+    semester_id: int = Query(...),
+    on: date = Query(..., alias="date"),
+    db: Session = Depends(get_db),
+    _: User = Depends(registrar),
+):
+    """這位老師這一天的課,給「新增調課(未請假)」勾選(v1.4.5)。"""
+    sem = _get_semester(db, semester_id)
+    if leave_service.find_teacher(db, semester_id, teacher_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    taken = leave_service.taken_periods(db, teacher_id, on)
+    return [
+        DayPeriodOut(
+            period_no=p.period_no, period_name=p.period_name,
+            start_time=p.start_time, end_time=p.end_time,
+            class_names=p.class_names, subject_name=p.subject_name,
+            is_past=clock.is_past_slot(p.date, p.end_time),
+            taken_by=taken.get(p.period_no, ""),
+        )
+        for p in leave_service.day_periods(db, sem, teacher_id, on)
+    ]
+
+
+@router.post("/swap-requests", response_model=LeaveRequestOut, status_code=status.HTTP_201_CREATED)
+def create_swap_request(
+    body: SwapRequestIn,
+    semester_id: int = Query(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(registrar),
+):
+    """新增調課(未請假,v1.4.5,組長回報):老師沒請假,只是要把這幾節和別人調。
+
+    建好後在「調代課處理」照一般調課的方式選對調節次;不出現在請假登記。
+    """
+    sem = _get_semester(db, semester_id)
+    teacher = leave_service.find_teacher(db, semester_id, body.teacher_id)
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到教師")
+    try:
+        leave = leave_service.create_swap_request(
+            db, sem, teacher, day=body.date, period_nos=body.period_nos, reason=body.reason,
+            created_by_user_id=user.id, created_by_name=user.username,
+        )
+    except leave_service.LeaveError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    db.add(AuditLog(
+        user_id=user.id, username=user.username, action="create_swap_request",
+        target_type="leave_request", target_id=leave.id,
+        detail=(f"{teacher.name} {leave.start_date} "
+                + "、".join(p.period_name for p in leave.affected_periods)
+                + " 調課(未請假)")[:500],
+    ))
+    db.commit()
+    db.refresh(leave)
+    return _serialize(leave)

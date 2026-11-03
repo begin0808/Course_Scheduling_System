@@ -92,6 +92,9 @@ def assign(
         raise SubstitutionError("這一節已經過了,無法補登調課(調課要安排之後的補課節次),請改登代課")
     if sub_type not in set(SubstitutionType):
         raise SubstitutionError(f"未知的處置方式:{sub_type}")
+    if (affected.leave_request.leave_type == LeaveType.swap_only.value
+            and sub_type != SubstitutionType.swap.value):
+        raise SubstitutionError("沒有請假的調課只能選調課")
 
     av = availability or Availability(db, affected.semester_id)
     handler = _resolve_handler(db, affected, sub_type, handler_teacher_id, av)
@@ -193,6 +196,8 @@ def assign_batch(
     跳過並回報原因,由組長另外找人。已經過去、還沒處理的節次一併補登(不通知);
     已經處理過的節次不動。呼叫端負責 commit。
     """
+    if leave.leave_type == LeaveType.swap_only.value:
+        raise SubstitutionError("沒有請假的調課只能選調課,不能整批指派代課")
     pending = sorted(
         (
             ap for ap in leave.affected_periods

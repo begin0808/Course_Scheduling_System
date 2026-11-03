@@ -44,6 +44,9 @@ class LeaveType(enum.StrEnum):
     bereavement = "bereavement"  # 喪假
     maternity = "maternity"      # 產假
     training = "training"        # 進修
+    # 調課(未請假,v1.4.5):老師沒請假,只是和別人調課。借用假單的資料結構(只展開選定的節次),
+    # 但不算請假——不出現在請假登記、不產生代導、不讓人整天「不在」,處置只能是調課
+    swap_only = "swap_only"
 
 
 # 以字串為 key:資料庫存的是 leave_type 欄位的值,查表時不必先轉回 enum
@@ -55,7 +58,11 @@ LEAVE_TYPE_CN: dict[str, str] = {
     LeaveType.bereavement.value: "喪假",
     LeaveType.maternity.value: "產假",
     LeaveType.training.value: "進修",
+    LeaveType.swap_only.value: "調課(未請假)",
 }
+
+# 「請假登記」可以選的假別(不含調課)
+REGISTRABLE_LEAVE_TYPES = frozenset(t.value for t in LeaveType if t != LeaveType.swap_only)
 
 
 class LeaveStatus(enum.StrEnum):

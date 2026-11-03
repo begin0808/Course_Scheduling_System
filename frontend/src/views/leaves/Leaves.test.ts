@@ -15,9 +15,9 @@ const leave = (id: number) => ({
   affected_count: 0, pending_count: 0, affected_periods: [], homeroom_covers: [], cover_pending_count: 0,
 })
 
-function stubFetch(rows: number) {
+function stubFetch(rows: number, extra: unknown[] = []) {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
-    let body: unknown = Array.from({ length: rows }, (_, i) => leave(i + 1))
+    let body: unknown = [...Array.from({ length: rows }, (_, i) => leave(i + 1)), ...extra]
     if (url.includes('/leave-types')) body = { sick: '病假' }
     else if (url.includes('/teachers')) body = []
     else if (url.includes('/semesters')) body = [{ id: 1, label: '149 學年度第 1 學期' }]
@@ -25,8 +25,8 @@ function stubFetch(rows: number) {
   }))
 }
 
-async function mountLeaves(rows: number) {
-  stubFetch(rows)
+async function mountLeaves(rows: number, extra: unknown[] = []) {
+  stubFetch(rows, extra)
   const Host = { render: () => h(NMessageProvider, () => h(Leaves)) }
   const wrapper = mount(Host, { global: { plugins: [createPinia()] } })
   await flushPromises()
@@ -64,6 +64,16 @@ describe('Leaves 假別一定要選', () => {
     vm.form.leaveType = 'official'
     await flushPromises()
     expect(vm.canSubmit).toBe(true)
+  })
+})
+
+// 沒有請假的調課(v1.4.5)不算請假,不列在請假登記
+describe('Leaves 不列出未請假的調課', () => {
+  it('只列真正的假單', async () => {
+    const swapOnly = { ...leave(99), leave_type: 'swap_only', leave_type_label: '調課(未請假)' }
+    const wrapper = await mountLeaves(1, [swapOnly])
+    expect(wrapper.findAll('[data-testid="lv-card"]')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('調課(未請假)')
   })
 })
 

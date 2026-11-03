@@ -26,6 +26,7 @@ from app.models.leave import (
     HomeroomCover,
     LeaveRequest,
     LeaveStatus,
+    LeaveType,
 )
 from app.models.notification import NotificationType
 from app.services import leaves, notifications
@@ -71,6 +72,7 @@ def on_full_day_leave(db: Session, teacher_id: int, day: date) -> bool:
             LeaveRequest.status == LeaveStatus.registered.value,
             LeaveRequest.start_date <= day,
             LeaveRequest.end_date >= day,
+            LeaveRequest.leave_type != LeaveType.swap_only.value,  # 未請假的調課:人在學校
         )
     )
     return any(leaves._leave_window(lv, day) == (None, None) for lv in rows)

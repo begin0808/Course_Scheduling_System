@@ -92,5 +92,25 @@ export const updateLeave = (
   leaveId: number, body: { leave_type?: string; reason?: string },
 ): Promise<LeaveRequest> => request<LeaveRequest>('PATCH', `/leaves/${leaveId}`, body)
 
+// 新增調課(未請假,v1.4.5):老師沒請假,只是要和別人調課
+export interface DayPeriod {
+  period_no: number
+  period_name: string
+  start_time: string | null
+  end_time: string | null
+  class_names: string
+  subject_name: string
+  is_past: boolean // 已經上過:不能調課
+  taken_by: string // 已經在別張假單/調課裡:那張的假別名稱
+}
+export const getDayPeriods = (
+  teacherId: number, semesterId: number, date: string,
+): Promise<DayPeriod[]> =>
+  apiGet(`/teachers/${teacherId}/day-periods?semester_id=${semesterId}&date=${date}`)
+export const createSwapRequest = (
+  semesterId: number,
+  body: { teacher_id: number; date: string; period_nos: number[]; reason?: string },
+): Promise<LeaveRequest> => apiPost(`/swap-requests?semester_id=${semesterId}`, body)
+
 export const cancelLeave = (leaveId: number): Promise<LeaveCancelled> =>
   apiPost(`/leaves/${leaveId}/cancel`)

@@ -32,6 +32,7 @@ from app.models.leave import (
     HomeroomCover,
     LeaveRequest,
     LeaveStatus,
+    LeaveType,
 )
 from app.models.notification import NotificationType
 from app.models.period import Period, PeriodType
@@ -313,6 +314,82 @@ def create(
     return leave
 
 
+def day_periods(
+    db: Session, semester: Semester, teacher_id: int, day: date
+) -> list[AffectedPeriod]:
+    """這位老師這一天的課(依已發布課表,含單雙週),給「新增調課(未請假)」勾選。
+
+    借用請假的展開邏輯:假設他請了這一整天,會受影響的就是他這天的每一節。
+    回傳的節次尚未加入資料庫。
+    """
+    probe = LeaveRequest(
+        semester_id=semester.id, teacher_id=teacher_id, leave_type=LeaveType.swap_only.value,
+        start_date=day, end_date=day,
+    )
+    return sorted(expand(db, probe), key=lambda p: p.period_no)
+
+
+def taken_periods(db: Session, teacher_id: int, day: date) -> dict[int, str]:
+    """這一天已經在別張有效假單(或調課)裡的節次 → 那張的假別名稱。同一節不能處理兩次。"""
+    rows = db.execute(
+        select(AffectedPeriod.period_no, LeaveRequest.leave_type)
+        .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
+        .where(
+            LeaveRequest.teacher_id == teacher_id,
+            LeaveRequest.status == LeaveStatus.registered.value,
+            AffectedPeriod.date == day,
+            AffectedPeriod.status != AffectedStatus.cancelled.value,
+        )
+    ).all()
+    return {no: LEAVE_TYPE_CN.get(lt, lt) for no, lt in rows}
+
+
+def create_swap_request(
+    db: Session,
+    semester: Semester,
+    teacher: Teacher,
+    *,
+    day: date,
+    period_nos: list[int],
+    reason: str,
+    created_by_user_id: int | None,
+    created_by_name: str,
+) -> LeaveRequest:
+    """新增調課(未請假,v1.4.5,組長回報):老師沒請假,只是要和別人調課。
+
+    建一筆「調課(未請假)」紀錄,只展開選定的節次,之後沿用調課的流程(可對調節次、
+    調課單、看板、通知)。不產生代導、不通知(調課成立時才通知雙方)。呼叫端負責 commit。
+    """
+    validate(semester, day, day)
+    wanted = set(period_nos)
+    if not wanted:
+        raise LeaveError("請選擇要調課的節次")
+    periods = [p for p in day_periods(db, semester, teacher.id, day) if p.period_no in wanted]
+    missing = wanted - {p.period_no for p in periods}
+    if missing:
+        raise LeaveError(f"{teacher.name} {day} 沒有這幾節課,請重新選擇")
+    for p in periods:
+        if clock.is_past_slot(p.date, p.end_time):
+            raise LeaveError(f"{p.period_name}已經上過了,不能調課")
+    taken = taken_periods(db, teacher.id, day)
+    for p in periods:
+        if p.period_no in taken:
+            raise LeaveError(f"{p.period_name}已經在「{taken[p.period_no]}」裡,請到那一筆處理")
+
+    leave = LeaveRequest(
+        semester_id=semester.id, teacher_id=teacher.id, leave_type=LeaveType.swap_only.value,
+        start_date=day, end_date=day, reason=reason,
+        created_by_user_id=created_by_user_id, created_by_name=created_by_name,
+    )
+    db.add(leave)
+    db.flush()
+    for p in periods:
+        p.leave_request_id = leave.id
+        db.add(p)
+    db.flush()
+    return leave
+
+
 def cancel(
     db: Session, leave: LeaveRequest, *, actor_name: str
 ) -> tuple[list[AffectedPeriod], list[HomeroomCover]]:
@@ -344,13 +421,15 @@ def cancel(
         if period.handler_teacher_id:
             by_handler.setdefault(period.handler_teacher_id, []).append(period)
 
+    swap_only = leave.leave_type == LeaveType.swap_only.value
     for handler_id, periods in by_handler.items():
         detail = "、".join(f"{p.date} {p.period_name}({p.class_names}{p.subject_name})"
                            for p in periods)
         notifications.notify(
             db, semester_id=leave.semester_id, teacher_id=handler_id,
             type=NotificationType.substitution_cancelled,
-            title=f"原訂代課已取消({leave.teacher.name} 銷假)",
+            title=(f"原訂調課已取消({leave.teacher.name} 取消調課)" if swap_only
+                   else f"原訂代課已取消({leave.teacher.name} 銷假)"),
             body=f"以下 {len(periods)} 節課不需要您代課了:{detail}",
         )
 
@@ -374,12 +453,22 @@ def cancel(
             body=f"以下 {len(covers)} 天不需要您代導了:{detail}",
         )
 
-    notifications.notify(
-        db, semester_id=leave.semester_id, teacher_id=leave.teacher_id,
-        type=NotificationType.leave_cancelled,
-        title=f"{actor_name} 已為您銷假" if actor_name != leave.teacher.name else "銷假完成",
-        body=f"{range_text(leave)} 的{LEAVE_TYPE_CN[leave.leave_type]}已銷假",
-    )
+    if swap_only:
+        # 調課成立時當事人收過「回來補課」的通知;取消了要讓他知道不必補
+        if revoked:
+            notifications.notify(
+                db, semester_id=leave.semester_id, teacher_id=leave.teacher_id,
+                type=NotificationType.leave_cancelled,
+                title=f"{actor_name} 已取消您的調課",
+                body=f"{leave.start_date} 的調課已取消,照原課表上課,也不必補課",
+            )
+    else:
+        notifications.notify(
+            db, semester_id=leave.semester_id, teacher_id=leave.teacher_id,
+            type=NotificationType.leave_cancelled,
+            title=f"{actor_name} 已為您銷假" if actor_name != leave.teacher.name else "銷假完成",
+            body=f"{range_text(leave)} 的{LEAVE_TYPE_CN[leave.leave_type]}已銷假",
+        )
     db.flush()
     return revoked, revoked_covers
 
