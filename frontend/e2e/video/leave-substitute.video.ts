@@ -73,6 +73,7 @@ test('錄影:請假與代課', async ({ browser }) => {
     await input.press('Enter')
   }
 
+  await d.sync()
   await d.seg('intro', async () => {
     await d.card(script.title, script.subtitle)
   })

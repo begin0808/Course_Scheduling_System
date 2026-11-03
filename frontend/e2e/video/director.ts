@@ -12,7 +12,11 @@ import type { Locator, Page } from '@playwright/test'
 
 export interface Segment { id: string; text: string; say?: string }
 /** 示範用匯入檔:build_video.py 寫成 xlsx,錄影時也用同一份內容畫出試算表畫面。 */
-export interface Fixture { label: string; columns: string[]; rows: string[][]; show?: number }
+export interface Fixture {
+  label: string; columns: string[]; rows: string[][]
+  show?: number      // 畫面上只畫前幾欄
+  showRows?: number  // 畫面上只畫前幾列,其餘以 ⋮ 表示
+}
 export interface Script {
   title: string; subtitle: string; segments: Segment[]; fixtures?: Record<string, Fixture>
 }
@@ -66,8 +70,22 @@ export class Director {
     await page.addInitScript(CURSOR_SCRIPT)
   }
 
+  private syncMs = 0
+
   /** 錄影從頁面建立就開始;以此為零點。 */
   markStart() { this.t0 = Date.now() }
+
+  /**
+   * 對時記號:畫面先全黑一下,接著(片頭字卡)一出現就是 syncMs 這個時間點。
+   * 合成時在錄影裡找「黑畫面變亮」的那一格對齊聲音,並把它之前的空白剪掉。
+   * (錄影實際開始與結束的時間都抓不準,只靠總長度推算會讓聲音慢將近一秒。)
+   * 一定要緊接在第一段(片頭字卡)之前呼叫。
+   */
+  async sync() {
+    await this.page.setContent('<!doctype html><body style="margin:0;background:#000"></body>')
+    await this.page.waitForTimeout(600)
+    this.syncMs = Date.now() - this.t0
+  }
 
   /** 一段旁白:記下開始時間,做完動作後停到旁白念完。 */
   async seg(id: string, actions: () => Promise<void> = async () => {}) {
@@ -108,6 +126,22 @@ export class Director {
     await this.page.waitForTimeout(hold)
   }
 
+  /** 點左側選單:group 是上層(收合時先展開),label 是要進去的那一頁。 */
+  async menu(group: string, label: string) {
+    const exact = (t: string) =>
+      this.page.locator('.n-menu-item-content-header', { hasText: new RegExp(`^${t}$`) }).first()
+    const item = exact(label)
+    if (!(await item.isVisible())) await this.click(exact(group))
+    await this.click(item)
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  /** 下拉選單選一項(Naive UI 的 n-select)。 */
+  async pick(select: Locator, option: string) {
+    await this.click(select)
+    await this.click(this.page.locator('.n-base-select-option', { hasText: option }).first())
+  }
+
   /** 一個字一個字打進輸入框。 */
   async type(target: Locator, text: string) {
     await this.click(target)
@@ -138,7 +172,9 @@ export class Director {
       tr(1, cols, 'head'),
       tr(2, cols.map(() => '(說明)'), 'muted'),
       tr(3, cols.map(() => '(範例)'), 'muted'),
-      ...fx.rows.map((r, i) => tr(i + 4, cut(r))),
+      ...fx.rows.slice(0, fx.showRows ?? fx.rows.length).map((r, i) => tr(i + 4, cut(r))),
+      ...(fx.showRows && fx.rows.length > fx.showRows
+        ? [tr('⋮', cols.map(() => '⋮'), 'muted')] : []),
     ].join('')
     await this.page.evaluate(({ label, letters, body }) => {
       document.getElementById('demo-sheet')?.remove()
@@ -167,7 +203,7 @@ export class Director {
 
   save() {
     fs.writeFileSync(path.join(this.outDir, 'timeline.json'),
-      JSON.stringify({ end: Date.now() - this.t0, segments: this.timeline }, null, 2))
+      JSON.stringify({ sync: this.syncMs, end: Date.now() - this.t0, segments: this.timeline }, null, 2))
   }
 }
 
