@@ -4,14 +4,14 @@ import { iso, onOrAfter } from './dates'
 
 // 操作手冊補圖產生器(不是驗收測試,CI 不跑)。對示範站逐頁截圖 → docs/manual-img/。
 //
-// 重拍全部 14 張(整套流程約 1 分鐘):
+// 重拍全部 18 張(整套流程約 1 分鐘):
 //   1) 起一套**全新**的棧(空資料庫),.env 設 ADMIN_PASSWORD=DemoSetup2026!,例如
 //        docker compose -p manual --env-file <你的.env> up -d
 //   2) E2E_BASE_URL=http://localhost:<port> npm run e2e:manual
 //
 // 兩支測試對站台狀態的要求不同,故分開(執行順序即檔案順序,workers=1):
 //   01–02:需**精靈尚未完成**的全新站台。
-//   03–14:自己把示範資料備齊(冪等),再逐頁截圖。
+//   03–18:自己把示範資料備齊(冪等),再逐頁截圖。
 //
 // 示範資料與改密都刻意做在這支 spec 裡、不靠外部腳本:上一次是臨時手動灌的,
 // 結果要重拍時沒人知道當初的資料長什麼樣子,只好整套重猜一遍。
@@ -56,6 +56,11 @@ async function pickLeaveDay(page: Page, sid: number): Promise<string> {
     throw new Error(`示範學期(${sem.start_date}~${sem.end_date})已過期,請以空資料庫重跑`)
   }
   return iso(wed)
+}
+
+/** 等右上角的提示訊息(「已產生…」「已發布…」)消失再截圖,畫面才乾淨。 */
+async function waitToastGone(page: Page) {
+  await expect(page.locator('.n-message')).toHaveCount(0, { timeout: 15_000 })
 }
 
 async function selectSemester(page: Page) {
@@ -104,10 +109,14 @@ async function ensureDemoData(page: Page): Promise<number> {
     tid[name] = t.id
   }
 
+  // 導師:王大明帶 701,他請假那天就有「代導」可以拍(15)
+  const HOMEROOM: Record<string, string> = { 701: '王大明', 702: '李淑芬', 703: '陳志明' }
   const classes: number[] = []
   for (const name of ['701', '702', '703']) {
-    const c = await post(page, `/api/class-units?semester_id=${sid}`,
-      { grade: 7, name, track: 'junior_high', student_count: 28 })
+    const c = await post(page, `/api/class-units?semester_id=${sid}`, {
+      grade: 7, name, track: 'junior_high', student_count: 28,
+      homeroom_teacher_id: tid[HOMEROOM[name]],
+    })
     classes.push(c.id)
   }
 
@@ -197,7 +206,7 @@ test('產生操作手冊截圖(01–02,需全新未設定站台)', async ({ page
   await page.screenshot({ path: `${SHOTS}/02-wizard.png` })
 })
 
-test('產生操作手冊截圖(03–14)', async ({ page }) => {
+test('產生操作手冊截圖(03–18)', async ({ page }) => {
   test.setTimeout(300_000)
 
   await loginAsAdmin(page)
@@ -229,6 +238,7 @@ test('產生操作手冊截圖(03–14)', async ({ page }) => {
     // 3 班的示範學校數秒即解完,等它自己完成即可
     await expect(done).toHaveText('已完成', { timeout: 180_000 })
   }
+  await waitToastGone(page)
   await page.waitForTimeout(700)
   await page.screenshot({ path: `${SHOTS}/05-auto-schedule.png` })
 
@@ -243,6 +253,7 @@ test('產生操作手冊截圖(03–14)', async ({ page }) => {
     if (await force.isVisible().catch(() => false)) await force.click()
     await expect(page.locator('tr', { hasText: '已發布' })).toBeVisible({ timeout: 20_000 })
   }
+  await waitToastGone(page)
   await page.waitForTimeout(600)
   await page.screenshot({ path: `${SHOTS}/06-versions.png` })
 
@@ -277,6 +288,33 @@ test('產生操作手冊截圖(03–14)', async ({ page }) => {
   await page.waitForTimeout(900)
   await page.screenshot({ path: `${SHOTS}/08-daily-board.png` })
 
+  // ── 15 代導(8.2):王大明是 701 導師,整天請假 → 假單下方多一區代導;展開「安排代導」──
+  await page.goto('/substitutions')
+  await selectSemester(page)
+  const sickCard = page.getByTestId('sub-leave').filter({ hasText: '王大明' }).first()
+  await expect(sickCard.getByTestId('sub-covers')).toBeVisible({ timeout: 20_000 })
+  await sickCard.getByTestId('sub-cover-handle').first().click()
+  await expect(sickCard.getByTestId('sub-cover-panel')).toBeVisible()
+  await page.waitForTimeout(700)
+  await page.screenshot({ path: `${SHOTS}/15-homeroom-cover.png` })
+
+  // ── 16 新增調課(未請假)(8.3):選老師、日期、勾一節;只截對話框,不真的建立 ──
+  await page.reload()
+  await selectSemester(page)
+  await page.getByTestId('sub-new-swap').click()
+  await page.getByTestId('sub-ns-teacher').click()
+  await page.locator('.n-base-select-option', { hasText: '陳志明' }).click()
+  const nsDate = page.getByTestId('sub-ns-date').locator('input')
+  await nsDate.click()
+  await nsDate.fill(leaveDay)
+  await nsDate.press('Enter')
+  const nsBoxes = page.getByTestId('sub-ns-period')
+  await expect(nsBoxes.first()).toBeVisible({ timeout: 20_000 })
+  await nsBoxes.first().click()
+  await page.waitForTimeout(700)
+  await page.screenshot({ path: `${SHOTS}/16-new-swap.png` })
+  await page.keyboard.press('Escape')
+
   // ── 09 課表查詢(含匯出按鈕)──
   await page.goto(`/timetable-query?semester_id=${sid}`)
   await expect(page.getByRole('heading', { name: '課表查詢' })).toBeVisible({ timeout: 20_000 })
@@ -291,6 +329,9 @@ test('產生操作手冊截圖(03–14)', async ({ page }) => {
     await page.getByTestId('backup-now').click()
     await expect(rows.first()).toBeVisible({ timeout: 60_000 })
   }
+  await waitToastGone(page)
+  // 備份卡片在系統管理頁的下半部;捲到它,截圖才看得到備份清單
+  await page.getByTestId('backup-card').scrollIntoViewIfNeeded()
   await page.waitForTimeout(700)
   await page.screenshot({ path: `${SHOTS}/10-backup.png` })
 
@@ -347,4 +388,48 @@ test('產生操作手冊截圖(03–14)', async ({ page }) => {
   await expect(page.getByTestId('patrol-page').first()).toBeVisible({ timeout: 20_000 })
   await page.waitForTimeout(700)
   await page.screenshot({ path: `${SHOTS}/14-patrol-sheet.png` })
+
+  // ── 17 單雙週組(4 章):703 單週藝術、雙週綜合活動(放在最後,前面的截圖不受影響)──
+  const q = `?semester_id=${sid}`
+  if (!(await get(page, `/api/alternate-units${q}`)).length) {
+    const cls = (await get(page, `/api/class-units${q}`)).find((c: { name: string }) => c.name === '703')
+    const subs: Record<string, number> = {}
+    for (const x of await get(page, `/api/subjects${q}`)) subs[x.name] = x.id
+    const tids: Record<string, number> = {}
+    for (const t of await get(page, `/api/teachers${q}`)) tids[t.name] = t.id
+    const unit = await post(page, `/api/alternate-units${q}`, { class_id: cls.id })
+    for (const [subject, teacher, week] of [['藝術', '劉俊傑', 'odd'], ['綜合活動', '吳雅玲', 'even']]) {
+      await post(page, `/api/assignments${q}`, {
+        scheduling_unit_id: unit.id, subject_id: subs[subject], periods_per_week: 1,
+        teachers: [{ teacher_id: tids[teacher], is_lead: true }], block_rules: [], week_parity: week,
+      })
+    }
+  }
+  await page.goto('/scheduling/assignments')
+  await selectSemester(page)
+  const altList = page.getByTestId('alt-list')
+  await expect(altList).toBeVisible({ timeout: 20_000 })
+  await altList.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(700)
+  await page.screenshot({ path: `${SHOTS}/17-alternate-weeks.png` })
+
+  // ── 18 儀表板即時概況(8.9):把時刻換成請假日上午第二節(703 由代課老師上)──
+  // API 支援 at 參數(預覽用);畫面不帶,這裡攔下請求補上,截圖才不受拍攝當下的時間影響。
+  await page.route('**/api/live-overview?**', (route) => {
+    const u = new URL(route.request().url())
+    u.searchParams.set('at', `${leaveDay}T09:30:00`)
+    return route.continue({ url: u.toString() })
+  })
+  // 下方「今日調代課」也換成同一天,上下兩張卡才對得起來
+  await page.route('**/api/daily-board?**', (route) => {
+    const u = new URL(route.request().url())
+    u.searchParams.set('on', leaveDay)
+    return route.continue({ url: u.toString() })
+  })
+  await page.goto('/')
+  const live = page.getByTestId('dash-live')
+  await expect(live.getByTestId('live-period').first()).toBeVisible({ timeout: 20_000 })
+  await live.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(700)
+  await page.screenshot({ path: `${SHOTS}/18-dashboard-live.png` })
 })
