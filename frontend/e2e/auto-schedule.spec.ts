@@ -219,3 +219,42 @@ test('部分排課排入大部分課務,並列出未排清單', async ({ page })
 
   await deleteSemesterByYearTerm(page, YEAR, 1)
 })
+
+// 設定精靈建好的學期沒有任何課表:以前「來源草稿」是空的、「開始排課」按不下去也沒說原因
+// (錄操作示範影片時發現)。現在跟排課工作台一樣,進來就自動建「草稿A」。
+test('自動排課:新學期還沒有課表時,自動建立草稿A,可以直接開始排課', async ({ page }) => {
+  const YEAR = 180
+  await login(page)
+  await page.request.patch('/api/wizard/state', { data: { completed: true } })
+  await deleteSemesterByYearTerm(page, YEAR, 1)
+  const sem = await post(page, '/api/semesters',
+    { academic_year: YEAR, term: 1, template_key: 'junior_high' })
+  const [subject] = await (await page.request.get(`/api/subjects?semester_id=${sem.id}`)).json()
+  const t = await post(page, `/api/teachers?semester_id=${sem.id}`, { name: '草稿測試師', base_periods: 3 })
+  const c = await post(page, `/api/class-units?semester_id=${sem.id}`,
+    { grade: 7, name: '801', track: 'junior_high' })
+  await post(page, `/api/assignments?semester_id=${sem.id}`, {
+    class_id: c.id, subject_id: subject.id, periods_per_week: 3,
+    teachers: [{ teacher_id: t.id }], block_rules: [],
+  })
+
+  await page.goto('/scheduling/auto')
+  await selectSemester(page, YEAR)
+  await expect(page.getByTestId('as-source')).toContainText('草稿A')
+  await expect(page.getByTestId('as-start')).toBeEnabled()
+  await expect(page.getByTestId('as-no-draft')).toHaveCount(0)
+
+  // 課表都發布了(沒有草稿)就不再自動建,改提示去「版本與發布」複製
+  const tts = await (await page.request.get(`/api/timetables?semester_id=${sem.id}`)).json()
+  expect(tts.map((x: { name: string }) => x.name)).toEqual(['草稿A'])
+  const pub = await page.request.post(`/api/timetables/${tts[0].id}/publish?force=true`)
+  expect(pub.ok()).toBeTruthy()
+  await page.reload()
+  await selectSemester(page, YEAR)
+  await expect(page.getByTestId('as-no-draft')).toBeVisible()
+  await expect(page.getByTestId('as-start')).toBeDisabled()
+  const after = await (await page.request.get(`/api/timetables?semester_id=${sem.id}`)).json()
+  expect(after).toHaveLength(1)
+
+  await deleteSemesterByYearTerm(page, YEAR, 1)
+})
