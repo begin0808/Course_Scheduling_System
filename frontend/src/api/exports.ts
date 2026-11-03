@@ -43,11 +43,20 @@ export const exportSchoolWorkbook = (
     view === 'teacher' ? '全校教師課表總表.xlsx' : '全校課表總表.xlsx',
   )
 
-/** 批次 zip:view=class 每班一個檔;view=teacher 每位教師一個檔 */
-export const exportBatchZip = (
+/** 全校總表 PDF:一個檔,每班(或每位教師)一頁,方便一次列印(v1.4.6) */
+export const exportSchoolPdf = (
   semesterId: number, view: 'class' | 'teacher' = 'class',
 ): Promise<void> =>
   download(
-    `/export/batch.zip?semester_id=${semesterId}&view=${view}`,
+    `/export/school.pdf?semester_id=${semesterId}&view=${view}`,
+    view === 'teacher' ? '全校教師課表總表.pdf' : '全校課表總表.pdf',
+  )
+
+/** 批次 zip:view=class 每班一個檔;view=teacher 每位教師一個檔;fmt 選 Excel 或 PDF(v1.4.6) */
+export const exportBatchZip = (
+  semesterId: number, view: 'class' | 'teacher' = 'class', fmt: 'xlsx' | 'pdf' = 'xlsx',
+): Promise<void> =>
+  download(
+    `/export/batch.zip?semester_id=${semesterId}&view=${view}&fmt=${fmt}`,
     view === 'teacher' ? '全校教師課表.zip' : '全校班級課表.zip',
   )

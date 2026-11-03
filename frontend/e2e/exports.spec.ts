@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { SEM_END, SEM_START } from './dates'
@@ -42,7 +43,7 @@ test.describe('課表匯出', () => {
     for (const y of YEARS) await deleteSemesterByYearTerm(page, y, 1)
   })
 
-  test('班級課表 Excel/PNG 下載,全校總表與批次 zip', async ({ page }) => {
+  test('班級課表 Excel/PNG 下載,全校總表與批次 zip(Excel/PDF)', async ({ page }) => {
     test.setTimeout(180_000)
     await login(page)
     await seed(page, 147)
@@ -77,6 +78,23 @@ test.describe('課表匯出', () => {
     ])
     expect(zip.suggestedFilename()).toContain('.zip')
 
+    // 全校總表 PDF、批次 zip 的 PDF(LINE 社群組長,v1.4.6):worker 真的渲染
+    const [schoolPdf] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('export-school-pdf').click(),
+    ])
+    expect(schoolPdf.suggestedFilename()).toContain('全校課表總表')
+    expect(schoolPdf.suggestedFilename()).toContain('.pdf')
+    expect(readFileSync(await schoolPdf.path()).subarray(0, 5).toString()).toBe('%PDF-')
+    const [pdfZip] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('export-batch-pdf').click(),
+    ])
+    expect(pdfZip.suggestedFilename()).toContain('全校班級課表_PDF')
+    const zipBytes = readFileSync(await pdfZip.path())
+    expect(zipBytes.subarray(0, 2).toString()).toBe('PK')
+    expect(zipBytes.includes(Buffer.from('7年701.pdf'))).toBe(true)   // 每班一個 PDF 檔
+
     // #22:切到教師視角,全校匯出要跟著變成教師版(先前只有班級版)
     await page.getByTestId('tq-view-teacher').click()
     await expect(page.getByTestId('tq-teacher')).toBeVisible()
@@ -91,6 +109,11 @@ test.describe('課表匯出', () => {
     ])
     expect(teacherZip.suggestedFilename()).toContain('全校教師課表')
     expect(teacherZip.suggestedFilename()).toContain('.zip')
+    const [teacherPdfZip] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('export-batch-pdf').click(),
+    ])
+    expect(readFileSync(await teacherPdfZip.path()).includes(Buffer.from('王老師.pdf'))).toBe(true)
 
     // 場地視角沒有全校匯出
     await page.getByTestId('tq-view-room').click()

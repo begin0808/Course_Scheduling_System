@@ -8,11 +8,16 @@ import os
 import subprocess
 import tempfile
 
-from app.services.pdf import render_pdf
+from app.services.pdf import render_pdf, render_pdf_set
 
 
 def render_timetable_pdf(html: str) -> bytes:
     return render_pdf(html)
+
+
+def render_timetable_pdf_set(htmls: list[str], split: bool) -> list[bytes]:
+    """全校總表 PDF(split=False,一份)或批次 zip 裡的每張 PDF(split=True)。"""
+    return render_pdf_set(htmls, split=split)
 
 
 def render_timetable_png(html: str) -> bytes:

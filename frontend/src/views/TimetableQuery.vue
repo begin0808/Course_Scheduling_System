@@ -10,7 +10,7 @@ import type { GridEntry, PeriodCell } from '@/components/timetable/types'
 import { getMyTeacher, getPublishedTimetable, publishedSemesters } from '@/api/timetables'
 import type { NamedBrief, PublicSemester, PublishedTimetable } from '@/api/timetables'
 import {
-  exportBatchZip, exportSchoolWorkbook, exportTimetable,
+  exportBatchZip, exportSchoolPdf, exportSchoolWorkbook, exportTimetable,
 } from '@/api/exports'
 import type { ExportFmt } from '@/api/exports'
 import { useAuthStore } from '@/stores/auth'
@@ -54,17 +54,25 @@ const batchView = computed<'class' | 'teacher' | null>(() =>
   view.value === 'class' || view.value === 'teacher' ? view.value : null)
 const batchLabel = computed(() => (batchView.value === 'teacher' ? '全校教師' : '全校班級'))
 
-async function onExportAll(kind: 'school' | 'batch') {
+// 全校總表、批次 zip 都可以選 Excel 或 PDF(批次 PDF 是 LINE 社群組長要的,v1.4.6)。
+// PDF 要在背景渲染,全校約十幾秒,按鈕轉圈並先說一聲,免得以為當掉。
+type AllKind = 'school-xlsx' | 'school-pdf' | 'batch-xlsx' | 'batch-pdf'
+const exportingAll = ref<AllKind | null>(null)
+
+async function onExportAll(kind: AllKind) {
   if (sid.value === null || batchView.value === null) return
   exporting.value = true
+  exportingAll.value = kind
+  if (kind.endsWith('pdf')) message.info('正在產生 PDF,全校約需十幾秒,請稍候…')
   try {
-    await (kind === 'school'
-      ? exportSchoolWorkbook(sid.value, batchView.value)
-      : exportBatchZip(sid.value, batchView.value))
+    if (kind === 'school-xlsx') await exportSchoolWorkbook(sid.value, batchView.value)
+    else if (kind === 'school-pdf') await exportSchoolPdf(sid.value, batchView.value)
+    else await exportBatchZip(sid.value, batchView.value, kind === 'batch-pdf' ? 'pdf' : 'xlsx')
   } catch (e) {
     message.error((e as Error).message || '匯出失敗')
   } finally {
     exporting.value = false
+    exportingAll.value = null
   }
 }
 
@@ -212,20 +220,40 @@ const entries = computed<GridEntry[]>(() => {
         </n-button-group>
         <template v-if="canManage && batchView">
           <n-text depth="3" style="font-size: 13px">{{ batchLabel }}:</n-text>
-          <n-button
-            size="small" :disabled="exporting" data-testid="export-school"
-            @click="onExportAll('school')"
-          >
-            總表 Excel
-          </n-button>
-          <n-button
-            size="small" :disabled="exporting" data-testid="export-batch"
-            @click="onExportAll('batch')"
-          >
-            批次 zip
-          </n-button>
+          <n-text depth="3" style="font-size: 13px">總表</n-text>
+          <n-button-group>
+            <n-button
+              size="small" :disabled="exporting" :loading="exportingAll === 'school-xlsx'"
+              data-testid="export-school" @click="onExportAll('school-xlsx')"
+            >
+              Excel
+            </n-button>
+            <n-button
+              size="small" :disabled="exporting" :loading="exportingAll === 'school-pdf'"
+              data-testid="export-school-pdf" @click="onExportAll('school-pdf')"
+            >
+              PDF
+            </n-button>
+          </n-button-group>
+          <n-text depth="3" style="font-size: 13px">批次 zip</n-text>
+          <n-button-group>
+            <n-button
+              size="small" :disabled="exporting" :loading="exportingAll === 'batch-xlsx'"
+              data-testid="export-batch" @click="onExportAll('batch-xlsx')"
+            >
+              Excel
+            </n-button>
+            <n-button
+              size="small" :disabled="exporting" :loading="exportingAll === 'batch-pdf'"
+              data-testid="export-batch-pdf" @click="onExportAll('batch-pdf')"
+            >
+              PDF
+            </n-button>
+          </n-button-group>
           <n-text depth="3" style="font-size: 12px">
-            {{ batchView === 'teacher' ? '每位在職教師一張(含沒排到課的)' : '每班一張' }}
+            {{ batchView === 'teacher'
+              ? '總表:全部在一個檔;批次:每位在職教師一個檔(含沒排到課的)'
+              : '總表:全部在一個檔;批次:每班一個檔' }}
           </n-text>
         </template>
       </n-space>

@@ -81,6 +81,8 @@ def test_email_goes_to_ops(queues):
 @pytest.mark.parametrize(("call", "error", "expected"), [
     (lambda: q.render_export("<html></html>", "png", timeout=1), q.RenderError,
      "render_timetable_png"),
+    (lambda: q.render_export_set(["<html></html>"], split=True, timeout=1), q.RenderError,
+     "render_timetable_pdf_set"),
     (lambda: q.run_backup("manual", timeout=1), q.BackupJobError, "create_backup_job"),
     (lambda: q.run_restore("x.dump", timeout=1), q.BackupJobError, "restore_job"),
 ])
@@ -204,6 +206,7 @@ def test_ops_worker_availability_is_permissive_when_it_cannot_tell(monkeypatch):
 
 @pytest.mark.parametrize(("call", "error"), [
     (lambda: q.render_export("<html></html>", "png", timeout=1), q.RenderError),
+    (lambda: q.render_export_set(["<html></html>"], split=False, timeout=1), q.RenderError),
     (lambda: q.run_backup("manual", timeout=1), q.BackupJobError),
     (lambda: q.run_restore("x.dump", timeout=1), q.BackupJobError),
 ])

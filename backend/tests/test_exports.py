@@ -195,3 +195,99 @@ def test_teacher_can_export_single_but_not_batch(w):
     assert single.status_code == 200          # 單一課表全校可查可匯出
     assert w.client.get(f"/api/export/school.xlsx{w.q}").status_code == 403
     assert w.client.get(f"/api/export/batch.zip{w.q}").status_code == 403
+
+
+# ── 批次 PDF / 全校總表 PDF(LINE 社群組長,v1.4.6)──────────────
+# 真正的渲染在 worker(WeasyPrint + poppler),此處以替身取代,驗 api 的組合;
+# 實際 PDF 由 e2e 在完整環境下載驗證。
+@pytest.fixture
+def fake_render(monkeypatch):
+    from app.workers import queue as job_queue
+
+    calls: list[tuple[list[str], bool]] = []
+
+    def render(htmls, *, split, timeout=None):
+        calls.append((htmls, split))
+        if split:
+            return [f"%PDF-{i}".encode() for i in range(len(htmls))]
+        return [b"%PDF-merged"]
+
+    monkeypatch.setattr(job_queue, "render_export_set", render)
+    return calls
+
+
+def test_batch_zip_pdf_has_one_pdf_per_class(w, fake_render):
+    r = w.client.get(f"/api/export/batch.zip{w.q}&fmt=pdf")
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/zip"
+    assert "PDF" in r.headers["content-disposition"]          # 和 Excel 版的檔名分得開
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    names = z.namelist()
+    assert names and all(n.endswith(".pdf") for n in names)
+    assert any("701" in n for n in names)
+    htmls, split = fake_render[0]
+    assert split is True and len(htmls) == len(names)          # 一次派工,不是一張一張派
+    # 檔名與內容順序一致:701 那一檔就是 701 的課表
+    i = next(i for i, n in enumerate(names) if "701" in n)
+    assert "701" in htmls[i] and z.read(names[i]) == f"%PDF-{i}".encode()
+
+
+def test_batch_zip_pdf_teacher_view(w, fake_render):
+    w.teacher("陳師", ["數學"])
+    r = w.client.get(f"/api/export/batch.zip{w.q}&view=teacher&fmt=pdf")
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert sorted(names) == ["王師.pdf", "陳師.pdf"]
+
+
+def test_school_pdf_is_one_file(w, fake_render):
+    r = w.client.get(f"/api/export/school.pdf{w.q}")
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.content == b"%PDF-merged"
+    htmls, split = fake_render[0]
+    assert split is False and len(htmls) >= 2                  # 701 與佔位班,一班一頁
+    r = w.client.get(f"/api/export/school.pdf{w.q}&view=teacher")
+    assert r.status_code == 200
+    assert "%E5%85%A8%E6%A0%A1%E6%95%99%E5%B8%AB" in r.headers["content-disposition"]  # 全校教師
+
+
+def test_batch_zip_defaults_to_excel_and_validates_fmt(w, fake_render):
+    names = zipfile.ZipFile(io.BytesIO(
+        w.client.get(f"/api/export/batch.zip{w.q}").content)).namelist()
+    assert all(n.endswith(".xlsx") for n in names)
+    assert fake_render == []                                   # Excel 不經 worker
+    assert w.client.get(f"/api/export/batch.zip{w.q}&fmt=png").status_code == 422
+
+
+def test_batch_pdf_reports_worker_failure(w, monkeypatch):
+    from app.workers import queue as job_queue
+
+    def boom(htmls, *, split, timeout=None):
+        raise job_queue.RenderError("課表PDF渲染失敗:背景忙碌或逾時,請稍後再試")
+
+    monkeypatch.setattr(job_queue, "render_export_set", boom)
+    r = w.client.get(f"/api/export/batch.zip{w.q}&fmt=pdf")
+    assert r.status_code == 502 and "渲染失敗" in r.json()["detail"]
+    assert w.client.get(f"/api/export/school.pdf{w.q}").status_code == 502
+
+
+def test_batch_pdf_without_teachers_says_why(w, fake_render):
+    w.client.patch(f"/api/teachers/{w.teachers['王師']}", json={"name": "王師", "is_active": False})
+    r = w.client.get(f"/api/export/school.pdf{w.q}&view=teacher")
+    assert r.status_code == 404 and "沒有在職教師" in r.json()["detail"]
+
+
+def test_teacher_cannot_batch_pdf(w, fake_render):
+    make_user(w.db, "t2", PW, roles=[Role.teacher])
+    w.client.post("/api/auth/logout")
+    w.client.post("/api/auth/login", json={"username": "t2", "password": PW})
+    assert w.client.get(f"/api/export/school.pdf{w.q}").status_code == 403
+    assert w.client.get(f"/api/export/batch.zip{w.q}&fmt=pdf").status_code == 403
+
+
+def test_same_name_teachers_get_distinct_files(w):
+    w.teacher("陳師", ["數學"])
+    w.teacher("陳師", ["英文"])           # 同名教師是允許的(以身分末四碼辨識)
+    names = zipfile.ZipFile(io.BytesIO(
+        w.client.get(f"/api/export/batch.zip{w.q}&view=teacher").content)).namelist()
+    assert sorted(names) == ["王師.xlsx", "陳師(2).xlsx", "陳師.xlsx"]
