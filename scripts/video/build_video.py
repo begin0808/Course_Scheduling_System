@@ -50,6 +50,22 @@ def duration(work: Path, name: str) -> float:
     return float(out.strip())
 
 
+# ── 0. 示範用的匯入檔 ─────────────────────────────────────
+def write_fixtures(script: dict, work: Path) -> None:
+    """講稿裡的 fixtures 寫成 xlsx:前三列是欄名/說明/範例(匯入時會略過),第四列起是資料。"""
+    from openpyxl import Workbook
+
+    for name, fx in script.get("fixtures", {}).items():
+        wb = Workbook()
+        ws = wb.active
+        ws.append(fx["columns"])
+        ws.append(["說明"] + [""] * (len(fx["columns"]) - 1))
+        ws.append(["範例"] + [""] * (len(fx["columns"]) - 1))
+        for row in fx["rows"]:
+            ws.append(row)
+        wb.save(work / name)
+
+
 # ── 1. 旁白語音 ──────────────────────────────────────────────
 async def tts(script: dict, work: Path) -> None:
     import edge_tts
@@ -158,6 +174,7 @@ def main() -> None:
     work = FRONTEND / "video-out" / a.name
     work.mkdir(parents=True, exist_ok=True)
 
+    write_fixtures(script, work)
     if not a.skip_tts:
         print("1/3 產生旁白語音")
         asyncio.run(tts(script, work))
@@ -174,8 +191,8 @@ def main() -> None:
             sys.exit("錄影失敗")
 
     print("3/3 合成")
-    title = script.get("title", a.name)
-    mux(script, work, Path(a.out) / f"{title}.mp4")
+    # 檔名加序號(01-安裝、02-第一次設定…),影片資料夾照觀看順序排
+    mux(script, work, Path(a.out) / f"{script.get('file', script.get('title', a.name))}.mp4")
 
 
 if __name__ == "__main__":

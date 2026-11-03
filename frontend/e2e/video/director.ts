@@ -11,7 +11,11 @@ import type { Locator, Page } from '@playwright/test'
 // 因為畫面一定等旁白念完才進下一段,聲音與畫面不會錯開。
 
 export interface Segment { id: string; text: string; say?: string }
-export interface Script { title: string; subtitle: string; segments: Segment[] }
+/** 示範用匯入檔:build_video.py 寫成 xlsx,錄影時也用同一份內容畫出試算表畫面。 */
+export interface Fixture { label: string; columns: string[]; rows: string[][]; show?: number }
+export interface Script {
+  title: string; subtitle: string; segments: Segment[]; fixtures?: Record<string, Fixture>
+}
 
 const GAP_MS = 600 // 段與段之間留一點空檔,聽起來不趕
 
@@ -121,6 +125,44 @@ export class Director {
       .bar{width:120px;height:6px;border-radius:3px;background:#0f7a43}
     </style></head><body><div class="wrap"><div class="eyebrow">排課與調代課系統 · 操作示範</div>
       <h1>${title}</h1><div class="bar"></div><p>${subtitle}</p></div></body></html>`)
+  }
+
+  /** 在畫面上蓋一張「Excel 試算表」,示範範本填好的樣子(影片裡看不到真的 Excel)。 */
+  async sheet(fx: Fixture) {
+    const cols = fx.show ? fx.columns.slice(0, fx.show) : fx.columns
+    const cut = (r: string[]) => (fx.show ? r.slice(0, fx.show) : r)
+    const letters = cols.map((_, i) => String.fromCharCode(65 + i))
+    const tr = (n: number | string, cells: string[], cls = '') =>
+      `<tr class="${cls}"><th>${n}</th>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`
+    const body = [
+      tr(1, cols, 'head'),
+      tr(2, cols.map(() => '(說明)'), 'muted'),
+      tr(3, cols.map(() => '(範例)'), 'muted'),
+      ...fx.rows.map((r, i) => tr(i + 4, cut(r))),
+    ].join('')
+    await this.page.evaluate(({ label, letters, body }) => {
+      document.getElementById('demo-sheet')?.remove()
+      const el = document.createElement('div')
+      el.id = 'demo-sheet'
+      el.innerHTML = `<style>
+        #demo-sheet{position:fixed;inset:0;z-index:2147483640;background:rgba(15,23,42,.45);display:flex;
+          align-items:center;justify-content:center;font-family:"Microsoft JhengHei",sans-serif;animation:ds .25s ease-out}
+        @keyframes ds{from{opacity:0}to{opacity:1}}
+        #demo-sheet .win{background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35);max-width:1180px}
+        #demo-sheet .bar{background:#107c41;color:#fff;padding:9px 16px;font-size:17px;letter-spacing:.05em}
+        #demo-sheet table{border-collapse:collapse;font-size:18px}
+        #demo-sheet th,#demo-sheet td{border:1px solid #d4d4d8;padding:6px 14px;white-space:nowrap;text-align:left}
+        #demo-sheet th{background:#f3f4f6;color:#6b7280;font-weight:normal;text-align:center;min-width:28px}
+        #demo-sheet tr.head td{font-weight:bold;background:#f9fafb}
+        #demo-sheet tr.muted td{color:#9ca3af;font-size:15px}
+      </style><div class="win"><div class="bar">${label}</div><table>
+        <tr><th></th>${letters.map((l: string) => `<th>${l}</th>`).join('')}</tr>${body}</table></div>`
+      document.body.appendChild(el)
+    }, { label: fx.label, letters, body })
+  }
+
+  async hideSheet() {
+    await this.page.evaluate(() => document.getElementById('demo-sheet')?.remove())
   }
 
   save() {
