@@ -218,6 +218,53 @@ export class Director {
     }, { src, label })
   }
 
+  /**
+   * 終端機示意畫面:一行一行打指令、印出結果(安裝、升級要在主機上操作,系統畫面錄不到)。
+   * lines:以 "$ " 開頭的是指令(逐字打出),"# " 開頭的是說明(綠色),其餘是輸出。
+   */
+  async terminal(title: string, lines: string[]) {
+    await this.page.evaluate((title) => {
+      document.getElementById('demo-sheet')?.remove()
+      const el = document.createElement('div')
+      el.id = 'demo-sheet'
+      el.innerHTML = `<style>
+        #demo-sheet{position:fixed;inset:0;z-index:2147483640;background:rgba(15,23,42,.55);display:flex;
+          align-items:center;justify-content:center}
+        #demo-sheet .win{width:1080px;height:560px;background:#0f172a;border-radius:10px;overflow:hidden;
+          box-shadow:0 20px 50px rgba(0,0,0,.45);display:flex;flex-direction:column}
+        #demo-sheet .bar{background:#1e293b;color:#cbd5e1;padding:9px 16px;font:15px "Microsoft JhengHei",sans-serif}
+        #demo-sheet .bar i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px}
+        #demo-sheet pre{margin:0;padding:16px 20px;flex:1;overflow:hidden;color:#e2e8f0;
+          font:19px/1.55 Consolas,"Microsoft JhengHei",monospace;white-space:pre-wrap;word-break:break-all}
+        #demo-sheet .c{color:#86efac} #demo-sheet .p{color:#93c5fd} #demo-sheet .o{color:#cbd5e1}
+      </style><div class="win"><div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i>
+        <i style="background:#4ade80"></i>${title}</div><pre id="demo-term"></pre></div>`
+      document.body.appendChild(el)
+    }, title)
+    const add = (cls: string, text: string) => this.page.evaluate(([cls, text]) => {
+      const pre = document.getElementById('demo-term')!
+      const span = document.createElement('span')
+      span.className = cls
+      span.textContent = text
+      pre.appendChild(span)
+      pre.scrollTop = pre.scrollHeight
+    }, [cls, text])
+    for (const line of lines) {
+      if (line.startsWith('$ ')) {
+        await add('p', '$ ')
+        for (const ch of line.slice(2)) {
+          await add('o', ch)
+          await this.page.waitForTimeout(28)
+        }
+        await this.page.waitForTimeout(350)
+        await add('o', '\n')
+      } else {
+        await add(line.startsWith('# ') ? 'c' : 'o', `${line}\n`)
+        await this.page.waitForTimeout(line.startsWith('# ') ? 500 : 160)
+      }
+    }
+  }
+
   async hideSheet() {
     await this.page.evaluate(() => document.getElementById('demo-sheet')?.remove())
   }
