@@ -161,6 +161,8 @@ export class Director {
       <h1>${title}</h1><div class="bar"></div><p>${subtitle}</p></div></body></html>`)
   }
 
+  // 疊層不做淡入動畫:錄影只在頁面重繪時取格,畫面靜止時會停在淡入的第一格(半透明)
+
   /** 在畫面上蓋一張「Excel 試算表」,示範範本填好的樣子(影片裡看不到真的 Excel)。 */
   async sheet(fx: Fixture) {
     const cols = fx.show ? fx.columns.slice(0, fx.show) : fx.columns
@@ -182,8 +184,7 @@ export class Director {
       el.id = 'demo-sheet'
       el.innerHTML = `<style>
         #demo-sheet{position:fixed;inset:0;z-index:2147483640;background:rgba(15,23,42,.45);display:flex;
-          align-items:center;justify-content:center;font-family:"Microsoft JhengHei",sans-serif;animation:ds .25s ease-out}
-        @keyframes ds{from{opacity:0}to{opacity:1}}
+          align-items:center;justify-content:center;font-family:"Microsoft JhengHei",sans-serif}
         #demo-sheet .win{background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35);max-width:1180px}
         #demo-sheet .bar{background:#107c41;color:#fff;padding:9px 16px;font-size:17px;letter-spacing:.05em}
         #demo-sheet table{border-collapse:collapse;font-size:18px}
@@ -195,6 +196,26 @@ export class Director {
         <tr><th></th>${letters.map((l: string) => `<th>${l}</th>`).join('')}</tr>${body}</table></div>`
       document.body.appendChild(el)
     }, { label: fx.label, letters, body })
+  }
+
+  /** 把下載下來的圖片蓋在畫面上(示範「匯出的檔案長這樣」)。 */
+  async image(file: string, label: string) {
+    const src = `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`
+    await this.page.evaluate(({ src, label }) => {
+      document.getElementById('demo-sheet')?.remove()
+      const el = document.createElement('div')
+      el.id = 'demo-sheet'
+      el.innerHTML = `<style>
+        #demo-sheet{position:fixed;inset:0;z-index:2147483640;background:rgba(15,23,42,.55);display:flex;
+          align-items:center;justify-content:center;font-family:"Microsoft JhengHei",sans-serif}
+        #demo-sheet .win{background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35);
+          max-height:620px}
+        #demo-sheet .bar{background:#334155;color:#fff;padding:8px 16px;font-size:16px}
+        /* 匯出的是直式 A4,課表在上半張:放大、只露出上半部 */
+        #demo-sheet img{display:block;width:900px}
+      </style><div class="win"><div class="bar">${label}</div><img src="${src}"></div>`
+      document.body.appendChild(el)
+    }, { src, label })
   }
 
   async hideSheet() {
