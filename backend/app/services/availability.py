@@ -14,6 +14,7 @@ M4-4 的今日看板、M4-2 的代課推薦都建立在這一層上。判斷一�
 單雙週(v1.3.0):週課表裡單週/雙週的課,只在對應的那一週算「有課」。
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, time
 
@@ -259,18 +260,28 @@ class Availability:
         return self._on_leave(teacher_id, when, slot)
 
     def teaching_at(
-        self, teacher_id: int, slot: Interval, when: date | None = None
+        self,
+        teacher_id: int,
+        slot: Interval,
+        when: date | None = None,
+        released: Sequence[Interval] = (),
     ) -> Interval | None:
-        """該教師在 slot 時段有沒有自己的課;給了日期時,單雙週的課只看那一週。"""
+        """該教師在 slot 時段有沒有自己的課;給了日期時,單雙週的課只看那一週。
+
+        `released`:那一天已經交給別人上的節次(同一筆調課裡的其他節),不算他有課。
+        """
         week = self.week_of(when)
         for iv, parity in self._teaching_map().get(teacher_id, []):
-            if iv.overlaps(slot) and runs_in_week(parity, week):
+            if (iv.overlaps(slot) and runs_in_week(parity, week)
+                    and not any(iv.overlaps(r) for r in released)):
                 return iv
         return None
 
-    def conflict_for(self, teacher_id: int, when: date, slot: Interval) -> Conflict | None:
+    def conflict_for(
+        self, teacher_id: int, when: date, slot: Interval, released: Sequence[Interval] = ()
+    ) -> Conflict | None:
         """該教師在 when 這一天的 slot 時段,有沒有不能來的理由(回第一個)。"""
-        if self.teaching_at(teacher_id, slot, when) is not None:
+        if self.teaching_at(teacher_id, slot, when, released) is not None:
             return Conflict("teaching", "該時段有自己的課")
         if self._on_leave(teacher_id, when, slot):
             return Conflict("on_leave", "當天也請假")

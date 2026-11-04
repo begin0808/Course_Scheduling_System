@@ -1000,6 +1000,10 @@ function candidateTagType(c: Candidate): string {
           老師沒有請假,只是要和別人調課時用這裡。勾選要調的節次後,
           會直接列出可以對調的節次。這筆不會出現在「請假登記」,也不算請假。
         </n-text>
+        <n-text depth="3" data-testid="sub-ns-linked-hint">
+          同一天有好幾節要一起換(例如學校活動,兩班的第七、八節同時對調),
+          請在這裡一次勾齊:勾在一起的節次都會交給別人上,彼此的時段就能拿來補課。
+        </n-text>
         <n-space align="center">
           <n-text style="min-width: 40px">教師</n-text>
           <n-select
