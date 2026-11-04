@@ -17,12 +17,18 @@ from sqlalchemy.orm import Session
 from app.core import clock
 from app.models.assignment import AssignmentTeacher, CourseAssignment, SchedulingUnitMember
 from app.models.basedata import Teacher
-from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus
+from app.models.leave import (
+    AffectedPeriod,
+    AffectedStatus,
+    LeaveRequest,
+    LeaveStatus,
+    LeaveType,
+)
 from app.models.period import PeriodType
 from app.models.semester import Semester
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
-from app.services.availability import Availability
+from app.services.availability import Availability, Interval
 
 
 def _period_label(av: Availability, entry: ScheduleEntry, period_no: int) -> str:
@@ -104,10 +110,26 @@ class SwapChecker:
             return f"{partner.name} {when} {pname} 也請假,這節課本身就需要安排,不能拿來對調"
         if (entry.id, when, period_no) in self._taken_slots():
             return f"{partner.name} {when} {pname} 這節已經和別的老師調課了"
-        conflict = self.av.conflict_for(self.absent.id, when, slot)
+        conflict = self.av.conflict_for(self.absent.id, when, slot, self._released(when))
         if conflict is not None:
             return f"{self.absent.name} 無法在 {when} {pname} 補課:{conflict.detail}"
         return None
+
+    def _released(self, when: date) -> list[Interval]:
+        """甲在 `when` 這天、同一筆「調課(未請假)」裡的節次(v1.4.9,組長回報)。
+
+        學校活動讓 402、502 兩班的第七、八節同時對調,洪師兩節都要換:
+        502 那筆要他第七節補課,卻被他第七節的 402 擋住;402 那筆又被第八節的 502 擋住。
+        這幾節既然都列在同一筆調課裡、都會交給別人上,就不算他那節有課。
+        只限沒請假的調課:真的請假時,假單時段內他本來就不能補課(請假檢查會擋)。
+        """
+        leave = self.affected.leave_request
+        if leave.leave_type != LeaveType.swap_only.value:
+            return []
+        return [
+            self.av.slot_of(ap) for ap in leave.affected_periods
+            if ap.date == when and ap.status != AffectedStatus.cancelled.value
+        ]
 
 
 # ── 搜尋 ─────────────────────────────────────────────────────
