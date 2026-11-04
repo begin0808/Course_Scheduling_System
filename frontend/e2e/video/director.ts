@@ -156,9 +156,9 @@ export class Director {
       .wrap{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}
       .eyebrow{letter-spacing:.3em;color:#c2410c;font-size:20px}
       h1{margin:0;font-size:64px;color:#1f2937} p{margin:0;font-size:28px;color:#4b5563}
-      .bar{width:120px;height:6px;border-radius:3px;background:#0f7a43}
+      .card-line{width:120px;height:6px;border-radius:3px;background:#0f7a43}
     </style></head><body><div class="wrap"><div class="eyebrow">排課與調代課系統 · 操作示範</div>
-      <h1>${title}</h1><div class="bar"></div><p>${subtitle}</p></div></body></html>`)
+      <h1>${title}</h1><div class="card-line"></div><p>${subtitle}</p></div></body></html>`)
   }
 
   // 疊層不做淡入動畫:錄影只在頁面重繪時取格,畫面靜止時會停在淡入的第一格(半透明)
@@ -220,10 +220,12 @@ export class Director {
 
   /**
    * 終端機示意畫面:一行一行打指令、印出結果(安裝、升級要在主機上操作,系統畫面錄不到)。
-   * lines:以 "$ " 開頭的是指令(逐字打出),"# " 開頭的是說明(綠色),其餘是輸出。
+   * lines:以 "$ " 或 "PS> " 開頭的是指令(逐字打出),"# " 開頭的是說明(綠色),其餘是輸出;
+   * 「提示 ⏎ 回答」這種行會先印出提示,再逐字打出回答(互動式問答)。
    */
-  async terminal(title: string, lines: string[]) {
-    await this.page.evaluate((title) => {
+  async terminal(title: string, lines: string[], opts: { append?: boolean } = {}) {
+    // append:接在畫面上已有的終端機後面(一段指令的輸出分好幾段旁白講)
+    if (!opts.append || !(await this.page.locator('#demo-term').count())) await this.page.evaluate((title) => {
       document.getElementById('demo-sheet')?.remove()
       const el = document.createElement('div')
       el.id = 'demo-sheet'
@@ -249,15 +251,24 @@ export class Director {
       pre.appendChild(span)
       pre.scrollTop = pre.scrollHeight
     }, [cls, text])
+    const typeOut = async (text: string) => {
+      for (const ch of text) {
+        await add('o', ch)
+        await this.page.waitForTimeout(28)
+      }
+      await this.page.waitForTimeout(350)
+      await add('o', '\n')
+    }
     for (const line of lines) {
-      if (line.startsWith('$ ')) {
-        await add('p', '$ ')
-        for (const ch of line.slice(2)) {
-          await add('o', ch)
-          await this.page.waitForTimeout(28)
-        }
-        await this.page.waitForTimeout(350)
-        await add('o', '\n')
+      const prompt = ['$ ', 'PS> '].find((x) => line.startsWith(x))
+      if (prompt) {
+        await add('p', prompt)
+        await typeOut(line.slice(prompt.length))
+      } else if (line.includes(' ⏎ ')) {
+        const [ask, answer] = line.split(' ⏎ ')
+        await add('o', `${ask} `)
+        await this.page.waitForTimeout(500)
+        await typeOut(answer)
       } else {
         await add(line.startsWith('# ') ? 'c' : 'o', `${line}\n`)
         await this.page.waitForTimeout(line.startsWith('# ') ? 500 : 160)

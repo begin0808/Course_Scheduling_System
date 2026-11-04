@@ -1,0 +1,43 @@
+{
+  "file": "01-安裝",
+  "title": "安裝",
+  "subtitle": "用一鍵安裝程式,把系統裝到學校的主機上",
+  "voice": "zh-TW-HsiaoChenNeural",
+  "rate": "+0%",
+  "segments": [
+    {
+      "id": "intro",
+      "text": "這支影片示範怎麼把排課與調代課系統,安裝到學校的主機上。"
+    },
+    {
+      "id": "prepare",
+      "text": "先準備一台主機,建議兩核心、四 GB 記憶體以上,並安裝好 Docker。Windows 請安裝 Docker Desktop,並確認它已經在執行。",
+      "say": "先準備一台主機,建議兩核心、四 G B 記憶體以上,並安裝好 Docker。Windows 請安裝 Docker Desktop,並確認它已經在執行。"
+    },
+    {
+      "id": "download",
+      "text": "打開 PowerShell,輸入這兩行指令:第一行下載安裝程式,第二行執行。Linux 主機改用 install.sh,步驟一樣。",
+      "say": "打開 PowerShell,輸入這兩行指令:第一行下載安裝程式,第二行執行。Linux 主機改用 install 點 s h,步驟一樣。"
+    },
+    {
+      "id": "questions",
+      "text": "安裝程式會先檢查 Docker,再問三個問題:學校名稱、管理員密碼和連接埠。直接按 Enter,就是用括號裡的預設值。"
+    },
+    {
+      "id": "start",
+      "text": "接著會自動下載系統並啟動,第一次大約要幾分鐘。"
+    },
+    {
+      "id": "done",
+      "text": "看到「安裝完成」,就會列出連線網址:在這台主機上開 localhost,校內其他電腦用主機的 IP 位址。其他電腦連不到的話,通常是防火牆要放行這個連接埠。"
+    },
+    {
+      "id": "browser",
+      "text": "打開瀏覽器連到這個網址,就會看到登入畫面。帳號是 admin,密碼是剛才設定的那組。"
+    },
+    {
+      "id": "outro",
+      "text": "安裝就完成了。登入之後的設定,請看下一支影片「第一次設定」。"
+    }
+  ]
+}
