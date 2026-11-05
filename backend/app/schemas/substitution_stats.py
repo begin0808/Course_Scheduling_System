@@ -51,8 +51,10 @@ class TeacherSummaryOut(BaseModel):
 
 
 class MonthlyReportOut(BaseModel):
-    year: int
-    month: int
+    date_from: _Date | None = None  # 統計期間(含當天);未綁定教師的空報表為 None
+    date_to: _Date | None = None
+    year: int | None = None         # 按月查時才有;自訂區間(v1.4.11)為 None
+    month: int | None = None
     summaries: list[TeacherSummaryOut] = []
     details: list[StatDetailOut] = []
     cover_details: list[CoverDetailOut] = []

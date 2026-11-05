@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  NAlert, NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText,
+  NAlert, NButton, NDatePicker, NEmpty, NRadioButton, NRadioGroup, NSelect, NSpace, NTag, NText,
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -8,7 +8,7 @@ import { listTeachers } from '@/api/basedata'
 import { listSemesters } from '@/api/semesters'
 import { publishedSemesters } from '@/api/timetables'
 import { getMyStats, getStats, statsExportUrl } from '@/api/substitutionStats'
-import type { MonthlyReport } from '@/api/substitutionStats'
+import type { MonthlyReport, StatsPeriod } from '@/api/substitutionStats'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -35,6 +35,58 @@ function initialMonthTs(): number {
   return monthTs()
 }
 
+/** 本機日期 yyyy-mm-dd(不用 toISOString——會轉成 UTC,台灣凌晨會倒退一天) */
+function isoOf(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** 自訂區間的預設:上個月的「今天的隔天」到今天(15 日結算的學校,11/15 打開就是 10/16~11/15) */
+function defaultRange(): [number, number] {
+  const t = new Date()
+  const today = new Date(t.getFullYear(), t.getMonth(), t.getDate())
+  // 上個月的同一天(上個月沒有這一天就取月底,例如 3/31 → 2/28),再加一天
+  const lastOfPrev = new Date(t.getFullYear(), t.getMonth(), 0).getDate()
+  const sameDayPrev = Math.min(t.getDate(), lastOfPrev)
+  const from = new Date(t.getFullYear(), t.getMonth() - 1, sameDayPrev + 1)
+  return [from.getTime(), today.getTime()]
+}
+
+// 按月或自訂區間(v1.4.11,組長回報:有的學校不是月底結算,而是月中)。
+// 記住上次選的方式:每月 15 日結算的學校,下次打開就直接是自訂區間
+const MODE_KEY = 'stats-period-mode'
+function savedMode(): 'month' | 'range' {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'range' ? 'range' : 'month'
+  } catch {
+    return 'month'
+  }
+}
+/** 網址帶 ?date_from=&date_to= 就是自訂區間;帶 ?year=&month= 就是按月(兩者都優先於上次的選擇) */
+function tsOf(iso: unknown): number | null {
+  if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d).getTime()
+}
+const qFrom = tsOf(route.query.date_from)
+const qTo = tsOf(route.query.date_to)
+const initialMode: 'month' | 'range' =
+  qFrom !== null && qTo !== null ? 'range' : route.query.year ? 'month' : savedMode()
+const mode = ref<'month' | 'range'>(initialMode)
+const rangeValue = ref<[number, number]>(
+  qFrom !== null && qTo !== null ? [qFrom, qTo] : defaultRange())
+
+function onModeChange(v: 'month' | 'range') {
+  mode.value = v
+  try {
+    localStorage.setItem(MODE_KEY, v)
+  } catch {
+    // 無痕視窗等讀寫不到時,只是下次不記得
+  }
+  reload()
+}
+
 const semesters = ref<{ id: number; label: string }[]>([])
 const sid = ref<number | null>(null)
 const monthValue = ref<number>(initialMonthTs())
@@ -42,16 +94,21 @@ const teacherOptions = ref<{ label: string; value: number }[]>([])
 const teacherId = ref<number | null>(null)
 const report = ref<MonthlyReport | null>(null)
 const loading = ref(false)
+const error = ref('') // 例如自訂區間超過一年
 
 const semesterOptions = computed(() => semesters.value.map((s) => ({ label: s.label, value: s.id })))
 
-function ym(): { year: number; month: number } {
+function period(): StatsPeriod {
+  if (mode.value === 'range') {
+    return { from: isoOf(rangeValue.value[0]), to: isoOf(rangeValue.value[1]) }
+  }
   const d = new Date(monthValue.value)
   return { year: d.getFullYear(), month: d.getMonth() + 1 }
 }
 const periodLabel = computed(() => {
-  const { year, month } = ym()
-  return `${year} 年 ${month} 月`
+  const p = period()
+  if ('from' in p) return `${p.from.replace(/-/g, '/')} ~ ${p.to.replace(/-/g, '/')}`
+  return `${p.year} 年 ${p.month} 月`
 })
 const totalBillable = computed(() =>
   (report.value?.summaries ?? []).reduce((n, s) => n + s.billable_count, 0))
@@ -76,11 +133,14 @@ const PAY: Record<string, { label: string; type: 'success' | 'info' | 'default' 
 async function reload() {
   if (sid.value === null) return
   loading.value = true
-  const { year, month } = ym()
+  error.value = ''
   try {
     report.value = canManage.value
-      ? await getStats(sid.value, year, month, teacherId.value)
-      : await getMyStats(sid.value, year, month)
+      ? await getStats(sid.value, period(), teacherId.value)
+      : await getMyStats(sid.value, period())
+  } catch (e) {
+    report.value = null
+    error.value = (e as Error).message || '查詢失敗'
   } finally {
     loading.value = false
   }
@@ -96,8 +156,7 @@ async function onSemesterChange(id: number) {
 
 function onExport() {
   if (sid.value === null) return
-  const { year, month } = ym()
-  window.open(statsExportUrl(sid.value, year, month, teacherId.value), '_blank')
+  window.open(statsExportUrl(sid.value, period(), teacherId.value), '_blank')
 }
 
 onMounted(async () => {
@@ -119,9 +178,17 @@ onMounted(async () => {
         :value="sid" :options="semesterOptions" style="width: 200px"
         placeholder="選擇學期" @update:value="onSemesterChange"
       />
+      <n-radio-group :value="mode" size="small" data-testid="stats-mode" @update:value="onModeChange">
+        <n-radio-button value="month">按月</n-radio-button>
+        <n-radio-button value="range">自訂區間</n-radio-button>
+      </n-radio-group>
       <n-date-picker
-        v-model:value="monthValue" type="month" style="width: 160px"
+        v-if="mode === 'month'" v-model:value="monthValue" type="month" style="width: 160px"
         data-testid="stats-month" @update:value="reload"
+      />
+      <n-date-picker
+        v-else v-model:value="rangeValue" type="daterange" style="width: 260px"
+        data-testid="stats-range" @update:value="reload"
       />
       <n-select
         v-if="canManage" v-model:value="teacherId" :options="teacherOptions" clearable filterable
@@ -149,6 +216,14 @@ onMounted(async () => {
       </n-tag>
     </n-space>
 
+    <n-text v-if="mode === 'range'" depth="3" data-testid="stats-range-hint">
+      起訖兩天都算在內(例如每月 15 日結算,就選上個月 16 日到這個月 15 日)。只統計所選學期的紀錄。
+    </n-text>
+
+    <n-alert v-if="error" type="warning" :bordered="false" data-testid="stats-error">
+      {{ error }}
+    </n-alert>
+
     <n-alert v-if="hasDaily" type="info" :show-icon="true" data-testid="stats-daily-note">
       計費方式為「日薪代課」的節次按日計酬:列在「日薪天數」,不計入鐘點計費節數。
       <template v-if="hasShared">
@@ -159,7 +234,7 @@ onMounted(async () => {
 
     <n-empty
       v-if="report && !hasAny && !loading"
-      description="本月無代課紀錄" data-testid="stats-empty"
+      :description="mode === 'range' ? '這段期間沒有代課紀錄' : '本月無代課紀錄'" data-testid="stats-empty"
     />
 
     <template v-else-if="report && hasAny">
