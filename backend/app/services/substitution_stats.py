@@ -23,7 +23,7 @@
 
 import io
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -101,8 +101,15 @@ class TeacherSummary:
 
 @dataclass
 class MonthlyReport:
-    year: int
-    month: int
+    """一段期間的統計。按月查時 year/month 有值;自訂區間(v1.4.11)時為 None。
+
+    `date_from`、`date_to` 都含當天。
+    """
+
+    date_from: date
+    date_to: date
+    year: int | None = None
+    month: int | None = None
     summaries: list[TeacherSummary] = field(default_factory=list)
     details: list[StatDetail] = field(default_factory=list)
     cover_details: list[CoverDetail] = field(default_factory=list)
@@ -121,8 +128,27 @@ def monthly_report(
     teacher_id: int | None = None,
 ) -> MonthlyReport:
     """某月的代課鐘點統計。指定 teacher_id 則只統計該教師(教師個人查詢用)。"""
-    month_start = date(year, month, 1)
-    month_end = _next_month(year, month)
+    last = _next_month(year, month) - timedelta(days=1)
+    report = range_report(db, semester_id, date(year, month, 1), last, teacher_id=teacher_id)
+    report.year, report.month = year, month
+    return report
+
+
+def range_report(
+    db: Session,
+    semester_id: int,
+    date_from: date,
+    date_to: date,
+    *,
+    teacher_id: int | None = None,
+) -> MonthlyReport:
+    """`date_from` 到 `date_to`(都含)的代課鐘點統計(v1.4.11,組長回報)。
+
+    有的學校不是月底結算,而是每月 15 日(例如 10/16~11/15),所以結算期間要能自己選。
+    只統計這個學期的紀錄;期間跨到別的學期時,另一學期要另外查。
+    """
+    start = date_from
+    end = date_to + timedelta(days=1)   # 以下查詢用半開區間 [start, end)
 
     stmt = (
         select(Substitution, AffectedPeriod)
@@ -131,17 +157,17 @@ def monthly_report(
             Substitution.semester_id == semester_id,
             Substitution.handler_teacher_id.isnot(None),
             AffectedPeriod.status != AffectedStatus.cancelled.value,
-            AffectedPeriod.date >= month_start,
-            AffectedPeriod.date < month_end,
+            AffectedPeriod.date >= start,
+            AffectedPeriod.date < end,
         )
     )
     if teacher_id is not None:
         stmt = stmt.where(Substitution.handler_teacher_id == teacher_id)
 
-    report = MonthlyReport(year=year, month=month)
+    report = MonthlyReport(date_from=date_from, date_to=date_to)
     summaries: dict[int, TeacherSummary] = {}
     rows = db.execute(stmt).all()
-    shared = _shared_daily_days(db, semester_id, month_start, month_end)
+    shared = _shared_daily_days(db, semester_id, start, end)
     daily_days: dict[int, set[date]] = {}
 
     for sub, ap in rows:
@@ -185,7 +211,7 @@ def monthly_report(
                 if is_shared:
                     s.daily_shared_days += 1
 
-    for cover in _covers(db, semester_id, month_start, month_end, teacher_id):
+    for cover in _covers(db, semester_id, start, end, teacher_id):
         handler = cover.handler
         if handler is None:
             continue
@@ -213,15 +239,15 @@ def monthly_report(
 
 
 def _covers(
-    db: Session, semester_id: int, month_start: date, month_end: date, teacher_id: int | None
+    db: Session, semester_id: int, start: date, end: date, teacher_id: int | None
 ) -> list[HomeroomCover]:
     """當月有人代導的日子:銷假取消的不算;已代過的即使事後銷假仍保留(狀態不會變成取消)。"""
     stmt = select(HomeroomCover).where(
         HomeroomCover.semester_id == semester_id,
         HomeroomCover.status == AffectedStatus.resolved.value,
         HomeroomCover.handler_teacher_id.isnot(None),
-        HomeroomCover.date >= month_start,
-        HomeroomCover.date < month_end,
+        HomeroomCover.date >= start,
+        HomeroomCover.date < end,
     )
     if teacher_id is not None:
         stmt = stmt.where(HomeroomCover.handler_teacher_id == teacher_id)
@@ -229,7 +255,7 @@ def _covers(
 
 
 def _shared_daily_days(
-    db: Session, semester_id: int, month_start: date, month_end: date
+    db: Session, semester_id: int, start: date, end: date
 ) -> set[tuple[int, date]]:
     """(請假教師, 日期):那一天他的課由兩位以上「日薪代課」老師分擔。
 
@@ -245,8 +271,8 @@ def _shared_daily_days(
             Substitution.type == SubstitutionType.substitute.value,
             Substitution.funding_source == DAILY_FUNDING,
             AffectedPeriod.status != AffectedStatus.cancelled.value,
-            AffectedPeriod.date >= month_start,
-            AffectedPeriod.date < month_end,
+            AffectedPeriod.date >= start,
+            AffectedPeriod.date < end,
         )
     ).all():
         if sub.handler_teacher_id is None:

@@ -45,29 +45,38 @@ export interface TeacherSummary {
 }
 
 export interface MonthlyReport {
-  year: number
-  month: number
+  date_from: string | null // 統計期間(含當天)
+  date_to: string | null
+  year: number | null // 按月查時才有;自訂區間(v1.4.11)為 null
+  month: number | null
   summaries: TeacherSummary[]
   details: StatDetail[]
   cover_details: CoverDetail[]
 }
 
-function qs(sid: number, year: number, month: number, teacherId?: number | null): string {
-  const p = new URLSearchParams({
-    semester_id: String(sid), year: String(year), month: String(month),
-  })
+/** 按月,或自訂區間(v1.4.11:有的學校每月 15 日結算,例如 10/16~11/15) */
+export type StatsPeriod = { year: number; month: number } | { from: string; to: string }
+
+function qs(sid: number, period: StatsPeriod, teacherId?: number | null): string {
+  const p = new URLSearchParams({ semester_id: String(sid) })
+  if ('from' in period) {
+    p.set('date_from', period.from)
+    p.set('date_to', period.to)
+  } else {
+    p.set('year', String(period.year))
+    p.set('month', String(period.month))
+  }
   if (teacherId) p.set('teacher_id', String(teacherId))
   return p.toString()
 }
 
 export const getStats = (
-  sid: number, year: number, month: number, teacherId?: number | null,
-): Promise<MonthlyReport> => apiGet(`/substitution-stats?${qs(sid, year, month, teacherId)}`)
+  sid: number, period: StatsPeriod, teacherId?: number | null,
+): Promise<MonthlyReport> => apiGet(`/substitution-stats?${qs(sid, period, teacherId)}`)
 
-export const getMyStats = (
-  sid: number, year: number, month: number,
-): Promise<MonthlyReport> => apiGet(`/substitution-stats/mine?${qs(sid, year, month)}`)
+export const getMyStats = (sid: number, period: StatsPeriod): Promise<MonthlyReport> =>
+  apiGet(`/substitution-stats/mine?${qs(sid, period)}`)
 
 export const statsExportUrl = (
-  sid: number, year: number, month: number, teacherId?: number | null,
-): string => `/api/substitution-stats/export?${qs(sid, year, month, teacherId)}`
+  sid: number, period: StatsPeriod, teacherId?: number | null,
+): string => `/api/substitution-stats/export?${qs(sid, period, teacherId)}`

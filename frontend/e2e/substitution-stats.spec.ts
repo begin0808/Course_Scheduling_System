@@ -115,6 +115,20 @@ test.describe('代課鐘點統計', () => {
     ])
     expect(download.suggestedFilename()).toContain('.xlsx')
 
+    // 自訂區間(v1.4.11):切到「自訂區間」,選一段含請假日的期間(跨月也行),結果一樣
+    const iso = (d: Date) => d.toLocaleDateString('sv')
+    const [y, m, d] = DAY.split('-').map(Number)
+    const from = iso(new Date(y, m - 2, d + 1))   // 上個月的隔天 ~ 請假日
+    await page.goto(`/substitution-stats?semester_id=${sem.id}&date_from=${from}&date_to=${DAY}`)
+    await expect(page.getByTestId('stats-range')).toBeVisible()
+    await expect(page.getByTestId('stats-range-hint')).toContainText('起訖兩天都算在內')
+    await expect(page.getByTestId('stats-detail-row')).toHaveCount(2)
+    const [rangeDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('stats-export').click(),
+    ])
+    expect(rangeDownload.suggestedFilename()).toContain(`-${DAY.replace(/-/g, '')}.xlsx`)
+
     // ── 教師陳老師:只看自己,無匯出鈕、無教師篩選 ──
     await page.request.post('/api/auth/logout')
     await login(page, TEACHER_USER, TEACHER_PASS)

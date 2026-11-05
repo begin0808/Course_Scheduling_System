@@ -5,6 +5,7 @@
 """
 
 import io
+from datetime import timedelta
 
 import pytest
 from openpyxl import load_workbook
@@ -204,3 +205,79 @@ def test_export_xlsx(w):
     assert row[0] == "陳師"
     assert row[5] == "王師"       # 原任教師
     assert row[8] == "是"         # 計費
+
+
+# ── 自訂統計區間(v1.4.11,組長回報:有的學校每月 15 日結算)────────
+def _range(w, date_from, date_to, path="", **params):
+    qs = "".join(f"&{k}={v}" for k, v in params.items() if v is not None)
+    return w.client.get(f"/api/substitution-stats{path}{w.q}"
+                        f"&date_from={date_from}&date_to={date_to}{qs}")
+
+
+def test_custom_range_spans_months(w):
+    """10/16~11/15 這種跨月的結算期間:兩個月的節次都算進來,起訖當天都含。"""
+    w.teacher("林師", ["數學"])
+    w.teacher("周師", ["數學"])
+    w.place("林師", "數學", "701", 0, weekday=3)
+    w.publish()
+    leave = w.client.post(f"/api/leaves{w.q}", json={
+        "teacher_id": w.teachers["林師"], "leave_type": "official",
+        "start_date": CROSS_WED.isoformat(), "end_date": CROSS_WED2.isoformat()}).json()
+    for p in leave["affected_periods"]:
+        w.assign(p["id"], type="substitute", handler_teacher_id=w.teachers["周師"])
+
+    r = _range(w, CROSS_WED.isoformat(), CROSS_WED2.isoformat())
+    assert r.status_code == 200, r.json()
+    data = r.json()
+    assert (data["date_from"], data["date_to"]) == (CROSS_WED.isoformat(), CROSS_WED2.isoformat())
+    assert data["year"] is None and data["month"] is None
+    zhou = next(s for s in data["summaries"] if s["teacher_name"] == "周師")
+    assert zhou["billable_count"] == 2, "跨月的兩節都算,起訖當天都含"
+
+    # 起訖往內縮一天,兩端的週三都不算
+    r = _range(w, (CROSS_WED + timedelta(days=1)).isoformat(),
+               (CROSS_WED2 - timedelta(days=1)).isoformat())
+    assert r.json()["summaries"] == []
+
+    # 按月查照舊,也回傳那個月的起訖
+    month = _stats(w, year=CROSS_WED.year, month=CROSS_WED.month)
+    assert month["date_from"] == CROSS_WED.replace(day=1).isoformat()
+    assert (month["year"], month["month"]) == (CROSS_WED.year, CROSS_WED.month)
+
+
+def test_custom_range_validation(w):
+    day = WED.isoformat()
+    assert _range(w, day, day).status_code == 200, "同一天也可以"
+    r = w.client.get(f"/api/substitution-stats{w.q}&date_from={day}")
+    assert r.status_code == 400 and "起始與結束" in r.json()["detail"]
+    r = _range(w, day, (WED - timedelta(days=1)).isoformat())
+    assert r.status_code == 400 and "不可早於" in r.json()["detail"]
+    r = _range(w, day, (WED + timedelta(days=366)).isoformat())
+    assert r.status_code == 400 and "最長" in r.json()["detail"]
+    r = w.client.get(f"/api/substitution-stats{w.q}")
+    assert r.status_code == 400 and "月份或統計區間" in r.json()["detail"]
+
+
+def test_custom_range_export_and_mine(w):
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["國文"])
+    w.place("王師", "國文", "701", 0)
+    w.publish()
+    ap = w.leave("王師")
+    w.assign(ap[0]["id"], type="substitute", handler_teacher_id=w.teachers["陳師"])
+    start, end = WED - timedelta(days=20), WED + timedelta(days=5)
+
+    r = _range(w, start.isoformat(), end.isoformat(), path="/export")
+    assert r.status_code == 200
+    assert f"substitution_hours_{start:%Y%m%d}-{end:%Y%m%d}.xlsx" in r.headers[
+        "content-disposition"]
+    rows = list(load_workbook(io.BytesIO(r.content))["明細"].iter_rows(values_only=True))
+    assert len(rows) == 2, "表頭 + 一節"
+
+    user = make_user(w.db, "chenacc", PW, roles=[Role.teacher])
+    w.db.get(Teacher, w.teachers["陳師"]).user_id = user.id
+    w.db.commit()
+    w.client.post("/api/auth/logout")
+    w.client.post("/api/auth/login", json={"username": "chenacc", "password": PW})
+    mine = _range(w, start.isoformat(), end.isoformat(), path="/mine").json()
+    assert len(mine["details"]) == 1 and mine["date_to"] == end.isoformat()
