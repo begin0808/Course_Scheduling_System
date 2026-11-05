@@ -291,14 +291,19 @@
   <tr><td>分組巡堂單順序<span class="tag limit">限制</span></td><td>固定依配課建立的順序,無法手動調整。</td></tr>
   <tr><td>課表格子的違規標記<span class="tag limit">未做</span></td><td>衝突在「檢查課表」與發布時列出,課表格子上沒有常駐標記。</td></tr>
   <tr><td>排課參數沒有設定畫面<span class="tag limit">限制</span></td><td>同班同科目每日上限(2 節)、教師每日節數與連續授課上限、偏好權重都使用預設值,畫面上沒有地方修改;排不出來時可在「部分排課」勾選放寬每日上限。</td></tr>
-  <tr><td>兩部之間的移動時間</td><td>跨部老師不考慮移動時間;需要的話用教師不可排時段保留。</td></tr>
+  <tr><td>兩部之間的移動時間<span class="tag limit">限制</span></td><td>跨部老師不考慮移動時間;需要的話用教師不可排時段保留。</td></tr>
+  <tr><td>課表查詢不含調代課<span class="tag limit">限制</span></td><td>「課表查詢」與匯出是已發布的固定課表,不會套用當天的調代課;要看當天實際的樣子,請看儀表板「即時概況」、今日調代課看板或巡堂表。</td></tr>
+  <tr><td>三人循環調課<span class="tag limit">未做</span></td><td>調課是兩位老師互換;三位老師輪流換(甲→乙→丙→甲)不支援,調課換來的補課節次也不能再拿去和別人調。可拆成兩次兩人互換,或其中一節改用代課。</td></tr>
+  <tr><td>請假的節次補登調課<span class="tag limit">限制</span></td><td>請假的節次過去了只能補登代課、併班、自習、不處理,不能補登成調課(規則牽動太廣)。沒請假、只是調課的,用「新增調課(未請假)」補登;請假的可補登代課並把鐘點設為「不計」。</td></tr>
+  <tr><td>可對調節次只列換得成的<span class="tag limit">限制</span></td><td>調課清單只列出雙方都有空的節次,換不了的節次不會列出原因;某位老師整個換不了時才會寫原因(例如那節自己有課、也請假)。</td></tr>
 </table></div>
 
 <h2 id="plan"><span class="no">15</span>規劃中</h2>
 <div class="tbl"><table>
   <tr><th>項目</th><th>內容</th><th>預定</th></tr>
-  <tr><td>匯入配課支援單雙週</td><td>Excel 範本加上單週/雙週與配對欄位,並與舊範本相容。</td><td class="ver">v1.3.x</td></tr>
+  <tr><td>匯入配課支援單雙週</td><td>Excel 範本加上單週/雙週與配對欄位,並與舊範本相容。單雙週課每校通常只有幾組,目前先在畫面上建。</td><td class="ver">等學校提出需求</td></tr>
   <tr><td>工程改善</td><td>API 映像拆掉排課引擎(約 674MB → 200MB)、前端按需載入、科目匯入支援主科欄、配課當下擋群組節數不一致、還原上傳改串流。</td><td class="ver">之後</td></tr>
+  <tr><td>LINE 通知</td><td>目前是站內通知與 Email。LINE 通知需要各校自行申請 LINE 官方帳號並設定,等有學校提出需求再做。</td><td class="ver">等學校提出需求</td></tr>
 </table></div>
 
 <h2 id="history"><span class="no">16</span>版本沿革</h2>
