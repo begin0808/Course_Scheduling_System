@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { NSelect } from 'naive-ui'
 import { describe, expect, it, vi } from 'vitest'
 import SubstitutionLog from './SubstitutionLog.vue'
 
@@ -42,5 +43,17 @@ describe('SubstitutionLog 查詢上限', () => {
   it('未達上限時不提示(否則每次查詢都在喊狼來了)', async () => {
     const wrapper = await mountLog(3)
     expect(wrapper.find('[data-testid="log-truncated"]').exists()).toBe(false)
+  })
+})
+
+// v1.4.10(組長回報):補登調課是為了「查老師多常換課」,假別篩選要選得到調課(未請假)
+describe('SubstitutionLog 假別篩選', () => {
+  it('除了請假的假別,也能篩「調課(未請假)」', async () => {
+    const wrapper = await mountLog(3)
+    const labels = wrapper.findAllComponents(NSelect)
+      .flatMap((s) => (s.props('options') ?? []) as { label: string; value: unknown }[])
+      .map((o) => `${o.value}:${o.label}`)
+    expect(labels).toContain('sick:病假')
+    expect(labels).toContain('swap_only:調課(未請假)')
   })
 })

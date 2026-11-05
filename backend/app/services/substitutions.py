@@ -88,8 +88,11 @@ def assign(
         raise SubstitutionError("此節次已結束,無法變更處置")
     if backfill and affected.leave_request.status == LeaveStatus.cancelled.value:
         raise SubstitutionError("此假單已銷假")
-    if backfill and sub_type == SubstitutionType.swap.value:
-        raise SubstitutionError("這一節已經過了,無法補登調課(調課要安排之後的補課節次),請改登代課")
+    if (backfill and sub_type == SubstitutionType.swap.value
+            and affected.leave_request.leave_type != LeaveType.swap_only.value):
+        raise SubstitutionError(
+            "這一節已經過了,請假的節次無法補登調課,請改登代課"
+            "(沒請假、只是調課的,請用「新增調課(未請假)」補登)")
     if sub_type not in set(SubstitutionType):
         raise SubstitutionError(f"未知的處置方式:{sub_type}")
     if (affected.leave_request.leave_type == LeaveType.swap_only.value
@@ -132,7 +135,10 @@ def assign(
 
 
 def is_backfill(affected: AffectedPeriod) -> bool:
-    """已經過去、還沒處理的節次:現在指派就是補登(不通知、不能調課)。"""
+    """已經過去、還沒處理的節次:現在指派就是補登(不通知)。
+
+    請假的節次不能補登調課;「調課(未請假)」只能調課,補登的就是調課(v1.4.10)。
+    """
     return affected.status == AffectedStatus.pending.value and clock.is_past_slot(
         affected.date, affected.end_time)
 

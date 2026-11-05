@@ -77,6 +77,7 @@ def test_backfill_rejects_swap(w, monkeypatch):  # noqa: F811
     code, body = w.assign(ap_id, type="swap", handler_teacher_id=w.teachers["陳師"],
                           swap_entry_id=1, swap_date=WED2.isoformat())
     assert code == 409 and "無法補登調課" in body["detail"]
+    assert "新增調課(未請假)" in body["detail"], "沒請假的調課另有補登的入口(v1.4.10)"
 
 
 def test_batch_backfills_past_pending_periods(w, monkeypatch):  # noqa: F811

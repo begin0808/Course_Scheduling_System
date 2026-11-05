@@ -100,7 +100,7 @@ export interface DayPeriod {
   end_time: string | null
   class_names: string
   subject_name: string
-  is_past: boolean // 已經上過:不能調課
+  is_past: boolean // 已經上過:選了就是補登調課(v1.4.10,不通知)
   taken_by: string // 已經在別張假單/調課裡:那張的假別名稱
 }
 export const getDayPeriods = (

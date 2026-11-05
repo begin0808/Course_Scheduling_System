@@ -5,6 +5,9 @@
 只允許調課;不出現在請假登記、不算請假(不產生代導、人仍在學校)。
 """
 
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
 from sqlalchemy import select
 
 from app.core import clock
@@ -119,13 +122,6 @@ def test_rejects_bad_selection(env2):  # noqa: F811
     assert code == 400 and "病假" in body["detail"]
 
 
-def test_rejects_past_periods(env2, monkeypatch):  # noqa: F811
-    w = env2
-    _school(w)
-    monkeypatch.setattr(clock, "school_now", lambda: AFTER)
-    assert all(p["is_past"] for p in _day(w))
-    code, body = _create(w, [w.wed[0]["period_no"]])
-    assert code == 400 and "已經上過" in body["detail"]
 
 
 def test_cancel_notifies_both_and_frees_the_period(env2):  # noqa: F811
@@ -226,3 +222,98 @@ def test_real_leave_does_not_release(env2):  # noqa: F811
     leave = w.leave("洪師")
     p2_ap = next(p for p in leave if p["period_no"] == w.wed[1]["period_no"])
     assert (WED.isoformat(), p1) not in _options(w, p2_ap["id"], "張師")
+
+
+# ── v1.4.10:補登已經上過的調課(組長回報:留紀錄,查老師多常換課)──────────
+def test_backfill_past_swap(env2, monkeypatch):  # noqa: F811
+    """兩邊都上完了才登記:節次與補課節次都可以是過去的;不通知、操作紀錄標「補登」。"""
+    w = env2
+    _school(w)
+    monkeypatch.setattr(clock, "school_now", lambda: AFTER)
+    assert all(p["is_past"] for p in _day(w))
+    code, leave = _create(w, [w.wed[0]["period_no"]])
+    assert code == 201, leave
+    ap = leave["affected_periods"][0]
+    assert ap["is_past"] and ap["status"] == "pending"
+
+    # 陳師週三第三節(和王師同一天,已經過了)列得出來
+    assert (WED.isoformat(), w.wed[2]["period_no"]) in _options(w, ap["id"], "陳師")
+    code, body = w.assign(ap["id"], type="swap", handler_teacher_id=w.teachers["陳師"],
+                          swap_entry_id=_find_entry(w, "陳師"), swap_date=WED.isoformat())
+    assert code == 200, body
+
+    w.db.expire_all()
+    after = w.client.get(f"/api/leaves/{leave['id']}").json()["affected_periods"][0]
+    assert after["status"] == "completed"
+    assert w.db.scalars(select(Notification)).all() == [], "補登不通知"
+    assert w.db.scalars(select(AuditLog).where(
+        AuditLog.action == "assign_substitution")).all()[-1].detail.startswith("補登 ")
+
+    # 查得到:依老師、依「調課(未請假)」篩選
+    r = w.client.get(f"/api/substitution-log{w.q}&teacher_id={w.teachers['王師']}"
+                     "&leave_type=swap_only")
+    assert r.status_code == 200, r.json()
+    assert [(e["date"], e["sub_type"]) for e in r.json()] == [(WED.isoformat(), "swap")]
+
+    # 補登完不能改、不能撤回;登錯了取消整筆再重登
+    code, body = w.assign(ap["id"], type="swap", handler_teacher_id=w.teachers["陳師"],
+                          swap_entry_id=_find_entry(w, "陳師"), swap_date=WED2.isoformat())
+    assert code == 409 and "已結束" in body["detail"]
+    assert w.client.post(f"/api/leaves/{leave['id']}/cancel").status_code == 200
+    assert {p["taken_by"] for p in _day(w)} == {""}
+
+
+def test_backfill_linked_periods_same_day(env2, monkeypatch):  # noqa: F811
+    """組長的情境:學校活動讓兩班第一、二節對調,事後才補登——兩節一起勾,互相補課。"""
+    w = env2
+    _linked_school(w)
+    monkeypatch.setattr(clock, "school_now", lambda: AFTER)
+    p1, p2 = w.wed[0]["period_no"], w.wed[1]["period_no"]
+    code, leave = _create(w, [p1, p2], "洪師")
+    assert code == 201, leave
+    ap = {p["period_no"]: p["id"] for p in leave["affected_periods"]}
+    code, body = w.assign(ap[p2], type="swap", handler_teacher_id=w.teachers["張師"],
+                          swap_entry_id=_find_entry(w, "張師", 0), swap_date=WED.isoformat())
+    assert code == 200, body
+    code, body = w.assign(ap[p1], type="swap", handler_teacher_id=w.teachers["李師"],
+                          swap_entry_id=_find_entry(w, "李師", 1), swap_date=WED.isoformat())
+    assert code == 200, body
+
+
+def test_backfill_swap_still_checks_conflicts(env2, monkeypatch):  # noqa: F811
+    """補登一樣檢查課表:王師自己那節有課,就不能說他那時去補別人的課。"""
+    w = env2
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["數學"])
+    w.place("王師", "國文", "701", 0)
+    w.place("王師", "國文", "702", 1)
+    w.place("陳師", "數學", "703", 1)   # 陳師第二節:王師那節在 702 上國文
+    w.place("陳師", "數學", "703", 2)
+    w.publish()
+    monkeypatch.setattr(clock, "school_now", lambda: AFTER)
+    code, leave = _create(w, [w.wed[0]["period_no"]])
+    ap = leave["affected_periods"][0]
+    opts = _options(w, ap["id"], "陳師")
+    assert (WED.isoformat(), w.wed[1]["period_no"]) not in opts
+    assert (WED.isoformat(), w.wed[2]["period_no"]) in opts
+
+
+def test_future_swap_does_not_offer_past_makeup(env2, monkeypatch):  # noqa: F811
+    """還沒上的調課照舊:補課節次不能選已經過去的(只有補登才放寬)。"""
+    w = env2
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["數學"])
+    w.place("王師", "國文", "701", 0)
+    w.place("陳師", "數學", "703", 2)
+    w.place("陳師", "數學", "704", 2, weekday=1)
+    w.publish()
+    code, leave = _create(w, [w.wed[0]["period_no"]], day=WED2)
+    ap = leave["affected_periods"][0]
+    monday = (WED2 - timedelta(days=2)).isoformat()
+    assert monday in {d for d, _ in _options(w, ap["id"], "陳師")}, "還沒到時列得出來"
+    # 陳師週一也有課;時間停在 WED2 那週的週二:週一那節已經過了、WED2 還沒到
+    now = datetime.combine(WED2 - timedelta(days=1), time(8), tzinfo=ZoneInfo("Asia/Taipei"))
+    monkeypatch.setattr(clock, "school_now", lambda: now)
+    opts = _options(w, ap["id"], "陳師")
+    assert (WED2.isoformat(), w.wed[2]["period_no"]) in opts
+    assert monday not in {d for d, _ in opts}, "已經過去的補課節次不列"

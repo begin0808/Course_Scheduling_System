@@ -80,7 +80,10 @@ function resetFilters() {
 }
 
 onMounted(async () => {
-  ;[semesters.value, leaveTypes.value] = await Promise.all([listSemesters(), listLeaveTypes()])
+  const [sems, types] = await Promise.all([listSemesters(), listLeaveTypes()])
+  semesters.value = sems
+  // 調課(未請假)不是假別、請假登記選不到,但查「老師多常換課」時要能篩出來(v1.4.10,組長回報)
+  leaveTypes.value = { ...types, swap_only: '調課(未請假)' }
   if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
 })
 
