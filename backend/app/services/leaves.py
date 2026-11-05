@@ -359,6 +359,9 @@ def create_swap_request(
 
     建一筆「調課(未請假)」紀錄,只展開選定的節次,之後沿用調課的流程(可對調節次、
     調課單、看板、通知)。不產生代導、不通知(調課成立時才通知雙方)。呼叫端負責 commit。
+
+    已經上過的節次也可以選(v1.4.10,組長回報:事後補登,留紀錄查老師多常換課);
+    之後選對調節次就是補登調課,不通知老師,見 `substitutions.assign`。
     """
     validate(semester, day, day)
     wanted = set(period_nos)
@@ -368,9 +371,6 @@ def create_swap_request(
     missing = wanted - {p.period_no for p in periods}
     if missing:
         raise LeaveError(f"{teacher.name} {day} 沒有這幾節課,請重新選擇")
-    for p in periods:
-        if clock.is_past_slot(p.date, p.end_time):
-            raise LeaveError(f"{p.period_name}已經上過了,不能調課")
     taken = taken_periods(db, teacher.id, day)
     for p in periods:
         if p.period_no in taken:

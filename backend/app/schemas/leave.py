@@ -82,7 +82,7 @@ class DayPeriodOut(BaseModel):
     end_time: time | None = None
     class_names: str
     subject_name: str
-    is_past: bool          # 已經上過:不能調課
+    is_past: bool          # 已經上過:選了就是補登調課(v1.4.10)
     taken_by: str = ""     # 已經在別張假單/調課裡:那張的假別名稱
 
 

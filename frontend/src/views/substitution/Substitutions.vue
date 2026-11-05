@@ -431,8 +431,8 @@ async function loadDayPeriods() {
 }
 
 function dayPeriodNote(p: DayPeriod): string {
-  if (p.is_past) return '已經上過'
   if (p.taken_by) return `已在「${p.taken_by}」裡`
+  if (p.is_past) return '已經上過,可補登'
   return ''
 }
 
@@ -728,7 +728,14 @@ function candidateTagType(c: Candidate): string {
                     {{ l.teacher_name }}沒有請假,只能選調課:請另一位老師來上這一節,
                     {{ l.teacher_name }}再找一天補回對方的一節。
                   </n-text>
-                  <n-alert v-if="p.is_past" type="info" :bordered="false" data-testid="sub-backfill-hint">
+                  <n-alert
+                    v-if="p.is_past && isSwapOnly(l)" type="info" :bordered="false"
+                    data-testid="sub-backfill-swap-hint"
+                  >
+                    這一節已經過了:補登調課只留紀錄,不會通知老師(補課的節次也可以選已經過去的)。
+                    補登後就不能再修改或撤回;登錯了請按「取消這筆調課」後重新登記。
+                  </n-alert>
+                  <n-alert v-else-if="p.is_past" type="info" :bordered="false" data-testid="sub-backfill-hint">
                     這一節已經過了:補登後直接列入代課鐘點統計,不會通知老師。
                     補登後就不能再修改或撤回,請確認後再按。
                   </n-alert>
@@ -1004,6 +1011,10 @@ function candidateTagType(c: Candidate): string {
           同一天有好幾節要一起換(例如學校活動,兩班的第七、八節同時對調),
           請在這裡一次勾齊:勾在一起的節次都會交給別人上,彼此的時段就能拿來補課。
         </n-text>
+        <n-text depth="3" data-testid="sub-ns-backfill-hint">
+          已經上過的調課也可以事後補登(留紀錄用):補登不會通知老師,
+          之後在「調代課紀錄」查得到。
+        </n-text>
         <n-space align="center">
           <n-text style="min-width: 40px">教師</n-text>
           <n-select
@@ -1024,7 +1035,7 @@ function candidateTagType(c: Candidate): string {
           <n-space vertical size="small">
             <n-checkbox
               v-for="p in nsPeriods" :key="p.period_no" :value="p.period_no"
-              :disabled="p.is_past || !!p.taken_by" data-testid="sub-ns-period"
+              :disabled="!!p.taken_by" data-testid="sub-ns-period"
             >
               {{ p.period_name }} · {{ p.class_names }} {{ p.subject_name }}
               <n-text v-if="dayPeriodNote(p)" depth="3">({{ dayPeriodNote(p) }})</n-text>

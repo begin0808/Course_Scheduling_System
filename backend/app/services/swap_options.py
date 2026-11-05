@@ -63,6 +63,14 @@ class SwapChecker:
         self.absent: Teacher = affected.leave_request.teacher
         self.semester = db.get(Semester, affected.semester_id)
         self._taken: set[tuple[int, date, int]] | None = None
+        # 補登已經上過的調課(v1.4.10,組長回報:事後補登,留紀錄查老師多常換課):
+        # 兩邊都已經上完了,補課那節也可以是過去的。只限「調課(未請假)」——
+        # 請假的節次過去了只能補登代課(`substitutions.assign`)。
+        self.backfill = (
+            affected.leave_request.leave_type == LeaveType.swap_only.value
+            and affected.status == AffectedStatus.pending.value
+            and clock.is_past_slot(affected.date, affected.end_time)
+        )
 
     def partner_blocker(self, partner: Teacher) -> str | None:
         """乙在甲請假那節能不能來上課(自己有課、也請假、已被安排代別班都不行)。"""
@@ -104,7 +112,7 @@ class SwapChecker:
             (sem.start_date and when < sem.start_date) or (sem.end_date and when > sem.end_date)
         ):
             return f"{when} 不在學期期間內"
-        if clock.is_past_slot(when, slot.end):
+        if clock.is_past_slot(when, slot.end) and not self.backfill:
             return f"{when} {pname} 已經上過,無法補課"
         if self.av.is_on_leave(partner.id, when, slot):
             return f"{partner.name} {when} {pname} 也請假,這節課本身就需要安排,不能拿來對調"

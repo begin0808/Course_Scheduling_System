@@ -224,6 +224,23 @@ describe('調代課處理:補登已經過去的節次', () => {
     expect(wrapper.find('[data-testid="sub-merge"]').exists()).toBe(true)
   })
 
+  // v1.4.10(組長回報):沒請假的調課可以補登,留紀錄查老師多常換課
+  it('調課(未請假)補登:說明只留紀錄、不通知,直接列可對調節次', async () => {
+    const pastSwapOnly = {
+      ...pastLeave, leave_type: 'swap_only', leave_type_label: '調課(未請假)',
+    }
+    stubFetch(pastSwapOnly)
+    const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
+    await flushPromises()
+    await wrapper.find('[data-testid="sub-handle"]').trigger('click')
+    await flushPromises()
+    const hint = wrapper.find('[data-testid="sub-backfill-swap-hint"]')
+    expect(hint.text()).toContain('只留紀錄')
+    expect(hint.text()).toContain('取消這筆調課')
+    expect(wrapper.find('[data-testid="sub-backfill-hint"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sub-swap-panel"]').exists()).toBe(true)
+  })
+
   it('還沒過的節次照舊:待處理、處理、可以調課', async () => {
     stubFetch(leave)
     const wrapper = mount({ render: () => h(NMessageProvider, () => h(Substitutions)) })
