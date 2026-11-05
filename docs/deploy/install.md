@@ -2,6 +2,8 @@
 
 從零把系統架起來。整個過程約 15 分鐘(含下載映像)。
 
+> ▶ **示範影片**:[01 安裝](https://youtu.be/bklDetJlA1U)(YouTube,不到兩分鐘;[全部影片](https://www.youtube.com/playlist?list=PLMemgzrSRoas))
+
 **有兩條路,選一條就好:**
 
 | | 適合誰 | 你要做的事 |

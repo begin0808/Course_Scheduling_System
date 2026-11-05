@@ -2,6 +2,8 @@
 
 你的所有資料都在 PostgreSQL。系統提供三道保障:**每日自動備份**、**隨時手動備份**、**還原(含還原前自動保護)**。備份檔為 PostgreSQL 原生 custom 格式(`.dump`),存於 Docker volume `backups`。
 
+> ▶ **示範影片**:[07 備份與升級](https://youtu.be/xhM0w_8Zrrw)(YouTube,不到兩分鐘;[全部影片](https://www.youtube.com/playlist?list=PLMemgzrSRoas))
+
 ---
 
 ## 一、每日自動備份(預設已開)

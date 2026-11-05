@@ -99,6 +99,11 @@
   .hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
   .chip{font-size:.78rem;padding:5px 11px;border-radius:999px;background:var(--surface-2);
     border:1px solid var(--border);color:var(--text-soft)}
+  .vid{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;padding:4px 12px;border-radius:999px;
+    border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent-2);font-weight:600}
+  .vid:hover{border-color:var(--accent)}
+  .vids{margin:0 0 6px;padding-left:1.2em}
+  .vids li{margin:2px 0}
   .chip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-2)}
 
   section.ch{padding:56px 0 8px;scroll-margin-top:20px}
@@ -270,6 +275,19 @@
         <p>這本手冊照著「一個學期的實際流程」編排:先把學校的基礎資料建好,再排課、發布,學期中再處理請假與調代課,最後匯出與備份。<strong>第一次使用建議從第 3 章「設定精靈」開始照做</strong>;之後遇到特定工作,再從左側目錄跳到對應章節。</p>
         <p><strong>如果你只是想先試看看這套系統能做什麼</strong>,不必急著建自己學校的資料——<strong>第一次登入時,設定精靈的第一步上方就有「載入示範資料」</strong>——按一下,系統會建出一所完整的虛構國中(18 班、48 位教師),你可以直接跑自動排課、登記請假、指派代課、匯出課表,把整個學期的流程玩過一遍再決定。載完之後,本手冊的第 4 章以後都能照著操作,<strong>第 2、3 章(準備資料、設定精靈)可以先跳過</strong>。</p>
 
+        <h3>操作示範影片</h3>
+        <p>每個主題一支、約一到三分鐘,畫面就是系統本身(示範資料)。建議照順序看,也可以只看需要的那一支;各章開頭也有對應影片的連結。</p>
+        <ol class="vids">
+          <li><a href="https://youtu.be/bklDetJlA1U" target="_blank" rel="noopener">01 安裝</a>(系統管理員)</li>
+          <li><a href="https://youtu.be/sPYsx3aLT8Q" target="_blank" rel="noopener">02 第一次設定</a>(對應第 3 章)</li>
+          <li><a href="https://youtu.be/NHxjXQrBomA" target="_blank" rel="noopener">03 配課與自動排課</a>(第 4、6 章)</li>
+          <li><a href="https://youtu.be/7cTK2tBCLvM" target="_blank" rel="noopener">04 請假與代課</a>(第 8 章)</li>
+          <li><a href="https://youtu.be/3nKGHLc7_yY" target="_blank" rel="noopener">05 調課</a>(8.3)</li>
+          <li><a href="https://youtu.be/TyQ3TMzJoP4" target="_blank" rel="noopener">06 課表匯出與列印</a>(第 9 章)</li>
+          <li><a href="https://youtu.be/xhM0w_8Zrrw" target="_blank" rel="noopener">07 備份與升級</a>(第 10 章與升級說明)</li>
+        </ol>
+        <p><a class="vid" href="https://www.youtube.com/playlist?list=PLMemgzrSRoas" target="_blank" rel="noopener">▶ 完整播放清單(YouTube)</a></p>
+
         <h3>系統裡的四種角色</h3>
         <p>登入後右上角會顯示你的角色。不同角色看得到的功能不同——本手冊主要寫給<span class="rb sch">教學組長</span>。</p>
         <div class="tw"><table>
@@ -379,6 +397,7 @@
       <!-- 03 -->
       <section class="ch" id="wizard">
         <div class="ch-head"><span class="ch-num">03</span><h2>第一次設定(設定精靈)</h2></div>
+        <p><a class="vid" href="https://youtu.be/sPYsx3aLT8Q" target="_blank" rel="noopener">▶ 看示範影片:02 第一次設定</a></p>
         <p>全新系統第一次登入時,會<strong>自動進入五步驟設定精靈</strong>。每一步都可以「上一步」回去修改,也可以「略過,稍後再設定」。</p>
 
         <h4>登入與首次改密碼</h4>
@@ -408,6 +427,7 @@
       <!-- 04 -->
       <section class="ch" id="assign">
         <div class="ch-head"><span class="ch-num">04</span><h2>配課管理</h2></div>
+        <p><a class="vid" href="https://youtu.be/NHxjXQrBomA" target="_blank" rel="noopener">▶ 看示範影片:03 配課與自動排課</a></p>
         <p><span class="path"><b>排課作業</b><i>›</i><b>配課管理</b></span></p>
         <p>「配課」就是決定<strong>哪位老師、教哪個班、哪一科、每週幾節</strong>。這是排課的核心輸入——配課建好,才能開始排課。</p>
 
@@ -467,6 +487,7 @@
       <!-- 06 -->
       <section class="ch" id="auto">
         <div class="ch-head"><span class="ch-num">06</span><h2>自動排課</h2></div>
+        <p><a class="vid" href="https://youtu.be/NHxjXQrBomA" target="_blank" rel="noopener">▶ 看示範影片:03 配課與自動排課</a></p>
         <p><span class="path"><b>排課作業</b><i>›</i><b>自動排課</b></span></p>
         <p>系統內建排課引擎,能在遵守各種硬性規則(教師/場地不衝突、連堂不跨午休、教師不可排時段…)下,自動排出一整週的課表。</p>
 
@@ -514,6 +535,7 @@
       <!-- 08 -->
       <section class="ch" id="subst">
         <div class="ch-head"><span class="ch-num">08</span><h2>學期中的調代課</h2></div>
+        <p><a class="vid" href="https://youtu.be/7cTK2tBCLvM" target="_blank" rel="noopener">▶ 看示範影片:04 請假與代課</a></p>
         <p>這是學期開始後最日常、也最零碎的工作。系統把它拆成一條清楚的鏈:<strong>請假 → 找代課或調課 → 通知 → 確認 → 看板 → 月結</strong>。</p>
         <div class="lifecycle">
           <span class="n">請假登記</span><span class="ar">→</span>
@@ -586,6 +608,7 @@
         <figure class="shot"><img src="manual-img/13-substitute-slips.png" alt="教師代課通知單的列印頁:週課表格式,表頭寫代課教師、請假教師、假別與計費方式" loading="lazy"><figcaption><b>代課通知單</b>列印頁(教師單;往下捲是班級單,按右上角「列印」即可)</figcaption></figure>
 
         <h3>8.3 調課</h3>
+        <p><a class="vid" href="https://youtu.be/3nKGHLc7_yY" target="_blank" rel="noopener">▶ 看示範影片:05 調課</a></p>
         <p>調課和代課不一樣:代課是「請人幫忙上」,調課是「<strong>兩位老師互換</strong>」——乙老師來上請假的這一節,請假的甲老師<strong>改天補回乙老師的一節</strong>,彼此都沒有多上或少上,所以不計代課鐘點。</p>
         <ol class="steps">
           <li><span class="st-t">在「調代課處理」點該節的「處理」</span>,再點下方「或改採:」後面的 <b>調課</b>。</li>
@@ -665,6 +688,7 @@
       <section class="ch" id="export">
 
         <div class="ch-head"><span class="ch-num">09</span><h2>匯出課表</h2></div>
+        <p><a class="vid" href="https://youtu.be/TyQ3TMzJoP4" target="_blank" rel="noopener">▶ 看示範影片:06 課表匯出與列印</a></p>
         <p>已發布的課表可從 <span class="path"><b>課表查詢</b></span> 頁的匯出按鈕輸出成多種格式。</p>
         <div class="tw"><table>
           <thead><tr><th>要什麼</th><th>怎麼拿</th></tr></thead>
@@ -717,6 +741,7 @@
         <div class="cal note"><div class="lab">📌 注意</div><p><strong>沒有填「基本鐘點」的教師不受此限。</strong>基本鐘點欄位可以留空(預設 0),那代表資料還沒建、不是真的不用上課;若把它當真,沒有維護基鐘的學校會發現所有超過 8 節的配課全被擋下。</p></div>
 
         <h3>資料備份與還原</h3>
+        <p><a class="vid" href="https://youtu.be/xhM0w_8Zrrw" target="_blank" rel="noopener">▶ 看示範影片:07 備份與升級</a></p>
         <ul>
           <li><strong>每日自動備份</strong>——系統每天凌晨自動備份,預設保留最新 30 份、自動輪替。</li>
           <li><strong>立即備份</strong>——重大操作(升級、大量匯入、換學期)前,建議先按一次。</li>
