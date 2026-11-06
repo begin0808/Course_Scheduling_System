@@ -117,7 +117,7 @@ const totalDailyDays = computed(() =>
   (report.value?.summaries ?? []).reduce((n, s) => n + s.daily_days, 0))
 const hasDaily = computed(() => (report.value?.details ?? []).some((d) => d.pay_kind === 'daily'))
 const hasShared = computed(() => (report.value?.details ?? []).some((d) => d.daily_shared))
-// 代導(v1.4.0):同一份報表,只分開記全天、半天,代導費由學校自己換算
+// 代導(v1.4.0):同一份報表,只分開記全天(天)、半天(次,v1.4.12),代導費由學校自己換算
 const hasCover = computed(() => (report.value?.cover_details ?? []).length > 0)
 const hasAny = computed(() => !!report.value?.details.length || hasCover.value)
 const coverFull = computed(() =>
@@ -212,7 +212,7 @@ onMounted(async () => {
         日薪合計 {{ totalDailyDays }} 天
       </n-tag>
       <n-tag v-if="hasCover" type="info" data-testid="stats-total-cover">
-        代導合計 全天 {{ coverFull }} 天、半天 {{ coverHalf }} 天
+        代導合計 全天 {{ coverFull }} 天、半天 {{ coverHalf }} 次
       </n-tag>
     </n-space>
 
@@ -244,8 +244,8 @@ onMounted(async () => {
           <tr>
             <th>教師</th><th>代課節數</th><th>{{ hasDaily ? '鐘點計費節數' : '計費節數' }}</th>
             <th v-if="hasDaily">日薪天數</th>
-            <th v-if="hasCover">代導全天</th>
-            <th v-if="hasCover">代導半天</th>
+            <th v-if="hasCover">代導全天(天)</th>
+            <th v-if="hasCover">代導半天(次)</th>
           </tr>
         </thead>
         <tbody>
@@ -302,7 +302,7 @@ onMounted(async () => {
       <template v-if="hasCover">
         <h3 class="sub-title">代導明細</h3>
         <n-text depth="3">
-          代導以天為單位,一班一天算一次;半天假的代導另外計算,代導費請依學校規定換算。
+          全天代導以天計(一班一天算一天),半天代導以次計(一班半天算一次),代導費請依學校規定換算。
         </n-text>
         <table class="data-table" data-testid="stats-cover-detail">
           <thead>

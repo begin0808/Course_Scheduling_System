@@ -2,7 +2,8 @@
 
 調課的語意見 `models/substitution.py`:甲請假那節由乙來上,甲之後補乙的一節。
 後端 M4-2 只會「驗」組長選好的組合;但組長不會自己去翻乙哪一節、哪一天能換——
-這裡替他列出請假那週起**數週內**(預設兩週,最多四週)所有真的換得成的組合。
+這裡替他列出請假那週起**數週內**(預設兩週,最多四週)所有真的換得成的組合;
+換不了的也列出來並寫原因(v1.4.12),組長才看得懂為什麼某一節不能選。
 
 **列出的與送出時驗的必須是同一套規則**,否則清單上點得到、按下去卻被拒絕。
 所以逐項檢查集中在 `SwapChecker`,`substitutions._validate_swap` 也呼叫它。
@@ -63,6 +64,7 @@ class SwapChecker:
         self.absent: Teacher = affected.leave_request.teacher
         self.semester = db.get(Semester, affected.semester_id)
         self._taken: set[tuple[int, date, int]] | None = None
+        self._labels: dict[int, str] = {}
         # 補登已經上過的調課(v1.4.10,組長回報:事後補登,留紀錄查老師多常換課):
         # 兩邊都已經上完了,補課那節也可以是過去的。只限「調課(未請假)」——
         # 請假的節次過去了只能補登代課(`substitutions.assign`)。
@@ -106,22 +108,67 @@ class SwapChecker:
     ) -> str | None:
         """乙的 `entry` 格位中第 `period_no` 節,在 `when` 這天能不能改由甲來補。"""
         pname = _period_label(self.av, entry, period_no)
-        slot = self.av.entry_slot(entry, period_no)
-        sem = self.semester
-        if sem is not None and (
-            (sem.start_date and when < sem.start_date) or (sem.end_date and when > sem.end_date)
-        ):
+        if self._out_of_term(when):
             return f"{when} 不在學期期間內"
-        if clock.is_past_slot(when, slot.end) and not self.backfill:
+        if self.out_of_reach(entry, when, period_no):
             return f"{when} {pname} 已經上過,無法補課"
+        reason = self.reason(partner, entry, when, period_no)
+        return f"{when} {pname} {reason}" if reason else None
+
+    def out_of_reach(self, entry: ScheduleEntry, when: date, period_no: int) -> bool:
+        """不在學期內、或已經上過(補登除外)——清單上連灰色都不列,列了也沒意義。"""
+        if self._out_of_term(when):
+            return True
+        slot = self.av.entry_slot(entry, period_no)
+        return clock.is_past_slot(when, slot.end) and not self.backfill
+
+    def _out_of_term(self, when: date) -> bool:
+        sem = self.semester
+        return sem is not None and bool(
+            (sem.start_date and when < sem.start_date) or (sem.end_date and when > sem.end_date)
+        )
+
+    def reason(
+        self, partner: Teacher, entry: ScheduleEntry, when: date, period_no: int
+    ) -> str | None:
+        """換不了的原因(不含日期、節次——清單上那一格已經寫了)。換得了回 None。
+
+        v1.4.12:組長兩度回報「調課清單抓不到某一節」,兩次系統都對,只是看不出原因
+        (補課老師那節自己有課;請假時段蓋住那一節)。所以換不了的也列出來、寫原因。
+        """
+        slot = self.av.entry_slot(entry, period_no)
         if self.av.is_on_leave(partner.id, when, slot):
-            return f"{partner.name} {when} {pname} 也請假,這節課本身就需要安排,不能拿來對調"
+            return f"{partner.name}這節也請假,這節課本身就需要安排,不能拿來對調"
         if (entry.id, when, period_no) in self._taken_slots():
-            return f"{partner.name} {when} {pname} 這節已經和別的老師調課了"
-        conflict = self.av.conflict_for(self.absent.id, when, slot, self._released(when))
+            return f"{partner.name}這節已經和別的老師調課了"
+        absent = self.absent.name
+        released = self._released(when)
+        if self.av.is_on_leave(self.absent.id, when, slot):
+            return f"{absent}這個時段請假,不能補課"
+        hit = self.av.lesson_at(self.absent.id, slot, when, released)
+        if hit is not None:
+            iv, assignment_id = hit
+            what = self._lesson_label(assignment_id)
+            if iv.period_no != period_no and iv.start and iv.end:
+                # 兩班節次表不同,重疊的是另一個節次號:寫出時間才看得懂
+                what += f" {iv.start:%H:%M}~{iv.end:%H:%M}"
+            return f"{absent}這節自己有課({what})"
+        conflict = self.av.conflict_for(self.absent.id, when, slot, released)
         if conflict is not None:
-            return f"{self.absent.name} 無法在 {when} {pname} 補課:{conflict.detail}"
+            return f"{absent}{conflict.detail}"
         return None
+
+    def _lesson_label(self, assignment_id: int) -> str:
+        """「702 自然」:配課的班級與科目。"""
+        if assignment_id not in self._labels:
+            a = self.db.get(CourseAssignment, assignment_id)
+            if a is None:
+                self._labels[assignment_id] = ""
+            else:
+                classes = "、".join(m.class_unit.name for m in a.scheduling_unit.members)
+                subject = a.subject.name if a.subject else ""
+                self._labels[assignment_id] = f"{classes} {subject}".strip()
+        return self._labels[assignment_id]
 
     def _released(self, when: date) -> list[Interval]:
         """甲在 `when` 這天、同一筆「調課(未請假)」裡的節次(v1.4.9,組長回報)。
@@ -154,6 +201,7 @@ class SwapOption:
     subject_name: str
     same_class: bool  # 與請假那節是同一班(真正的「同班互調」,學生只是兩科前後對換)
     in_block: bool    # 是連堂中的一節(只換這一節,其餘照常由乙上)
+    blocked_reason: str = ""  # 非空 = 換不了,灰色列出原因(v1.4.12)
 
 
 @dataclass
@@ -163,6 +211,8 @@ class SwapPartner:
     teaches_same_class: bool
     blocked_reason: str = ""  # 非空 = 乙本身在請假那節就來不了,options 必為空
     options: list[SwapOption] = field(default_factory=list)
+    # 換不了的節次與原因(v1.4.12);已上過、不在學期內的不列
+    blocked: list[SwapOption] = field(default_factory=list)
 
 
 @dataclass
@@ -177,14 +227,20 @@ DEFAULT_WEEKS = 2
 MAX_WEEKS = 4
 
 
-def search_window(on: date, weeks: int = DEFAULT_WEEKS) -> tuple[date, date]:
+def search_window(
+    on: date, weeks: int = DEFAULT_WEEKS, start: date | None = None
+) -> tuple[date, date]:
     """請假那天所在週的週一,往後共 `weeks` 週(到最後一週的週日)。
 
     預設兩週(當週互調或和下週調);使用學校實務上常有隔週、甚至「本週與隔三週」對調,
     故最多開到四週。範圍再大,清單會長到組長找不到要的那一節。
+
+    `start`(v1.4.12,組長回報):老師一月請假、想十一月就先補課,
+    改從 `start` 所在的那週開始找。送出時的檢查本來就不限日期在請假之後。
     """
     weeks = max(1, min(weeks, MAX_WEEKS))
-    monday = on - timedelta(days=on.isoweekday() - 1)
+    base = start or on
+    monday = base - timedelta(days=base.isoweekday() - 1)
     return monday, monday + timedelta(days=7 * weeks - 1)
 
 
@@ -221,6 +277,7 @@ def search(
     *,
     teacher_id: int | None = None,
     weeks: int = DEFAULT_WEEKS,
+    start: date | None = None,
     availability: Availability | None = None,
 ) -> SwapSearch:
     """列出可對調的節次。
@@ -229,7 +286,7 @@ def search(
     指定時只看那一位(組長心裡已經有人選)。
     """
     av = availability or Availability(db, affected.semester_id)
-    date_from, date_to = search_window(affected.date, weeks)
+    date_from, date_to = search_window(affected.date, weeks, start)
     result = SwapSearch(affected_period_id=affected.id, date_from=date_from, date_to=date_to)
     if av.timetable is None:
         return result
@@ -286,17 +343,20 @@ def search(
                 for no in block_periods(av, entry):
                     if when == affected.date and no == affected.period_no:
                         continue
-                    if checker.option_blocker(partner, entry, when, no) is not None:
+                    if checker.out_of_reach(entry, when, no):
                         continue
-                    sp.options.append(SwapOption(
+                    reason = checker.reason(partner, entry, when, no)
+                    (sp.blocked if reason else sp.options).append(SwapOption(
                         entry_id=entry.id, date=when, weekday=entry.weekday,
                         period_no=no, period_name=_period_label(av, entry, no),
                         class_names=class_names,
                         subject_name=a.subject.name if a.subject else "",
                         same_class=bool(entry_classes & class_ids),
                         in_block=entry.span > 1,
+                        blocked_reason=reason or "",
                     ))
         sp.options.sort(key=lambda o: (not o.same_class, o.date, o.period_no))
+        sp.blocked.sort(key=lambda o: (not o.same_class, o.date, o.period_no))
 
     # 有得換的排前面;同班老師優先
     result.partners.sort(key=lambda p: (

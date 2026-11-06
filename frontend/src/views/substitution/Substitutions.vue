@@ -43,6 +43,10 @@ const loadingSwap = ref(false)
 const swapTeacherId = ref<number | null>(null)
 // 找幾週:換節次、換假單都沿用組長上次選的(常和隔三週調的學校,每次都要重選很煩)
 const swapWeeks = ref(2)
+// 從哪一週開始找(v1.4.12):空 = 請假那週。一月請假、想十一月先補課時改這裡。換節次就清空
+const swapStart = ref<number | null>(null)
+// 換不了的節次(v1.4.12):每位老師預設收起,展開過的記在這裡
+const blockedShown = ref<Set<number>>(new Set())
 // 併班(v1.3.5):這一節正在上自己班的老師;選一位,把請假老師的班併過去
 const mergeOpen = ref(false)
 const mergeOptions = ref<MergeOption[] | null>(null)
@@ -93,7 +97,9 @@ function resetSwap() {
   swapOpen.value = false
   swap.value = null
   swapTeacherId.value = null
+  swapStart.value = null
   swapExpanded.value = new Set()
+  blockedShown.value = new Set()
   mergeOpen.value = false
   mergeOptions.value = null
 }
@@ -111,6 +117,22 @@ function hiddenCount(partner: SwapPartner): number {
 
 function expandPartner(partner: SwapPartner) {
   swapExpanded.value = new Set([...swapExpanded.value, partner.teacher_id])
+}
+
+function toggleBlocked(partner: SwapPartner) {
+  const shown = new Set(blockedShown.value)
+  if (shown.has(partner.teacher_id)) shown.delete(partner.teacher_id)
+  else shown.add(partner.teacher_id)
+  blockedShown.value = shown
+}
+
+/** 「從哪週開始找」最早只能選到本週(已上過的節次本來就換不了);補登過去的調課不限 */
+function swapStartDisabled(p: AffectedPeriod, ts: number): boolean {
+  if (p.is_past) return false
+  const now = new Date()
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+  return ts < monday.getTime()
 }
 
 async function onSemesterChange(id: number) {
@@ -266,7 +288,9 @@ function swapTeacherOptions(l: LeaveRequest) {
 async function loadSwap(p: AffectedPeriod) {
   loadingSwap.value = true
   try {
-    swap.value = await getSwapOptions(p.id, swapTeacherId.value, swapWeeks.value)
+    swap.value = await getSwapOptions(
+      p.id, swapTeacherId.value, swapWeeks.value,
+      swapStart.value === null ? null : isoOf(swapStart.value))
   } finally {
     loadingSwap.value = false
   }
@@ -305,6 +329,11 @@ async function onSwapTeacherChange(p: AffectedPeriod, id: number | null) {
 
 async function onSwapWeeksChange(p: AffectedPeriod, weeks: number) {
   swapWeeks.value = weeks
+  await loadSwap(p)
+}
+
+async function onSwapStartChange(p: AffectedPeriod, ts: number | null) {
+  swapStart.value = ts
   await loadSwap(p)
 }
 
@@ -853,6 +882,15 @@ function candidateTagType(c: Candidate): string {
                         style="width: 140px" data-testid="sub-swap-weeks"
                         @update:value="(v: number) => onSwapWeeksChange(p, v)"
                       />
+                      <n-text depth="3" style="margin-left: 12px">從</n-text>
+                      <n-date-picker
+                        :value="swapStart" type="date" clearable size="small"
+                        style="width: 150px" placeholder="請假那週"
+                        :is-date-disabled="(ts: number) => swapStartDisabled(p, ts)"
+                        data-testid="sub-swap-start"
+                        @update:value="(v: number | null) => onSwapStartChange(p, v)"
+                      />
+                      <n-text depth="3">那週開始找</n-text>
                     </n-space>
 
                     <n-text v-if="loadingSwap" depth="3">尋找可對調的節次…</n-text>
@@ -879,7 +917,7 @@ function candidateTagType(c: Candidate): string {
                           無法對調:{{ partner.blocked_reason }}
                         </n-text>
                         <n-text v-else-if="!partner.options.length" depth="3" class="swap-note">
-                          這段期間找不到雙方都有空的節次,可試著放寬週數
+                          這段期間找不到雙方都有空的節次,可試著放寬週數或改從其他週開始找
                         </n-text>
                         <n-space v-else size="small" class="swap-note">
                           <n-button
@@ -899,6 +937,31 @@ function candidateTagType(c: Candidate): string {
                             顯示其他班級的 {{ hiddenCount(partner) }} 個節次
                           </n-button>
                         </n-space>
+                        <!-- 換不了的節次(v1.4.12):組長看得出某一節為什麼不能選 -->
+                        <div
+                          v-if="!partner.blocked_reason && partner.blocked.length" class="swap-note"
+                        >
+                          <n-button
+                            size="small" text data-testid="sub-swap-blocked-toggle"
+                            @click="toggleBlocked(partner)"
+                          >
+                            {{ blockedShown.has(partner.teacher_id)
+                              ? '收起換不了的節次'
+                              : `另有 ${partner.blocked.length} 節換不了(看原因)` }}
+                          </n-button>
+                          <ul
+                            v-if="blockedShown.has(partner.teacher_id)" class="swap-blocked"
+                            data-testid="sub-swap-blocked"
+                          >
+                            <li
+                              v-for="opt in partner.blocked"
+                              :key="`${opt.entry_id}-${opt.date}-${opt.period_no}`"
+                            >
+                              {{ shortDate(opt.date) }} {{ opt.period_name }} ·
+                              {{ opt.class_names }} {{ opt.subject_name }}:{{ opt.blocked_reason }}
+                            </li>
+                          </ul>
+                        </div>
                       </div>
                     </template>
                   </div>
@@ -1169,4 +1232,5 @@ function candidateTagType(c: Candidate): string {
 .swap-partner { margin: 6px 0; }
 .swap-note { display: block; margin: 4px 0 0 12px; }
 .swap-block { margin-left: 4px; opacity: 0.7; }
+.swap-blocked { margin: 4px 0 0; padding-left: 20px; opacity: 0.65; font-size: 13px; }
 </style>

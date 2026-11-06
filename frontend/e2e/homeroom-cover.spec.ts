@@ -68,7 +68,7 @@ test('代導:導師請假兩天,一次指派整段、列印代導單、月結列
 
     // 月結:同一份報表,代導全天 2 天(WED、THU 同在基準週,必同月)
     await page.goto(`/substitution-stats?semester_id=${sem.id}${statsQuery(WED)}`)
-    await expect(page.getByTestId('stats-total-cover')).toContainText('全天 2 天、半天 0 天')
+    await expect(page.getByTestId('stats-total-cover')).toContainText('全天 2 天、半天 0 次')
     await expect(page.getByTestId('stats-cover-row')).toHaveCount(2)
     await expect(page.getByTestId('stats-cover-full')).toHaveText('2')
   } finally {

@@ -111,6 +111,7 @@ class SwapOptionOut(BaseModel):
     subject_name: str
     same_class: bool
     in_block: bool = False
+    blocked_reason: str = ""  # 只有 blocked 清單裡的才有:換不了的原因(v1.4.12)
 
 
 class SwapPartnerOut(BaseModel):
@@ -119,10 +120,14 @@ class SwapPartnerOut(BaseModel):
     teaches_same_class: bool
     blocked_reason: str = ""
     options: list[SwapOptionOut] = []
+    blocked: list[SwapOptionOut] = []  # 換不了的節次,各附原因(v1.4.12)
 
 
 class SwapOptionsOut(BaseModel):
-    """可對調節次:請假那週起數週內,乙能來、甲能補的每一個組合。"""
+    """可對調節次:請假那週(或組長指定的那週)起數週內,乙能來、甲能補的每一個組合。
+
+    換不了的節次另列在每位老師的 `blocked`,各附原因(已上過、不在學期內的不列)。
+    """
 
     affected_period_id: int
     date_from: date
