@@ -539,6 +539,95 @@ def test_swap_slot_already_taken_by_another_swap_is_not_offered(env2):
     assert code == 409 and "已經和別的老師調課" in body["detail"]
 
 
+def test_swap_options_list_blocked_slots_with_reasons(env2):
+    """v1.4.12:換不了的節次另外列出並寫原因(組長看不出為什麼某一節不能選)。
+
+    王師週三整天請假、週四第二節自己有 703 國文;陳師週四第二節 701、週三第二節 702。
+    """
+    from datetime import timedelta
+
+    w = env2
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["數學", "自然"])
+    w.place("王師", "國文", "701", 0)
+    w.place("王師", "國文", "703", 1, weekday=4)
+    w.place("陳師", "數學", "701", 1, weekday=4)
+    w.place("陳師", "自然", "702", 1)
+    w.publish()
+    affected_id = w.leave("王師")[0]["id"]
+
+    chen = _options(w, affected_id)["partners"][0]
+    assert [o["date"] for o in chen["options"]] == [WED2.isoformat()]
+    assert all(o["blocked_reason"] == "" for o in chen["options"])
+    got = [(o["date"], o["class_names"], o["blocked_reason"]) for o in chen["blocked"]]
+    assert got == [
+        (THU.isoformat(), "701", "王師這節自己有課(703 國文)"),
+        ((THU + timedelta(days=7)).isoformat(), "701", "王師這節自己有課(703 國文)"),
+        (WED.isoformat(), "702", "王師這個時段請假,不能補課"),
+    ]
+
+    # 送出時的訊息也是同一句,前面加上日期與節次
+    entry_id = _find_entry(w, "陳師", period_idx=1, weekday=4)
+    code, body = w.assign(affected_id, type="swap", handler_teacher_id=w.teachers["陳師"],
+                          swap_entry_id=entry_id, swap_date=THU.isoformat())
+    assert code == 409 and "王師這節自己有課(703 國文)" in body["detail"]
+
+
+def test_swap_options_same_day_after_half_day_leave(env2):
+    """組長回報「不會判斷當天的節次」:請半天假時,請假時段以外的當天節次照樣列出。"""
+    w = env2
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["數學", "自然"])
+    w.place("王師", "國文", "701", 0)          # 週三第一節(上午)
+    w.place("陳師", "自然", "701", 1)          # 週三第二節(上午)→ 王師請假中
+    w.place("陳師", "數學", "701", 5)          # 週三第六節(下午)→ 王師回來了
+    w.publish()
+    r = w.client.post(f"/api/leaves{w.q}", json={
+        "teacher_id": w.teachers["王師"], "leave_type": "personal",
+        "start_date": WED.isoformat(), "end_date": WED.isoformat(),
+        "start_time": None, "end_time": "12:00"})
+    assert r.status_code == 201, r.json()
+    affected_id = r.json()["affected_periods"][0]["id"]
+
+    chen = _options(w, affected_id)["partners"][0]
+    same_day = [o for o in chen["options"] if o["date"] == WED.isoformat()]
+    assert [o["period_no"] for o in same_day] == [w.wed[5]["period_no"]]
+    blocked = [o for o in chen["blocked"] if o["date"] == WED.isoformat()]
+    assert [o["period_no"] for o in blocked] == [w.wed[1]["period_no"]]
+    assert blocked[0]["blocked_reason"] == "王師這個時段請假,不能補課"
+
+
+def test_swap_search_can_start_from_an_earlier_week(env2):
+    """v1.4.12(組長回報):一月請假、想十一月先補課——改從較早的那週開始找,也送得出去。"""
+    from datetime import timedelta
+
+    w = env2
+    w.teacher("王師", ["國文"])
+    w.teacher("陳師", ["數學"])
+    w.place("王師", "國文", "701", 0)
+    w.place("陳師", "數學", "701", 1, weekday=4)
+    w.publish()
+    affected_id = w.leave("王師", when=WED2)[0]["id"]
+
+    default = _options(w, affected_id)
+    assert default["date_from"] == (WED2 - timedelta(days=2)).isoformat()  # 請假那週的週一
+    assert THU.isoformat() not in [o["date"] for o in default["partners"][0]["options"]]
+
+    r = w.client.get(
+        f"/api/affected-periods/{affected_id}/swap-options?start={THU.isoformat()}&weeks=1")
+    body = r.json()
+    assert body["date_from"] == (WED - timedelta(days=2)).isoformat()      # 指定那週的週一
+    assert body["date_to"] == (WED + timedelta(days=4)).isoformat()
+    opts = body["partners"][0]["options"]
+    assert [o["date"] for o in opts] == [THU.isoformat()]
+
+    # 請假之前先補課:送出時的檢查本來就不限日期在請假之後
+    code, sub = w.assign(affected_id, type="swap", handler_teacher_id=w.teachers["陳師"],
+                         swap_entry_id=opts[0]["entry_id"], swap_date=THU.isoformat())
+    assert code == 200, sub
+    assert sub["swap_date"] == THU.isoformat()
+
+
 def test_board_on_makeup_day_lists_the_swapped_period(env2):
     """補課那天的看板也要列出被換來的那一節:原任陳師、改由王師上,並指回請假那節。"""
     w = env2

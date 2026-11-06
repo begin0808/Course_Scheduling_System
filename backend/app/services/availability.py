@@ -270,11 +270,22 @@ class Availability:
 
         `released`:那一天已經交給別人上的節次(同一筆調課裡的其他節),不算他有課。
         """
+        hit = self.lesson_at(teacher_id, slot, when, released)
+        return hit[0] if hit else None
+
+    def lesson_at(
+        self,
+        teacher_id: int,
+        slot: Interval,
+        when: date | None = None,
+        released: Sequence[Interval] = (),
+    ) -> tuple[Interval, int] | None:
+        """同 `teaching_at`,另外回傳那堂課的配課 id(調課清單要寫出是哪一班、哪一科)。"""
         week = self.week_of(when)
-        for iv, parity in self._teaching_map().get(teacher_id, []):
+        for iv, parity, assignment_id in self._lesson_map().get(teacher_id, []):
             if (iv.overlaps(slot) and runs_in_week(parity, week)
                     and not any(iv.overlaps(r) for r in released)):
-                return iv
+                return iv, assignment_id
         return None
 
     def conflict_for(

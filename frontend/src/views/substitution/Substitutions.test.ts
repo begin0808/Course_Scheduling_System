@@ -32,10 +32,15 @@ const swapOptions = {
         entry_id: 78, date: '2026-10-14', weekday: 3, period_no: 3, period_name: '第二節',
         class_names: '702', subject_name: '自然', same_class: false, in_block: true,
       }],
+      blocked: [{
+        entry_id: 79, date: '2026-10-07', weekday: 3, period_no: 5, period_name: '第四節',
+        class_names: '702', subject_name: '自然', same_class: false, in_block: false,
+        blocked_reason: '王師這個時段請假,不能補課',
+      }],
     },
     {
       teacher_id: 3, teacher_name: '林師', teaches_same_class: true,
-      blocked_reason: '林師 2026-10-07 第一節 該時段有自己的課', options: [],
+      blocked_reason: '林師 2026-10-07 第一節 該時段有自己的課', options: [], blocked: [],
     },
   ],
 }
@@ -136,6 +141,41 @@ describe('調代課處理:調課', () => {
       .onSwapWeeksChange({ id: 11 }, 4)
     await flushPromises()
     expect(swapCalls().at(-1)?.url).toContain('weeks=4')
+  })
+
+  it('換不了的節次預設收起,展開才看得到原因(v1.4.12)', async () => {
+    const { wrapper } = await openSwap()
+    const partners = () => wrapper.findAll('[data-testid="sub-swap-partner"]')
+    expect(partners()[0].text()).toContain('另有 1 節換不了(看原因)')
+    expect(partners()[0].find('[data-testid="sub-swap-blocked"]').exists()).toBe(false)
+    // 本身就來不了的老師不再列節次
+    expect(partners()[1].find('[data-testid="sub-swap-blocked-toggle"]').exists()).toBe(false)
+
+    await partners()[0].find('[data-testid="sub-swap-blocked-toggle"]').trigger('click')
+    await flushPromises()
+    const blocked = partners()[0].find('[data-testid="sub-swap-blocked"]')
+    expect(blocked.text()).toContain('10/7(週三) 第四節')
+    expect(blocked.text()).toContain('王師這個時段請假')
+    // 換不了的不能點
+    expect(partners()[0].findAll('[data-testid="sub-swap-option"]')).toHaveLength(1)
+  })
+
+  it('改從較早的週開始找,帶 start 參數重新查詢(v1.4.12)', async () => {
+    const { wrapper, calls } = await openSwap()
+    const swapCalls = () => calls.filter((c) => c.url.includes('/swap-options'))
+    expect(swapCalls()[0].url).not.toContain('start=')
+
+    const Swap = wrapper.findComponent(Substitutions)
+    const vm = Swap.vm as unknown as {
+      onSwapStartChange: (p: unknown, ts: number | null) => Promise<void>
+    }
+    await vm.onSwapStartChange({ id: 11 }, new Date(2026, 8, 14).getTime())
+    await flushPromises()
+    expect(swapCalls().at(-1)?.url).toContain('start=2026-09-14')
+
+    await vm.onSwapStartChange({ id: 11 }, null)
+    await flushPromises()
+    expect(swapCalls().at(-1)?.url).not.toContain('start=')
   })
 
   it('點選節次送出調課:對調老師、那一節、補課日期', async () => {

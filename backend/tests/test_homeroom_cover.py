@@ -265,7 +265,7 @@ def test_monthly_report_counts_full_and_half_days_separately(env2):  # noqa: F81
     x = w.client.get(f"/api/substitution-stats/export{w.q}&year={MON.year}&month={MON.month}")
     wb = load_workbook(io.BytesIO(x.content))
     summary = [[c.value for c in row] for row in wb["彙總"].iter_rows()]
-    assert summary[0][5:7] == ["代導全天", "代導半天"]
+    assert summary[0][5:7] == ["代導全天(天)", "代導半天(次)"]
     assert summary[1][0] == "陳師" and summary[1][5:7] == [2, 1]
     covers = [[c.value for c in row] for row in wb["代導明細"].iter_rows()]
     assert covers[0] == ["教師", "日期", "班級", "時段", "原導師", "假別"]

@@ -297,6 +297,14 @@ test('調代課處理:調課列出可對調節次,點選後成立並上看板', 
   await expect(swapPanel).not.toContainText(short(WED)) // 請假當天不能補
   await page.screenshot({ path: `${SHOTS}/sub-4-swap-options.png` })
 
+  // 換不了的節次另外列、寫原因(v1.4.12):本週三王師請假
+  await partner.getByTestId('sub-swap-blocked-toggle').click()
+  const blocked = partner.getByTestId('sub-swap-blocked')
+  await expect(blocked).toContainText(`${short(WED)} 第二節`)
+  await expect(blocked).toContainText('王師這個時段請假,不能補課')
+  await partner.getByTestId('sub-swap-blocked-toggle').click()
+  await expect(blocked).toHaveCount(0)
+
   // 放寬到 4 週:「本週與隔三週」的週四出現
   const [ty, tm, td] = THU.split('-').map(Number)
   const thu3 = new Date(ty, tm - 1, td + 21)

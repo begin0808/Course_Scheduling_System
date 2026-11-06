@@ -44,6 +44,7 @@ export interface SwapOption {
   subject_name: string
   same_class: boolean // 與請假那節同一班(同班互調)
   in_block: boolean // 連堂中的一節(只換這一節)
+  blocked_reason: string // 只有 blocked 清單裡的才有:換不了的原因(v1.4.12)
 }
 
 export interface SwapPartner {
@@ -52,6 +53,7 @@ export interface SwapPartner {
   teaches_same_class: boolean
   blocked_reason: string // 非空 = 這位老師在請假那節就來不了
   options: SwapOption[]
+  blocked: SwapOption[] // 換不了的節次與原因(v1.4.12);已上過、不在學期內的不列
 }
 
 export interface SwapOptions {
@@ -130,11 +132,13 @@ export interface MergeOption {
 export const getMergeOptions = (affectedId: number): Promise<{ options: MergeOption[] }> =>
   apiGet(`/affected-periods/${affectedId}/merge-options`)
 
+/** start:從這天所在的那週開始找(YYYY-MM-DD);不給 = 請假那週 */
 export const getSwapOptions = (
-  affectedId: number, teacherId?: number | null, weeks = 2,
+  affectedId: number, teacherId?: number | null, weeks = 2, start?: string | null,
 ): Promise<SwapOptions> => {
   const q = new URLSearchParams({ weeks: String(weeks) })
   if (teacherId) q.set('teacher_id', String(teacherId))
+  if (start) q.set('start', start)
   return apiGet(`/affected-periods/${affectedId}/swap-options?${q}`)
 }
 
