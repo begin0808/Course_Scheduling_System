@@ -291,3 +291,45 @@ def test_same_name_teachers_get_distinct_files(w):
     names = zipfile.ZipFile(io.BytesIO(
         w.client.get(f"/api/export/batch.zip{w.q}&view=teacher").content)).namelist()
     assert sorted(names) == ["王師.xlsx", "陳師(2).xlsx", "陳師.xlsx"]
+
+
+# ── 跑班群組(v1.4.13,組長回報:班級課表只看得到一位老師)──────────
+def _group_world(env, clubs: int):
+    from tests.test_patrol_sheets import _group, _group_course, _place_group
+    client, db = env
+    make_user(db, "g", PW, roles=[Role.scheduler])
+    client.post("/api/auth/login", json={"username": "g", "password": PW})
+    sid = client.post("/api/semesters", json={
+        "academic_year": 115, "term": 1, "template_key": "junior_high",
+        "start_date": SEM_START.isoformat(), "end_date": SEM_END.isoformat(),
+    }).json()["id"]
+    world = _World(client, db, sid)
+    names = [f"師{i}" for i in range(clubs)]
+    for t in names:
+        world.teacher(t, ["英語"])
+    unit = _group(world, "九年級英語分組", ["701", "702"])
+    ids = [_group_course(world, unit, "英語", t) for t in names]
+    _place_group(world, ids[0], 0)
+    world.publish()
+    return world
+
+
+def test_class_grid_lists_every_group_teacher(env):
+    """分組跑班:班級課表那一格要看得到每一組的老師,不是只有其中一位。"""
+    w = _group_world(env, 2)
+    for klass in ("701", "702"):
+        grid, _ = tex.build_grid(w.db, w.sid, "class", w.classes[klass])
+        lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
+        assert lines == [("英語", "師0／師1")]
+
+
+def test_class_grid_big_group_shows_name_and_count(env):
+    """社團這類 4 組以上的跑班:一格塞不下,寫群組名稱與組數(同巡堂表)。"""
+    w = _group_world(env, 5)
+    grid, _ = tex.build_grid(w.db, w.sid, "class", w.classes["701"])
+    lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
+    assert lines == [("九年級英語分組", "共 5 組")]
+    # 教師課表只看自己那一組
+    grid, _ = tex.build_grid(w.db, w.sid, "teacher", w.teachers["師3"])
+    lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
+    assert lines == [("英語", "701、702")]

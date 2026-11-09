@@ -10,17 +10,19 @@
 
 import io
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.week_parity import PARITY_SHORT
+from app.models.assignment import SchedulingUnitType
 from app.models.basedata import ClassUnit, Room, Teacher
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
+from app.services import patrol_sheets
 from app.services import period_tables as pt_service
 from app.services import settings as app_settings
 
@@ -80,6 +82,9 @@ class _EntryView:
     room_id: int | None
     table_id: int | None = None   # 這一格所屬的節次表(取第一個班級的)
     week_parity: str | None = None  # 單雙週(v1.3.0):odd / even;None = 每週
+    unit_id: int | None = None      # 排課單位(跑班群組的各組課共用同一個)
+    unit_type: str = ""
+    unit_name: str = ""
 
 
 class _Published:
@@ -146,7 +151,42 @@ def _view(e: ScheduleEntry) -> _EntryView:
         # 沒指定節次表的班級是 None(=學期預設表,也就是教師課表格線用的那套)
         table_id=su.members[0].class_unit.period_table_id if su.members else None,
         week_parity=a.week_parity,
+        unit_id=su.id, unit_type=su.unit_type, unit_name=su.name,
     )
+
+
+def _merge_groups(entries: list[_EntryView]) -> list[_EntryView]:
+    """跑班群組同一節的各組課併成一格(v1.4.13,組長回報:班級課表只看得到一位老師)。
+
+    群組裡每位老師各是一筆格位,班級課表的一格原本只取其中一筆。
+    寫法同巡堂表與即時概況:組數少時科目、老師以「／」並列;
+    社團這類 `GROUP_LIST_MIN` 組以上的大型跑班一格塞不下,只寫群組名稱與組數。
+    """
+    out: list[_EntryView] = []
+    groups: dict[tuple[int | None, int, int], list[_EntryView]] = {}
+    for e in entries:
+        if e.unit_type == SchedulingUnitType.group.value:
+            groups.setdefault((e.unit_id, e.weekday, e.period_no), []).append(e)
+        else:
+            out.append(e)
+    for members in groups.values():
+        members.sort(key=lambda m: (m.subject, m.teachers))
+        first = members[0]
+        if len(members) == 1:
+            out.append(first)
+            continue
+        span = max(m.span for m in members)
+        if len(members) >= patrol_sheets.GROUP_LIST_MIN:
+            out.append(replace(first, subject=first.unit_name, teachers=f"共 {len(members)} 組",
+                               room="", span=span))
+            continue
+        out.append(replace(
+            first, span=span,
+            subject=patrol_sheets.join([m.subject for m in members]),
+            teachers=patrol_sheets.join([m.teachers for m in members]),
+            room=patrol_sheets.join([m.room for m in members]),
+        ))
+    return out
 
 
 def _hhmm(p: Period) -> str:
@@ -263,7 +303,7 @@ def _room_lines(e: _EntryView) -> list[str]:
 
 
 def class_grid(pub: _Published, cls: ClassUnit) -> Grid:
-    entries = [e for e in pub.entries if cls.id in e.class_ids]
+    entries = _merge_groups([e for e in pub.entries if cls.id in e.class_ids])
     return _grid_from(pub.class_table(cls), f"{cls.grade}年{cls.name} 課表", entries, _class_lines)
 
 
@@ -274,7 +314,7 @@ def teacher_grid(pub: _Published, teacher: Teacher) -> Grid:
 
 
 def room_grid(pub: _Published, room: Room) -> Grid:
-    entries = [e for e in pub.entries if e.room_id == room.id]
+    entries = _merge_groups([e for e in pub.entries if e.room_id == room.id])
     return _grid_from(pub.default_table(), f"{room.name} 課表", entries, _room_lines, pub.tables)
 
 
