@@ -5,6 +5,7 @@ import {
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { crossTableNote, extraRows } from '@/components/timetable/crossTable'
+import { mergeGroups } from '@/components/timetable/groupCells'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import type { GridEntry, PeriodCell } from '@/components/timetable/types'
 import { getMyTeacher, getPublishedTimetable, publishedSemesters } from '@/api/timetables'
@@ -141,7 +142,9 @@ const periods = computed<PeriodCell[]>(() => {
 })
 
 const entries = computed<GridEntry[]>(() => {
-  return shownEntries.value.map((e) => ({
+  // 跑班群組同一節的各組課併成一格(v1.4.13);教師課表本來就只有自己那一組
+  const shown = view.value === 'teacher' ? shownEntries.value : mergeGroups(shownEntries.value)
+  return shown.map((e) => ({
     id: e.id, weekday: e.weekday, period_no: e.period_no, span: e.span, locked: false,
     subject: e.subject,
     teacher: view.value === 'class' ? e.teachers.join('、') : e.classes.join('、'),
