@@ -138,6 +138,21 @@ test('巡堂表與教師週總表:看板開啟列印頁,代課與社團分組單
     page.getByTestId('board-tw-xlsx').click(),
   ])
   expect(twFile.suggestedFilename()).toMatch(/^教師週總表_\d{4}-\d{2}-\d{2}\.xlsx$/)
+
+  // v1.4.15:課表查詢選某一週,看到調代課之後的樣子,異動的格子標色
+  await page.goto('/timetable-query')
+  await expect(page.getByText(`${YEAR} 學年度`).first()).toBeVisible({ timeout: 15_000 })
+  const week = page.getByTestId('tq-week').locator('input')
+  await week.click()
+  await week.fill(WED)
+  await week.press('Enter')
+  await expect(page.getByTestId('tq-week-tag')).toContainText('異動')
+  const covered = page.getByTestId('tq-grid').locator('[data-change="cover"]')
+  await expect(covered).toHaveCount(1)
+  await expect(covered).toContainText('陳老師')
+  await expect(covered).toContainText('代課(原:王老師)')
+  await page.getByTestId('tq-week-clear').click()
+  await expect(page.getByTestId('tq-grid').locator('[data-change]')).toHaveCount(0)
   } finally {
     await deleteSemesterByYearTerm(page, YEAR, 1)
   }

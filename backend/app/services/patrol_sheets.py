@@ -120,6 +120,7 @@ class _Lesson:
     teacher: str
     room: str
     note: str
+    original: str = ""      # 有異動時,課表上原本的老師(v1.4.15 課表查詢的週課表用)
 
 
 def _days(date_from: date, date_to: date) -> Iterator[date]:
@@ -211,6 +212,7 @@ class Day:
         unit = a.scheduling_unit
         room = entry.room if entry.room is not None else a.room
         names = [at.teacher.name for at in a.teachers]
+        original = "、".join(names)
         subject, note = a.subject.name, ""
 
         def replace(absent_name: str, by: str) -> None:
@@ -245,6 +247,7 @@ class Day:
         return _Lesson(
             unit_id=unit.id, unit_name=unit.name, is_group=unit.unit_type == "group",
             subject=subject, teacher="、".join(names), room=room.name if room else "", note=note,
+            original=original if note else "",
         )
 
     def lessons(self, class_id: int, period_no: int) -> list[_Lesson]:

@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import {
-  NButton, NButtonGroup, NCard, NEmpty, NRadioButton, NRadioGroup, NSelect, NSpace, NTag, NText,
-  useMessage,
+  NButton, NButtonGroup, NCard, NDatePicker, NEmpty, NRadioButton, NRadioGroup, NSelect, NSpace,
+  NTag, NText, useMessage,
 } from 'naive-ui'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { crossTableNote, extraRows } from '@/components/timetable/crossTable'
 import { mergeGroups } from '@/components/timetable/groupCells'
+import { dayLabels, weekEntries } from '@/components/timetable/weekCells'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import type { GridEntry, PeriodCell } from '@/components/timetable/types'
-import { getMyTeacher, getPublishedTimetable, publishedSemesters } from '@/api/timetables'
-import type { NamedBrief, PublicSemester, PublishedTimetable } from '@/api/timetables'
+import {
+  getMyTeacher, getPublishedTimetable, getPublishedWeek, publishedSemesters,
+} from '@/api/timetables'
+import type { NamedBrief, PublicSemester, PublishedTimetable, TimetableWeek } from '@/api/timetables'
 import {
   exportBatchZip, exportSchoolPdf, exportSchoolWorkbook, exportTimetable,
 } from '@/api/exports'
@@ -141,7 +144,44 @@ const periods = computed<PeriodCell[]>(() => {
   ) as PeriodCell[]]
 })
 
-const entries = computed<GridEntry[]>(() => {
+// ── 某一週實際課表(v1.4.15,老師建議):選了日期就看那一週調代課之後的樣子,異動標色 ──
+const weekTs = ref<number | null>(null)
+const weekData = ref<TimetableWeek | null>(null)
+const weekError = ref('')
+const weekMode = computed(() => weekTs.value !== null && view.value !== 'room')
+
+function isoDate(ts: number): string {
+  const d = new Date(ts)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function shiftWeek(n: number) {
+  const base = weekTs.value ?? Date.now()
+  const d = new Date(base)
+  weekTs.value = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7 * n).getTime()
+}
+function thisWeek() {
+  const d = new Date()
+  weekTs.value = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+async function loadWeek() {
+  weekData.value = null
+  weekError.value = ''
+  if (!weekMode.value || sid.value === null || targetId.value === null) return
+  const v = view.value as 'class' | 'teacher'
+  try {
+    weekData.value = await getPublishedWeek(sid.value, v, targetId.value, isoDate(weekTs.value!))
+  } catch (e) {
+    weekError.value = (e as Error).message || '無法載入這一週的課表'
+  }
+}
+watch([sid, view, targetId, weekTs], loadWeek)
+
+const weekLabels = computed(() => (weekMode.value && weekData.value ? dayLabels(weekData.value) : null))
+const weekChanges = computed(() =>
+  (weekData.value?.cells ?? []).filter((c) => c.kind !== 'normal').length)
+
+const fixedEntries = computed<GridEntry[]>(() => {
   // 跑班群組同一節的各組課併成一格(v1.4.13);教師課表本來就只有自己那一組
   const shown = view.value === 'teacher' ? shownEntries.value : mergeGroups(shownEntries.value)
   return shown.map((e) => ({
@@ -156,6 +196,9 @@ const entries = computed<GridEntry[]>(() => {
     week: e.week_parity === 'odd' ? '單' as const : e.week_parity === 'even' ? '雙' as const : undefined,
   }))
 })
+
+const entries = computed<GridEntry[]>(() =>
+  weekMode.value ? (weekData.value ? weekEntries(weekData.value, periods.value) : []) : fixedEntries.value)
 </script>
 
 <template>
@@ -197,6 +240,34 @@ const entries = computed<GridEntry[]>(() => {
         <n-tag v-if="me && view === 'teacher' && teacherId === me.id" size="small" type="info">
           本人課表
         </n-tag>
+      </n-space>
+
+      <n-space v-if="view !== 'room'" align="center" :wrap="true">
+        <n-text depth="3" style="font-size: 13px">看某一週(含調代課):</n-text>
+        <n-date-picker
+          v-model:value="weekTs" type="date" clearable style="width: 170px"
+          placeholder="選日期,清空回固定課表" data-testid="tq-week"
+        />
+        <n-button-group size="small">
+          <n-button data-testid="tq-week-prev" @click="shiftWeek(-1)">上一週</n-button>
+          <n-button data-testid="tq-week-this" @click="thisWeek">本週</n-button>
+          <n-button data-testid="tq-week-next" @click="shiftWeek(1)">下一週</n-button>
+        </n-button-group>
+        <n-button v-if="weekTs !== null" size="small" quaternary data-testid="tq-week-clear" @click="weekTs = null">
+          回到固定課表
+        </n-button>
+        <template v-if="weekMode && weekData">
+          <n-tag size="small" :type="weekChanges ? 'warning' : 'default'" data-testid="tq-week-tag">
+            {{ weekChanges ? `這週有 ${weekChanges} 節異動` : '這週沒有異動' }}
+          </n-tag>
+          <n-space size="small" style="font-size: 12px">
+            <span style="color: #1f4fd8">藍:代課、併班</span>
+            <span style="color: #d00000">紅:調課</span>
+            <span><s>劃線</s>:原本的課沒上</span>
+            <span style="color: #c05800">橘:請假還沒安排</span>
+          </n-space>
+        </template>
+        <n-text v-if="weekError" type="error" style="font-size: 12px">{{ weekError }}</n-text>
       </n-space>
 
       <n-space align="center" :wrap="true">
@@ -266,9 +337,12 @@ const entries = computed<GridEntry[]>(() => {
         <TimetableGrid
           v-else
           :periods="periods" :num-weekdays="numWeekdays" :entries="entries" readonly
+          :day-labels="weekLabels"
         />
       </n-card>
-      <n-text depth="3" style="font-size: 12px">課表為唯讀檢視;如有異動請洽教學組。</n-text>
+      <n-text depth="3" style="font-size: 12px">
+        課表為唯讀檢視;如有異動請洽教學組。{{ weekMode ? '匯出的是固定課表,不含這一週的調代課。' : '' }}
+      </n-text>
     </template>
   </n-space>
 </template>

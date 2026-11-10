@@ -22,6 +22,9 @@ export interface GridEntry {
   span?: number // 連堂長度(佔用連續節數),預設 1
   // 單雙週(v1.3.0):'單' / '雙'。同一格有單週、雙週兩堂時,格子裡上下各列一行
   week?: '單' | '雙'
+  // 某一週實際課表(v1.4.15)的異動:off 原本的課沒上(劃線)、pending 請假待處理、
+  // cover 代課/併班、swap 調課。沒有異動時不設
+  change?: 'off' | 'pending' | 'cover' | 'swap'
 }
 
 // 拖曳中的內容(對元件不透明,僅用於回傳給父層決策)

@@ -9,12 +9,14 @@ const props = withDefaults(defineProps<{
   readonly?: boolean
   dragging?: DragData | null // 父層告知目前拖曳中的內容(供 check feedback)
   feedback?: DropFeedback | null // 父層回填的可放/衝突判定
+  dayLabels?: Record<number, string> | null // 表頭改寫成日期(某一週實際課表,v1.4.15)
 }>(), {
   entries: () => [],
   numWeekdays: undefined,
   readonly: false,
   dragging: null,
   feedback: null,
+  dayLabels: null,
 })
 
 const emit = defineEmits<{
@@ -83,7 +85,7 @@ function fmt(t?: string | null): string {
   return t ? t.slice(0, 5) : ''
 }
 function weekdayLabel(w: number): string {
-  return `星期${WEEKDAY_LABELS[w - 1] ?? w}`
+  return props.dayLabels?.[w] ?? `星期${WEEKDAY_LABELS[w - 1] ?? w}`
 }
 function periodLabelName(p: number): string {
   return periodInfo.value.get(p)?.name ?? `第${p}節`
@@ -202,7 +204,12 @@ function onCellDrop(w: number, p: number, ev: DragEvent) {
           >
             <div
               v-if="entryAt(w, p)"
-              class="tg-card" :class="{ 'is-locked': entryAt(w, p)!.locked }"
+              class="tg-card"
+              :class="{
+                'is-locked': entryAt(w, p)!.locked,
+                [`is-change-${entryAt(w, p)!.change}`]: !!entryAt(w, p)!.change,
+              }"
+              :data-change="entryAt(w, p)!.change"
               :draggable="cardDraggable(entryAt(w, p)!)"
               @dragstart="onCardDragStart(entryAt(w, p)!, $event)"
               @dragend="emit('dragend')"
@@ -281,6 +288,17 @@ function onCellDrop(w: number, p: number, ev: DragEvent) {
 .tg-note { font-size: 11px; font-weight: 600; color: #b45309; }
 .tg-week-line { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; line-height: 1.35; }
 .tg-week-line + .tg-week-line { border-top: 1px dashed rgba(24, 160, 88, 0.45); margin-top: 2px; padding-top: 2px; }
+/* 某一週實際課表的異動(v1.4.15):顏色與教師週總表一致 */
+.tg-card.is-change-cover { background: rgba(31, 79, 216, 0.12); border-color: rgba(31, 79, 216, 0.6); }
+.tg-card.is-change-cover .tg-note { color: #1f4fd8; }
+.tg-card.is-change-swap { background: rgba(208, 0, 0, 0.10); border-color: rgba(208, 0, 0, 0.55); }
+.tg-card.is-change-swap .tg-note { color: #d00000; }
+.tg-card.is-change-off { background: rgba(128, 128, 128, 0.10); border: 1px dashed rgba(128, 128, 128, 0.6); }
+.tg-card.is-change-off .tg-subject, .tg-card.is-change-off .tg-teacher { text-decoration: line-through; opacity: 0.6; }
+.tg-card.is-change-off .tg-note { color: inherit; opacity: 0.8; }
+.tg-card.is-change-pending { background: rgba(192, 88, 0, 0.10); border-color: rgba(192, 88, 0, 0.6); }
+.tg-card.is-change-pending .tg-subject, .tg-card.is-change-pending .tg-teacher { text-decoration: line-through; }
+.tg-card.is-change-pending .tg-note { color: #c05800; }
 .tg-week-tag {
   font-size: 11px; font-weight: 700; border-radius: 3px; padding: 0 3px;
   background: rgba(24, 160, 88, 0.22);
