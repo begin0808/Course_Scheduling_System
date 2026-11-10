@@ -214,7 +214,7 @@ function rangeText(l: LeaveRequest): string {
             <n-text>假別</n-text>
             <n-select
               v-model:value="form.leaveType" :options="typeOptions" placeholder="請選擇"
-              style="width: 120px" data-testid="lv-type"
+              style="width: 170px" data-testid="lv-type"
             />
             <n-text>起</n-text>
             <n-date-picker v-model:value="form.startDate" type="date" data-testid="lv-start" />
@@ -237,7 +237,8 @@ function rangeText(l: LeaveRequest): string {
           </n-space>
 
           <n-input
-            v-model:value="form.reason" placeholder="事由(選填)" maxlength="200"
+            v-model:value="form.reason" maxlength="200"
+            :placeholder="form.leaveType === 'other' ? '事由(選「其他」時必填,例如:捐贈骨髓假)' : '事由(選填)'"
             data-testid="lv-reason"
           />
           <n-text depth="3">
@@ -347,7 +348,8 @@ function rangeText(l: LeaveRequest): string {
           />
         </n-space>
         <n-input
-          v-model:value="editReason" placeholder="事由(選填)" maxlength="200"
+          v-model:value="editReason" maxlength="200"
+          :placeholder="editType === 'other' ? '事由(選「其他」時必填)' : '事由(選填)'"
           data-testid="lv-edit-reason"
         />
         <n-alert

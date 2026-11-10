@@ -4,6 +4,9 @@
 跑班群組:放入/移動/刪除/鎖定皆連動同群組全部配課(H7 同時段)。
 """
 
+from dataclasses import asdict
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -34,9 +37,10 @@ from app.schemas.timetable import (
     TimetableCreate,
     TimetableOut,
     TimetableRename,
+    TimetableWeekOut,
 )
 from app.services import conflict_checker as cc
-from app.services import timetable_check
+from app.services import timetable_check, timetable_week
 from app.services import timetable_publish as pub
 from app.services.teachers import current_teacher
 
@@ -498,3 +502,20 @@ def delete_entry(
     for sib in _slot_siblings(db, tt.id, e.assignment.scheduling_unit_id, e.weekday, e.period_no):
         db.delete(sib)
     db.commit()
+
+
+@router.get("/published/week", response_model=TimetableWeekOut)
+def published_week(
+    semester_id: int = Query(...),
+    view: str = Query(..., pattern="^(class|teacher)$"),
+    target_id: int = Query(...),
+    on: date = Query(..., description="這一天所在的那一週"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    """某一週實際的班級/教師課表:已套用調代課,有異動的格子標出種類(v1.4.15)。"""
+    try:
+        week = timetable_week.build(db, semester_id, view, target_id, on)
+    except timetable_week.TimetableWeekError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return TimetableWeekOut.model_validate(asdict(week))

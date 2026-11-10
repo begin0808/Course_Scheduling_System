@@ -184,3 +184,27 @@ export function conflictText(detail: unknown): string {
   }
   return '無法排入'
 }
+
+// ── 某一週實際課表(v1.4.15):已套用調代課,有異動的格子標出種類 ──
+export type WeekChange = 'normal' | 'off' | 'pending' | 'cover' | 'swap'
+export interface WeekCell {
+  date: string
+  weekday: number
+  ordinal: number // 第幾節(只數一般課)
+  period_no: number | null // 班級課表有;教師課表為 null,依第幾節對到格線
+  subject: string
+  teacher: string
+  room: string
+  kind: WeekChange
+  note: string
+}
+export interface TimetableWeek {
+  monday: string
+  dates: string[]
+  cells: WeekCell[]
+}
+export const getPublishedWeek = (
+  semesterId: number, view: 'class' | 'teacher', targetId: number, on: string,
+) =>
+  apiGet<TimetableWeek>(
+    `/published/week?semester_id=${semesterId}&view=${view}&target_id=${targetId}&on=${on}`)

@@ -63,7 +63,7 @@ def test_change_leave_type_keeps_periods_and_billing(w):  # noqa: F811
 
 def test_change_leave_type_validates(w):  # noqa: F811
     leave = _setup(w, 1)
-    r = w.client.patch(f"/api/leaves/{leave['id']}", json={"leave_type": "vacation"})
+    r = w.client.patch(f"/api/leaves/{leave['id']}", json={"leave_type": "no_such_type"})
     assert r.status_code == 400
     w.client.post(f"/api/leaves/{leave['id']}/cancel")
     r = w.client.patch(f"/api/leaves/{leave['id']}", json={"leave_type": "official"})

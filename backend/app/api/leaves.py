@@ -16,6 +16,7 @@ from app.core.db import get_db
 from app.models.audit import AuditLog
 from app.models.leave import (
     LEAVE_TYPE_CN,
+    OTHER_NEEDS_REASON,
     REGISTRABLE_LEAVE_TYPES,
     AffectedStatus,
     HomeroomCover,
@@ -138,6 +139,8 @@ def create_leave(
     # 調課(未請假)走「新增調課」,不從請假登記進來
     if body.leave_type not in REGISTRABLE_LEAVE_TYPES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"未知的假別:{body.leave_type}")
+    if body.leave_type == LeaveType.other.value and not body.reason.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, OTHER_NEEDS_REASON)
 
     teacher = _resolve_target_teacher(db, semester_id, body.teacher_id, user)
     on_behalf = teacher.user_id != user.id
@@ -233,6 +236,10 @@ def update_leave(
         raise HTTPException(status.HTTP_409_CONFLICT, "這是沒有請假的調課,不能改成請假")
     if body.leave_type is not None and body.leave_type not in REGISTRABLE_LEAVE_TYPES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"未知的假別:{body.leave_type}")
+    new_type = body.leave_type if body.leave_type is not None else leave.leave_type
+    new_reason = body.reason if body.reason is not None else leave.reason
+    if new_type == LeaveType.other.value and not new_reason.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, OTHER_NEEDS_REASON)
 
     changes: list[str] = []
     if body.leave_type is not None and body.leave_type != leave.leave_type:

@@ -1,5 +1,6 @@
 """課表(timetable / schedule_entry)與衝突檢查 schema。"""
 
+from datetime import date as _WeekDate
 from datetime import time
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -181,3 +182,23 @@ class PublishedTimetableOut(BaseModel):
     teachers: list[NamedBrief] = []
     rooms: list[NamedBrief] = []
     period_tables: list[PublicPeriodTable] = []
+
+
+class WeekCellOut(BaseModel):
+    """某一週實際課表的一格(v1.4.15)。kind:normal/off/pending/cover/swap。"""
+
+    date: _WeekDate
+    weekday: int
+    ordinal: int
+    period_no: int | None
+    subject: str
+    teacher: str
+    room: str
+    kind: str
+    note: str
+
+
+class TimetableWeekOut(BaseModel):
+    monday: _WeekDate
+    dates: list[_WeekDate]
+    cells: list[WeekCellOut]

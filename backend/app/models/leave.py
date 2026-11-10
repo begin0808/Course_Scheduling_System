@@ -37,13 +37,28 @@ if TYPE_CHECKING:
 
 
 class LeaveType(enum.StrEnum):
-    official = "official"        # 公假
-    personal = "personal"        # 事假
-    sick = "sick"                # 病假
-    marriage = "marriage"        # 婚假
-    bereavement = "bereavement"  # 喪假
-    maternity = "maternity"      # 產假
-    training = "training"        # 進修
+    """假別。宣告順序就是「請假登記」下拉選單的順序(常用的在前)。
+
+    v1.4.15 參考校務行政系統的假別,補上教師請假較常遇到的幾種(身心調適假等);
+    太細或少見的(延長病假、捐贈骨髓或器官假、原住民歲時祭儀假…)不列,選「其他」並寫事由即可。
+    """
+
+    official = "official"                 # 公假
+    personal = "personal"                 # 事假
+    sick = "sick"                         # 病假
+    mental_health = "mental_health"       # 身心調適假(v1.4.15)
+    family_care = "family_care"           # 家庭照顧假(v1.4.15)
+    menstrual = "menstrual"               # 生理假(v1.4.15)
+    vacation = "vacation"                 # 休假(v1.4.15,兼行政的教師)
+    compensatory = "compensatory"         # 補休(v1.4.15,加班、值班、出差、公假補休)
+    marriage = "marriage"                 # 婚假
+    bereavement = "bereavement"           # 喪假
+    prenatal = "prenatal"                 # 產前假(產檢假)(v1.4.15)
+    maternity = "maternity"               # 產假
+    paternity = "paternity"               # 陪產檢及陪產假(v1.4.15)
+    occupational = "occupational"         # 公傷假(v1.4.15)
+    training = "training"                 # 進修
+    other = "other"                       # 其他(v1.4.15,事由必填)
     # 調課(未請假,v1.4.5):老師沒請假,只是和別人調課。借用假單的資料結構(只展開選定的節次),
     # 但不算請假——不出現在請假登記、不產生代導、不讓人整天「不在」,處置只能是調課
     swap_only = "swap_only"
@@ -54,12 +69,26 @@ LEAVE_TYPE_CN: dict[str, str] = {
     LeaveType.official.value: "公假",
     LeaveType.personal.value: "事假",
     LeaveType.sick.value: "病假",
+    LeaveType.mental_health.value: "身心調適假",
+    LeaveType.family_care.value: "家庭照顧假",
+    LeaveType.menstrual.value: "生理假",
+    LeaveType.vacation.value: "休假",
+    LeaveType.compensatory.value: "補休",
     LeaveType.marriage.value: "婚假",
     LeaveType.bereavement.value: "喪假",
+    LeaveType.prenatal.value: "產前假(產檢假)",
     LeaveType.maternity.value: "產假",
+    LeaveType.paternity.value: "陪產檢及陪產假",
+    LeaveType.occupational.value: "公傷假",
     LeaveType.training.value: "進修",
+    LeaveType.other.value: "其他",
     LeaveType.swap_only.value: "調課(未請假)",
 }
+
+# 自行負擔代課費的假別:代課的計費方式預設「自費代課」(家庭照顧假併入事假計算)
+SELF_PAID_LEAVE_TYPES = frozenset({LeaveType.personal.value, LeaveType.family_care.value})
+
+OTHER_NEEDS_REASON = "假別選「其他」時,請在事由寫明是什麼假"
 
 # 「請假登記」可以選的假別(不含調課)
 REGISTRABLE_LEAVE_TYPES = frozenset(t.value for t in LeaveType if t != LeaveType.swap_only)

@@ -128,7 +128,7 @@ def _columns(db: Session, semester_id: int) -> list[TeacherCol]:
     return out
 
 
-class _Builder:
+class Builder:
     def __init__(self, db: Session, semester_id: int) -> None:
         self.db = db
         self.semester_id = semester_id
@@ -187,7 +187,7 @@ def _off_note(sub: Substitution | None) -> tuple[str, str]:
             return OFF, "停課"
 
 
-def _day_cells(b: _Builder, day: Day) -> dict[tuple[int, int], list[Item]]:
+def day_cells(b: Builder, day: Day) -> dict[tuple[int, int], list[Item]]:
     """這一天每位老師每一節的格子:(教師, 第幾節) → 格子內容。"""
     out: dict[tuple[int, int], list[Item]] = {}
     wd = day.on.isoweekday()
@@ -231,7 +231,7 @@ def _day_cells(b: _Builder, day: Day) -> dict[tuple[int, int], list[Item]]:
     return out
 
 
-def _taken_over(b: _Builder, ap: AffectedPeriod, sub: Substitution) -> Item:
+def _taken_over(b: Builder, ap: AffectedPeriod, sub: Substitution) -> Item:
     """接手請假那一節的老師:代課、併班藍字;調課紅字並標補課那一節。"""
     absent = ap.leave_request.teacher
     absent_name = absent.name if absent else ""
@@ -245,7 +245,7 @@ def _taken_over(b: _Builder, ap: AffectedPeriod, sub: Substitution) -> Item:
     return Item(_snap(ap.class_names, ap.subject_name), COVER, f"{verb}{absent_name}")
 
 
-def _row_names(b: _Builder, tables: list[int], weekday: int) -> list[str]:
+def _row_names(b: Builder, tables: list[int], weekday: int) -> list[str]:
     """這一天的節次名稱。`tables` 第一個是班級最多的那套節次表,名稱以它為準;
     別套節次表節數較多時(例如國中部有第八節),多出來的列補上「第八節」。"""
     if not tables:
@@ -265,7 +265,7 @@ def build(db: Session, semester_id: int, on: date, weeks: int = 1) -> TeacherWee
         raise TeacherWeekError("此學期尚無已發布的課表")
     semester = db.get(Semester, semester_id)
 
-    b = _Builder(db, semester_id)
+    b = Builder(db, semester_id)
     by_table = sorted(classes_by_period_table(db, semester_id).values(), key=lambda x: -len(x[1]))
     tables = [t.id for t, _ in by_table]
     result = TeacherWeekSheets(
@@ -282,7 +282,7 @@ def build(db: Session, semester_id: int, on: date, weeks: int = 1) -> TeacherWee
             day = Day(db, semester_id, timetable.id, d)
             if not day.entries:
                 continue
-            cells = _day_cells(b, day)
+            cells = day_cells(b, day)
             for ordinal, name in enumerate(_row_names(b, tables, d.isoweekday()), 1):
                 week.rows.append(WeekRow(
                     date=d, ordinal=ordinal, period_name=name,
