@@ -16,7 +16,7 @@ const post = async (p: Page, url: string, data: object) => {
   return r.json()
 }
 
-test('巡堂表:看板開啟列印頁,代課與社團分組單都正確帶出', async ({ page }) => {
+test('巡堂表與教師週總表:看板開啟列印頁,代課與社團分組單都正確帶出', async ({ page }) => {
   test.setTimeout(120_000)
   await login(page)
   await page.request.patch('/api/wizard/state', { data: { completed: true } })
@@ -119,6 +119,25 @@ test('巡堂表:看板開啟列印頁,代課與社團分組單都正確帶出', 
     if (typeof name === 'string') expect(file.suggestedFilename()).toBe(name)
     else expect(file.suggestedFilename()).toMatch(name)
   }
+
+  // v1.4.14:全校教師週總表——老師為欄,請假的劃掉並寫去向,代課的藍字寫「代王老師」
+  const [tw] = await Promise.all([
+    page.waitForEvent('popup'),
+    page.getByTestId('board-tw-print').click(),
+  ])
+  await expect(tw.getByTestId('tw-page')).toHaveCount(1, { timeout: 20_000 })
+  await expect(tw.getByTestId('tw-page')).toContainText('教師週總表')
+  const names = await tw.getByTestId('tw-teacher').allTextContents()
+  expect(names.slice(0, 2)).toEqual(['王老師', '陳老師'])
+  await expect(tw.locator('.item.off').first()).toContainText('陳老師代')
+  await expect(tw.locator('.item.cover').first()).toContainText('代王老師')
+  await tw.screenshot({ path: 'e2e/screenshots/teacher-week-1-sheet.png', fullPage: true })
+  await tw.close()
+  const [twFile] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('board-tw-xlsx').click(),
+  ])
+  expect(twFile.suggestedFilename()).toMatch(/^教師週總表_\d{4}-\d{2}-\d{2}\.xlsx$/)
   } finally {
     await deleteSemesterByYearTerm(page, YEAR, 1)
   }

@@ -4,7 +4,9 @@ import {
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { exportPatrolSheets, getDailyBoard, openPatrolSheets } from '@/api/substitutionLog'
+import {
+  exportPatrolSheets, exportTeacherWeekSheets, getDailyBoard, openPatrolSheets, openTeacherWeekSheets,
+} from '@/api/substitutionLog'
 import type { DailyBoard, LogEntry } from '@/api/substitutionLog'
 import { listSemesters } from '@/api/semesters'
 
@@ -97,6 +99,26 @@ async function exportPatrol(week: boolean) {
   }
 }
 
+// 全校教師週總表(v1.4.14):選定日期那一週起,連續 1~4 週
+const twWeeks = ref(1)
+const twWeekOptions = [1, 2, 3, 4].map((n) => ({ label: `${n} 週`, value: n }))
+function openTeacherWeek() {
+  if (sid.value === null) return
+  openTeacherWeekSheets(sid.value, toISODate(dateTs.value), twWeeks.value)
+}
+const exportingTw = ref(false)
+async function exportTeacherWeek() {
+  if (sid.value === null) return
+  exportingTw.value = true
+  try {
+    await exportTeacherWeekSheets(sid.value, toISODate(dateTs.value), twWeeks.value)
+  } catch (e) {
+    message.error((e as Error).message || '匯出失敗')
+  } finally {
+    exportingTw.value = false
+  }
+}
+
 function dispositionText(e: LogEntry): string {
   if (!e.disposed) return '待安排'
   if (e.row_kind === 'swap_makeup') {
@@ -150,6 +172,17 @@ function statusType(e: LogEntry): string {
             :loading="exportingPatrol" data-testid="board-patrol-week-xlsx" @click="exportPatrol(true)"
           >
             整週 Excel
+          </n-button>
+        </n-button-group>
+        <n-text depth="3">教師週總表:</n-text>
+        <n-select
+          v-model:value="twWeeks" :options="twWeekOptions" style="width: 90px"
+          data-testid="board-tw-weeks"
+        />
+        <n-button-group>
+          <n-button data-testid="board-tw-print" @click="openTeacherWeek">列印</n-button>
+          <n-button :loading="exportingTw" data-testid="board-tw-xlsx" @click="exportTeacherWeek">
+            Excel
           </n-button>
         </n-button-group>
       </template>

@@ -50,6 +50,12 @@ const routes = [
     component: () => import('@/views/substitution/PatrolPrint.vue'),
   },
   {
+    // 全校教師週總表列印頁(v1.4.14,A3 橫式),不套側邊欄
+    path: '/teacher-week/print',
+    name: 'teacher-week-print',
+    component: () => import('@/views/substitution/TeacherWeekPrint.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     children: [
