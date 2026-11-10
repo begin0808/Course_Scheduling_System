@@ -88,6 +88,39 @@ class PatrolSheetsOut(BaseModel):
     group_lists: list[PatrolGroupListOut]
 
 
+class TeacherWeekItemOut(BaseModel):
+    text: str
+    kind: str        # normal / off / pending / cover / swap
+    note: str
+
+
+class TeacherWeekColOut(BaseModel):
+    id: int
+    name: str
+    role: str
+
+
+class TeacherWeekRowOut(BaseModel):
+    date: _Date
+    ordinal: int
+    period_name: str
+    cells: list[list[TeacherWeekItemOut]]
+
+
+class TeacherWeekOut(BaseModel):
+    monday: _Date
+    rows: list[TeacherWeekRowOut]
+
+
+class TeacherWeekSheetsOut(BaseModel):
+    """全校教師週總表:老師為欄、日期 × 節次為列,已套用調代課(v1.4.14)。"""
+
+    title: str
+    legend: str
+    teachers: list[TeacherWeekColOut]
+    weeks: list[TeacherWeekOut]
+
+
 class DailyBoardOut(BaseModel):
     """今日看板:表頭(校名/日期/學期)供列印通知單直接使用。"""
 

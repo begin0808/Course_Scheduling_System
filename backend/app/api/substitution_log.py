@@ -21,9 +21,16 @@ from app.schemas.substitution_log import (
     LiveOverviewOut,
     LogEntryOut,
     PatrolSheetsOut,
+    TeacherWeekSheetsOut,
 )
 from app.services import homeroom_covers as cover_service
-from app.services import live_overview, patrol_sheets, patrol_xlsx
+from app.services import (
+    live_overview,
+    patrol_sheets,
+    patrol_xlsx,
+    teacher_week_sheets,
+    teacher_week_xlsx,
+)
 from app.services import settings as app_settings
 from app.services import substitution_log as log_service
 
@@ -126,6 +133,48 @@ def export_patrol_sheets(
     disposition = f"attachment; filename=\"patrol.xlsx\"; filename*=UTF-8''{quote(name)}.xlsx"
     return Response(
         content=patrol_xlsx.to_xlsx(sheets),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": disposition},
+    )
+
+
+def _teacher_week(db: Session, semester_id: int, on: date | None, weeks: int):
+    _get_semester(db, semester_id)
+    try:
+        return teacher_week_sheets.build(
+            db, semester_id, on or log_service.school_today(), weeks)
+    except teacher_week_sheets.TeacherWeekError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.get("/teacher-week-sheets", response_model=TeacherWeekSheetsOut)
+def get_teacher_week_sheets(
+    semester_id: int = Query(...),
+    date_from: date | None = Query(default=None, description="這一天所在的那一週;預設本週"),
+    weeks: int = Query(default=1, ge=1, le=teacher_week_sheets.MAX_WEEKS),
+    db: Session = Depends(get_db),
+    _: User = Depends(viewer),
+):
+    """全校教師週總表(列印頁用):老師為欄、日期 × 節次為列,已套用調代課。"""
+    sheets = _teacher_week(db, semester_id, date_from, weeks)
+    return TeacherWeekSheetsOut.model_validate(asdict(sheets))
+
+
+@router.get("/teacher-week-sheets.xlsx")
+def export_teacher_week_sheets(
+    semester_id: int = Query(...),
+    date_from: date | None = Query(default=None, description="這一天所在的那一週;預設本週"),
+    weeks: int = Query(default=1, ge=1, le=teacher_week_sheets.MAX_WEEKS),
+    db: Session = Depends(get_db),
+    _: User = Depends(viewer),
+) -> Response:
+    """全校教師週總表 Excel:一週一個分頁,學校可再自行修改後列印。"""
+    sheets = _teacher_week(db, semester_id, date_from, weeks)
+    monday = sheets.weeks[0].monday
+    name = f"教師週總表_{monday:%Y-%m-%d}" + (f"_{weeks}週" if weeks > 1 else "")
+    disposition = f"attachment; filename=\"teacher-week.xlsx\"; filename*=UTF-8''{quote(name)}.xlsx"
+    return Response(
+        content=teacher_week_xlsx.to_xlsx(sheets),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": disposition},
     )

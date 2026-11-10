@@ -107,6 +107,40 @@ export function openPatrolSheets(semesterId: number, from: string, to: string = 
 export const exportPatrolSheets = (semesterId: number, from: string, to: string = from): Promise<void> =>
   download(`/patrol-sheets.xlsx?semester_id=${semesterId}&date_from=${from}&date_to=${to}`, '巡堂表.xlsx')
 
+// ── 全校教師週總表(v1.4.14)──
+export type TeacherWeekKind = 'normal' | 'off' | 'pending' | 'cover' | 'swap'
+export interface TeacherWeekItem {
+  text: string // 「801 數學」
+  kind: TeacherWeekKind // off/pending 劃掉;cover 藍字;swap 紅字
+  note: string // 「陳師代」「代王師」「調10/30_56」
+}
+export interface TeacherWeekSheets {
+  title: string
+  legend: string
+  teachers: { id: number; name: string; role: string }[]
+  weeks: {
+    monday: string
+    rows: { date: string; ordinal: number; period_name: string; cells: TeacherWeekItem[][] }[]
+  }[]
+}
+
+export const getTeacherWeekSheets = (
+  semesterId: number, from: string, weeks: number,
+): Promise<TeacherWeekSheets> =>
+  apiGet(`/teacher-week-sheets?semester_id=${semesterId}&date_from=${from}&weeks=${weeks}`)
+
+/** 在新分頁開啟教師週總表列印頁(不套側邊欄) */
+export function openTeacherWeekSheets(semesterId: number, from: string, weeks: number) {
+  window.open(`/teacher-week/print?semester_id=${semesterId}&from=${from}&weeks=${weeks}`, '_blank')
+}
+
+/** 教師週總表 Excel:一週一個分頁,下載後可再修改 */
+export const exportTeacherWeekSheets = (semesterId: number, from: string, weeks: number): Promise<void> =>
+  download(
+    `/teacher-week-sheets.xlsx?semester_id=${semesterId}&date_from=${from}&weeks=${weeks}`,
+    '教師週總表.xlsx',
+  )
+
 export interface PatrolSettings {
   legend: string
 }
