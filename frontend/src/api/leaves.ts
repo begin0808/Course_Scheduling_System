@@ -59,6 +59,14 @@ export interface LeaveRequest {
   affected_periods: AffectedPeriod[]
   homeroom_covers: HomeroomCover[]
   cover_pending_count: number // 還沒安排的代導(天次)
+  // 只有登記時回傳:已經在別張假單或調課裡、這次沒列入的節次(v1.4.16)
+  skipped?: SkippedPeriod[]
+}
+
+export interface SkippedPeriod {
+  date: string
+  period_name: string
+  taken_by: string // 那張的假別名稱,例如「調課(未請假)」
 }
 
 export interface LeaveCancelled {

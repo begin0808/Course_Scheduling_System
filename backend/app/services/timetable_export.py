@@ -160,7 +160,7 @@ def _merge_groups(entries: list[_EntryView]) -> list[_EntryView]:
 
     群組裡每位老師各是一筆格位,班級課表的一格原本只取其中一筆。
     寫法同巡堂表與即時概況:組數少時科目、老師以「／」並列;
-    社團這類 `GROUP_LIST_MIN` 組以上的大型跑班一格塞不下,只寫群組名稱與組數。
+    社團這類 `GRID_GROUP_LIST_MIN` 組以上的大型跑班一格塞不下,只寫群組名稱與組數。
     """
     out: list[_EntryView] = []
     groups: dict[tuple[int | None, int, int], list[_EntryView]] = {}
@@ -176,7 +176,7 @@ def _merge_groups(entries: list[_EntryView]) -> list[_EntryView]:
             out.append(first)
             continue
         span = max(m.span for m in members)
-        if len(members) >= patrol_sheets.GROUP_LIST_MIN:
+        if len(members) >= patrol_sheets.GRID_GROUP_LIST_MIN:
             out.append(replace(first, subject=first.unit_name, teachers=f"共 {len(members)} 組",
                                room="", span=span))
             continue

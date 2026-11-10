@@ -73,6 +73,14 @@ class LeaveUpdateIn(BaseModel):
     reason: str | None = Field(default=None, max_length=200)
 
 
+class SkippedPeriodOut(BaseModel):
+    """登記請假時沒列入的一節:它已經在別張假單或「調課(未請假)」裡(v1.4.16)。"""
+
+    date: date
+    period_name: str
+    taken_by: str
+
+
 class DayPeriodOut(BaseModel):
     """這位老師這一天的一節課(新增調課時勾選,v1.4.5)。"""
 
@@ -115,6 +123,8 @@ class LeaveRequestOut(BaseModel):
     affected_periods: list[AffectedPeriodOut] = []
     homeroom_covers: list[HomeroomCoverOut] = []
     cover_pending_count: int = 0  # 還沒安排的代導(天次)
+    # 只有登記時回傳:已經在別張假單或調課裡、這次沒列入的節次(v1.4.16)
+    skipped: list[SkippedPeriodOut] = []
 
 
 class LeaveCancelled(BaseModel):

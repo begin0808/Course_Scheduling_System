@@ -323,12 +323,20 @@ def test_class_grid_lists_every_group_teacher(env):
         assert lines == [("英語", "師0／師1")]
 
 
-def test_class_grid_big_group_shows_name_and_count(env):
-    """社團這類 4 組以上的跑班:一格塞不下,寫群組名稱與組數(同巡堂表)。"""
+def test_class_grid_lists_five_groups(env):
+    """v1.4.16 組長回報:數學分組有 4 組,原本只寫「共 4 組」看不到老師。5 組以內都列出來。"""
     w = _group_world(env, 5)
     grid, _ = tex.build_grid(w.db, w.sid, "class", w.classes["701"])
     lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
-    assert lines == [("九年級英語分組", "共 5 組")]
+    assert lines == [("英語", "師0／師1／師2／師3／師4")]
+
+
+def test_class_grid_big_group_shows_name_and_count(env):
+    """社團這類 6 組以上的跑班:一格塞不下,寫群組名稱與組數。"""
+    w = _group_world(env, 6)
+    grid, _ = tex.build_grid(w.db, w.sid, "class", w.classes["701"])
+    lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
+    assert lines == [("九年級英語分組", "共 6 組")]
     # 教師課表只看自己那一組
     grid, _ = tex.build_grid(w.db, w.sid, "teacher", w.teachers["師3"])
     lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
