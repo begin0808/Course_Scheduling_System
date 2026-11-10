@@ -11,6 +11,7 @@ import type { AffectedPeriod, LeaveRequest } from '@/api/leaves'
 import { listSemesters } from '@/api/semesters'
 import { publishedSemesters } from '@/api/timetables'
 import { useAuthStore } from '@/stores/auth'
+import { coverHint, skippedText } from './leaveText'
 
 const auth = useAuthStore()
 const message = useMessage()
@@ -102,10 +103,12 @@ async function onSubmit() {
     const covers = created.homeroom_covers.length
       ? `;導師班需代導 ${created.homeroom_covers.length} 天次,請到「調代課處理」安排`
       : ''
+    const skipped = skippedText(created.skipped ?? [])
     message.success(
       (created.affected_count
         ? `已登記,共 ${created.affected_count} 節課受影響`
-        : '已登記(這段期間沒有課)') + covers,
+        : skipped ? '已登記' : '已登記(這段期間沒有課)') + skipped + covers,
+      { duration: skipped ? 8000 : 3000 },
     )
     form.value.reason = ''
     await reload()
@@ -294,7 +297,7 @@ function rangeText(l: LeaveRequest): string {
         <n-space vertical size="small">
           <n-text v-if="l.reason" depth="3">事由:{{ l.reason }}</n-text>
           <n-alert v-if="!l.affected_count" type="info" :bordered="false">
-            這段期間沒有課(週末,或課表尚未發布)
+            這段期間沒有要處理的課(週末、課表尚未發布,或這些課已經在別筆調課、假單裡處理)
           </n-alert>
           <table v-else class="data-table" data-testid="lv-affected">
             <thead>
@@ -325,7 +328,7 @@ function rangeText(l: LeaveRequest): string {
           <n-text v-if="l.homeroom_covers.length" data-testid="lv-covers">
             代導:{{ [...new Set(l.homeroom_covers.map((c) => c.class_name))].join('、') }}
             共 {{ l.homeroom_covers.length }} 天次
-            <n-text depth="3">(請到「調代課處理」安排代導老師)</n-text>
+            <n-text depth="3" data-testid="lv-covers-hint">({{ coverHint(l) }})</n-text>
           </n-text>
           <n-text depth="3">登記人:{{ l.created_by_name }}</n-text>
         </n-space>

@@ -34,6 +34,7 @@ from app.schemas.leave import (
     LeaveRequestIn,
     LeaveRequestOut,
     LeaveUpdateIn,
+    SkippedPeriodOut,
     SwapRequestIn,
 )
 from app.services import leaves as leave_service
@@ -146,7 +147,7 @@ def create_leave(
     on_behalf = teacher.user_id != user.id
 
     try:
-        leave = leave_service.create(
+        leave, skipped = leave_service.create(
             db, sem, teacher,
             leave_type=body.leave_type,
             start_date=body.start_date, start_time=body.start_time,
@@ -170,7 +171,10 @@ def create_leave(
     ))
     db.commit()
     db.refresh(leave)
-    return _serialize(leave)
+    out = _serialize(leave)
+    out.skipped = [SkippedPeriodOut(date=s.day, period_name=s.period_name, taken_by=s.taken_by)
+                   for s in skipped]
+    return out
 
 
 @router.get("/leaves", response_model=list[LeaveRequestOut])

@@ -106,7 +106,7 @@ def test_full_pipeline_per_track(name, builder, db):
     assert teacher is not None
     leave_day = _first_date_with_isoweekday(weekday)
 
-    leave = leave_svc.create(
+    leave, _ = leave_svc.create(
         db, fx.semester, teacher,
         leave_type=LeaveType.personal.value,
         start_date=leave_day, start_time=None, end_date=leave_day, end_time=None,

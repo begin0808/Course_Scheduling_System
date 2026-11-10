@@ -16,6 +16,7 @@
 """
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import select
@@ -244,6 +245,15 @@ def expand_covers(db: Session, leave: LeaveRequest) -> list[HomeroomCover]:
     return out
 
 
+@dataclass(frozen=True, slots=True)
+class Skipped:
+    """登記請假時沒列入的一節:它已經在別張假單或調課裡(v1.4.16)。"""
+
+    day: date
+    period_name: str
+    taken_by: str  # 那張的假別名稱,例如「調課(未請假)」
+
+
 def cover_is_past(day: date) -> bool:
     """代導以天為單位:那一天過完了才算代過(當天仍可改派、銷假仍會取消)。"""
     return day < clock.school_today()
@@ -279,8 +289,13 @@ def create(
     created_by_user_id: int | None,
     created_by_name: str,
     notify_teacher: bool,
-) -> LeaveRequest:
-    """登記請假並展開受影響節次。呼叫端負責 commit。"""
+) -> tuple[LeaveRequest, list[Skipped]]:
+    """登記請假並展開受影響節次。呼叫端負責 commit。
+
+    已經在別張有效假單或「調課(未請假)」裡的節次不再列入,回傳在第二個值(v1.4.16,
+    組長回報:導師先把當天的課調走,再請假讓系統排代導,那兩節又變成待處理,怎麼處理都不對)。
+    同一節不能處理兩次——和「新增調課」的檢查同一條規則,只是反過來。
+    """
     validate(semester, start_date, end_date)
     if start_date == end_date and start_time and end_time and end_time <= start_time:
         raise LeaveError("結束時間不可早於開始時間")
@@ -294,7 +309,13 @@ def create(
     db.add(leave)
     db.flush()
 
+    taken = taken_slots(db, teacher.id, start_date, end_date)
+    skipped: list[Skipped] = []
     for period in expand(db, leave):
+        label = taken.get((period.date, period.period_no))
+        if label:
+            skipped.append(Skipped(period.date, period.period_name, label))
+            continue
         db.add(period)
     for cover in expand_covers(db, leave):
         db.add(cover)
@@ -311,7 +332,7 @@ def create(
             title=f"{created_by_name} 已為您登記{LEAVE_TYPE_CN[leave.leave_type]}",
             body=body,
         )
-    return leave
+    return leave, skipped
 
 
 def day_periods(
@@ -329,19 +350,27 @@ def day_periods(
     return sorted(expand(db, probe), key=lambda p: p.period_no)
 
 
-def taken_periods(db: Session, teacher_id: int, day: date) -> dict[int, str]:
-    """這一天已經在別張有效假單(或調課)裡的節次 → 那張的假別名稱。同一節不能處理兩次。"""
+def taken_slots(
+    db: Session, teacher_id: int, start: date, end: date
+) -> dict[tuple[date, int], str]:
+    """這段期間已經在有效假單(或調課)裡的節次 → 那張的假別名稱。同一節不能處理兩次。"""
     rows = db.execute(
-        select(AffectedPeriod.period_no, LeaveRequest.leave_type)
+        select(AffectedPeriod.date, AffectedPeriod.period_no, LeaveRequest.leave_type)
         .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
         .where(
             LeaveRequest.teacher_id == teacher_id,
             LeaveRequest.status == LeaveStatus.registered.value,
-            AffectedPeriod.date == day,
+            AffectedPeriod.date >= start,
+            AffectedPeriod.date <= end,
             AffectedPeriod.status != AffectedStatus.cancelled.value,
         )
     ).all()
-    return {no: LEAVE_TYPE_CN.get(lt, lt) for no, lt in rows}
+    return {(d, no): LEAVE_TYPE_CN.get(lt, lt) for d, no, lt in rows}
+
+
+def taken_periods(db: Session, teacher_id: int, day: date) -> dict[int, str]:
+    """這一天已經在別張有效假單(或調課)裡的節次 → 那張的假別名稱。"""
+    return {no: label for (_, no), label in taken_slots(db, teacher_id, day, day).items()}
 
 
 def create_swap_request(

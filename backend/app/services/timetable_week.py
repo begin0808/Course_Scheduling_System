@@ -20,7 +20,7 @@ from app.models.semester import Semester
 from app.services import period_tables as pt_service
 from app.services import teacher_week_sheets as tw
 from app.services.availability import published_timetable
-from app.services.patrol_sheets import GROUP_LIST_MIN, Day, join
+from app.services.patrol_sheets import GRID_GROUP_LIST_MIN, Day, join
 from app.services.slip_layout import Tables
 
 _Date = date
@@ -76,7 +76,7 @@ def _class_cells(db: Session, day: Day, klass: ClassUnit, tables: Tables) -> lis
         kind = next((_KIND.get(n, tw.NORMAL) for n in notes), tw.NORMAL)
         note = join([f"{x.note}(原:{x.original})" if x.original and x.teacher != x.original
                      else x.note for x in lessons if x.note], "、")
-        big = lessons[0].is_group and len(lessons) >= GROUP_LIST_MIN
+        big = lessons[0].is_group and len(lessons) >= GRID_GROUP_LIST_MIN
         out.append(WeekCell(
             date=day.on, weekday=day.on.isoweekday(), ordinal=ordinal,
             period_no=period.period_no,
