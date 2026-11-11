@@ -124,6 +124,7 @@ class _Lesson:
     room: str
     note: str
     original: str = ""      # 有異動時,課表上原本的老師(v1.4.15 課表查詢的週課表用)
+    swap_with: str = ""     # 調課:對調的另一節「11/20 第三節」(v1.4.17 週課表用)
 
 
 def _days(date_from: date, date_to: date) -> Iterator[date]:
@@ -151,6 +152,11 @@ def _halves(periods: list[Period]) -> list[list[tuple[int, Period]]]:
     morning = [x for x in numbered if is_morning(x[1])]
     afternoon = [x for x in numbered if not is_morning(x[1])]
     return [half for half in (morning, afternoon) if half]
+
+
+def _slot(day: date, period_name: str) -> str:
+    """調課對調的另一節:「11/20 第三節」。"""
+    return f"{day.month}/{day.day} {period_name}".strip()
 
 
 def _same_class(ap: AffectedPeriod, sub: Substitution) -> bool:
@@ -216,7 +222,7 @@ class Day:
         room = entry.room if entry.room is not None else a.room
         names = [at.teacher.name for at in a.teachers]
         original = "、".join(names)
-        subject, note = a.subject.name, ""
+        subject, note, swap_with = a.subject.name, "", ""
 
         def replace(absent_name: str, by: str) -> None:
             """只換掉請假的那一位;協同教學的另一位老師照常上課。"""
@@ -236,21 +242,25 @@ class Day:
                     replace(absent_name, sub.handler.name)
                 elif absent_name in names:      # 自習、停課:沒有人接手,請假的那位不會來
                     names.remove(absent_name)
-                if sub.type == SubstitutionType.swap.value and _same_class(ap, sub):
-                    subject = sub.swap_subject_name or subject   # 同班互調:科目跟著老師走
+                if sub.type == SubstitutionType.swap.value:
+                    if sub.swap_date is not None:
+                        swap_with = _slot(sub.swap_date, sub.swap_period_name)
+                    if _same_class(ap, sub):
+                        subject = sub.swap_subject_name or subject   # 同班互調:科目跟著老師走
         elif (entry.id, period_no) in self.makeup:
             ap, sub = self.makeup[(entry.id, period_no)]
             note = _NOTE[SubstitutionType.swap.value]
             partner = sub.handler.name if sub.handler else ""
             back = ap.leave_request.teacher.name if ap.leave_request.teacher else ""
             replace(partner, back)
+            swap_with = _slot(ap.date, ap.period_name)
             if _same_class(ap, sub):
                 subject = ap.subject_name or subject
 
         return _Lesson(
             unit_id=unit.id, unit_name=unit.name, is_group=unit.unit_type == "group",
             subject=subject, teacher="、".join(names), room=room.name if room else "", note=note,
-            original=original if note else "",
+            original=original if note else "", swap_with=swap_with,
         )
 
     def lessons(self, class_id: int, period_no: int) -> list[_Lesson]:

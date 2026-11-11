@@ -7,7 +7,7 @@ import pytest
 from app.models.user import Role
 from tests.conftest import make_user
 from tests.dates import SEM_END, SEM_START, WED
-from tests.test_substitutions import _swap_first, _World
+from tests.test_substitutions import _options, _swap_first, _World
 
 PW = "password123"
 
@@ -76,8 +76,38 @@ def test_teacher_week_matches_the_master_sheet(w):
     assert _at(chen, WED, 1) == [("701 數學", "", "swap", f"調{md(thu)}_42")]
     assert _at(chen, thu, 2) == [("701 數學", "", "off", "調給王師")]
 
+    # 班級課表兩格都寫出對調的另一節(v1.4.17)
     cls = _week(w, "class", w.classes["701"]).json()
-    assert _at(cls, WED, 1) == [("數學", "陳師", "swap", "調課(原:王師)")]
+    assert _at(cls, WED, 1) == [("數學", "陳師", "swap", f"調課(原:王師,與 {md(thu)} 第二節對調)")]
+    assert _at(cls, thu, 2) == [("國文", "王師", "swap", f"調課(原:陳師,與 {md(WED)} 第一節對調)")]
+
+
+def test_class_week_swap_into_another_week(w):
+    """組長回報(v1.4.17):週四請假的課和隔週的課對調,這週的週課表只有一格變色,
+    看起來像「只有一個人被調」。變色那格要寫出另一半在哪一天哪一節。"""
+    w.teacher("王師", ["國文"])
+    w.teacher("林師", ["輔導"])
+    thu = WED + timedelta(days=1)
+    w.place("王師", "國文", "701", 4, weekday=4)
+    w.place("林師", "輔導", "701", 5, weekday=3)
+    w.publish()
+    affected = w.leave("王師", thu)
+    nxt = WED + timedelta(days=7)
+    opt = next(o for o in _options(w, affected[0]["id"], "林師")["partners"][0]["options"]
+               if o["date"] == nxt.isoformat())
+    code, body = w.assign(affected[0]["id"], type="swap", handler_teacher_id=w.teachers["林師"],
+                          swap_entry_id=opt["entry_id"], swap_date=opt["date"],
+                          swap_period_no=opt["period_no"])
+    assert code == 200, body
+    md = lambda d: f"{d.month}/{d.day}"  # noqa: E731
+
+    this_week = _week(w, "class", w.classes["701"]).json()
+    assert _at(this_week, thu, 5) == [
+        ("輔導", "林師", "swap", f"調課(原:王師,與 {md(nxt)} 第六節對調)")]
+    assert _at(this_week, WED, 6) == [("輔導", "林師", "normal", "")], "這週的週三照常"
+    next_week = _week(w, "class", w.classes["701"], nxt).json()
+    assert _at(next_week, nxt, 6) == [
+        ("國文", "王師", "swap", f"調課(原:林師,與 {md(thu)} 第五節對調)")]
 
 
 def test_week_errors_and_teacher_can_view(w):
