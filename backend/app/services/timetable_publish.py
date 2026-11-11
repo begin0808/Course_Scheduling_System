@@ -13,6 +13,7 @@ from app.models.audit import AuditLog
 from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import User
+from app.services import swap_relink
 
 
 def _reasons_by_assignment(timetable: Timetable) -> dict[int, str]:
@@ -127,6 +128,9 @@ def publish(db: Session, timetable: Timetable, user: User, forced: bool) -> Time
     for p in previous:
         p.status = TimetableStatus.archived.value
     timetable.status = TimetableStatus.published.value
+    db.flush()
+    # 調課的補課節次接到新課表的格子(v1.4.18);接不上的由 API 回報筆數
+    swap_relink.relink(db, timetable)
 
     db.add(AuditLog(
         user_id=user.id, username=user.username,
