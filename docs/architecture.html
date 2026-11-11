@@ -768,7 +768,7 @@
       <tr>
       <td><code>substitution</code></td>
       <td>調代課處置</td>
-      <td>類型:<code>substitute</code>(代課)/<code>swap</code>(調課)/<code>merge</code>(併班)/<code>self_study</code>(自習)/<code>cancel</code>(不處理);代課教師、是否計鐘點、經費來源標記</td>
+      <td>類型:<code>substitute</code>(代課)/<code>swap</code>(調課)/<code>merge</code>(併班)/<code>self_study</code>(自習)/<code>cancel</code>(不處理);代課教師、是否計鐘點、經費來源標記。調課另記補課那一節:<code>swap_date</code>、<code>swap_period_no</code>、<code>swap_entry_id</code>(<strong>已發布課表的格子</strong>)。格子屬於某一份課表,學期中重新發布時新課表每一格都是新的一列,所以<strong>發布時要把這學期的調課接到新課表</strong>「同一配課、同一星期、涵蓋該節」的格子(<code>services/swap_relink.py</code>,v1.4.18);接不上(那堂課被搬走)的維持原樣,發布回傳 <code>swap_unlinked</code> 提醒組長重排。週課表、巡堂表、調課清單都以 <code>swap_entry_id</code> 比對已發布課表,沒接上就畫不出補課那一節、也可能重複調課。遷移 0020 只改資料:把升級前已發生的接回目前已發布的課表</td>
       </tr>
       <tr>
       <td><code>notification</code></td>

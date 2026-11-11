@@ -196,7 +196,7 @@ erDiagram
 | `leave_request` | 請假 | 教師、假別(公/事/病/婚/喪/產/進修)、起訖日期時間、事由、登記人 |
 | `affected_period` | 受影響節次 | 請假展開後的每一節課;狀態機見 §5.3 |
 | `homeroom_cover` | **代導**(v1.4.0,遷移 0019) | 導師請假時,依「他帶的班 × 請假期間的上課日」各一列(`uq(leave_request_id, class_name, date)`),**與課表無關**——當天沒課也要有人帶班。快照:班名、年級;該日請假時段 `from_time`/`to_time`(兩端皆空 = 全天,否則為半天,顯示為上午/下午);狀態沿用 `affected_period` 的待處理/已確認/已取消(已完成為讀取時推導:那天過完);`no_cover`(不需代導)、代導教師 `handler_teacher_id`。人選不檢查課務(有課也能代導),只排除當天整天請假者。月結只記全天/半天天數,不計算代導費 |
-| `substitution` | 調代課處置 | 類型:`substitute`(代課)/`swap`(調課)/`merge`(併班)/`self_study`(自習)/`cancel`(不處理);代課教師、是否計鐘點、經費來源標記 |
+| `substitution` | 調代課處置 | 類型:`substitute`(代課)/`swap`(調課)/`merge`(併班)/`self_study`(自習)/`cancel`(不處理);代課教師、是否計鐘點、經費來源標記。調課另記補課那一節:`swap_date`、`swap_period_no`、`swap_entry_id`(**已發布課表的格子**)。格子屬於某一份課表,學期中重新發布時新課表每一格都是新的一列,所以**發布時要把這學期的調課接到新課表**「同一配課、同一星期、涵蓋該節」的格子(`services/swap_relink.py`,v1.4.18);接不上(那堂課被搬走)的維持原樣,發布回傳 `swap_unlinked` 提醒組長重排。週課表、巡堂表、調課清單都以 `swap_entry_id` 比對已發布課表,沒接上就畫不出補課那一節、也可能重複調課。遷移 0020 只改資料:把升級前已發生的接回目前已發布的課表 |
 | `notification` | 通知 | 站內+Email(v2 經 channel adapter 加 LINE/webhook);類型、收件人、已讀狀態 |
 | `user` / `user_role` | 帳號與角色 | 本地帳密(bcrypt);角色:admin / director(教務主任)/ scheduler(教學組長)/ teacher |
 | `audit_log` | 操作軌跡 | 誰在何時改了什麼(排課異動、調代課指派必記) |
