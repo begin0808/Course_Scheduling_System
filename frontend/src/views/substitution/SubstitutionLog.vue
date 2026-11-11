@@ -9,6 +9,7 @@ import type { LogEntry } from '@/api/substitutionLog'
 import { openSlips } from '@/api/substitutions'
 import { listCovers, openCoverSlips } from '@/api/homeroomCovers'
 import type { CoverLog } from '@/api/homeroomCovers'
+import { logDisposition } from './logText'
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
@@ -121,11 +122,6 @@ function printSlips(kind: 'swap' | 'substitute') {
   if (sid.value) openSlips(kind, sid.value, kind === 'swap' ? swapIds.value : substituteIds.value)
 }
 
-function dispositionText(e: LogEntry): string {
-  if (!e.disposed) return '—'
-  if (e.handler_name) return `${e.sub_type_label} · ${e.handler_name}`
-  return e.sub_type_label ?? ''
-}
 
 function statusType(e: LogEntry): string {
   if (e.status === 'pending') return 'warning'
@@ -206,7 +202,7 @@ function statusType(e: LogEntry): string {
           <td>{{ e.subject_name }}</td>
           <td>{{ e.absent_teacher_name }}</td>
           <td>{{ e.leave_type_label }}</td>
-          <td>{{ dispositionText(e) }}</td>
+          <td>{{ logDisposition(e) }}</td>
           <td><n-tag size="small" :type="statusType(e) as never">{{ e.status_label }}</n-tag></td>
         </tr>
       </tbody>

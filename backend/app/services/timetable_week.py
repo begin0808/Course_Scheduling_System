@@ -20,7 +20,7 @@ from app.models.semester import Semester
 from app.services import period_tables as pt_service
 from app.services import teacher_week_sheets as tw
 from app.services.availability import published_timetable
-from app.services.patrol_sheets import GRID_GROUP_LIST_MIN, Day, join
+from app.services.patrol_sheets import GRID_GROUP_LIST_MIN, Day, _Lesson, join
 from app.services.slip_layout import Tables
 
 _Date = date
@@ -64,6 +64,15 @@ def _in_term(semester: Semester | None, d: date) -> bool:
     return not (semester.end_date and d > semester.end_date)
 
 
+def _note(x: _Lesson) -> str:
+    """「代課(原:王師)」;調課再寫出對調的另一節,另一半可能在隔天或別週(v1.4.17,組長回報:
+    補課排在隔天,只看到一格變色,以為只有一個人被調)。"""
+    extra = [f"原:{x.original}"] if x.original and x.teacher != x.original else []
+    if x.swap_with:
+        extra.append(f"與 {x.swap_with}對調")
+    return f"{x.note}({','.join(extra)})" if extra else x.note
+
+
 def _class_cells(db: Session, day: Day, klass: ClassUnit, tables: Tables) -> list[WeekCell]:
     pt = pt_service.resolve_period_table(db, klass)
     table = pt.id if pt else None
@@ -74,8 +83,7 @@ def _class_cells(db: Session, day: Day, klass: ClassUnit, tables: Tables) -> lis
             continue
         notes = [x.note for x in lessons if x.note]
         kind = next((_KIND.get(n, tw.NORMAL) for n in notes), tw.NORMAL)
-        note = join([f"{x.note}(原:{x.original})" if x.original and x.teacher != x.original
-                     else x.note for x in lessons if x.note], "、")
+        note = join([_note(x) for x in lessons if x.note], "、")
         big = lessons[0].is_group and len(lessons) >= GRID_GROUP_LIST_MIN
         out.append(WeekCell(
             date=day.on, weekday=day.on.isoweekday(), ordinal=ordinal,
