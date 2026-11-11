@@ -223,7 +223,7 @@
     <div class="brand">
       <span class="mark">排課與調代課系統</span>
     </div>
-    <div class="brand"><span class="sub">教學組長操作手冊 · 對應 v1.4.17</span></div>
+    <div class="brand"><span class="sub">教學組長操作手冊 · 對應 v1.4.18</span></div>
     <div class="grp">本手冊章節</div>
     <nav id="toc">
       <a href="#intro"><span class="n">00</span>如何使用本手冊</a>
@@ -265,7 +265,7 @@
           <span class="chip">繁體中文 · 台灣教務用語</span>
           <span class="chip">單校自架 · 資料不出校</span>
           <span class="chip">開源免費(AGPL-3.0)</span>
-          <span class="chip">對應系統 v1.4.17 · 更新於 2026-11-11</span>
+          <span class="chip">對應系統 v1.4.18 · 更新於 2026-11-11</span>
         </div>
       </header>
 
@@ -521,7 +521,7 @@
           <li><span class="st-t">在版本清單找到要發布的草稿</span>(可複製、改名、刪除來管理多份)。</li>
           <li><span class="st-t">(建議)先按「檢查課表」</span>——會告訴你課務有沒有排完、課表有沒有衝突(教師或班級同一節兩堂課、排在教師不可排時段、超過每日上限…),有問題就列出清單。草稿、已發布的課表都可以檢查。</li>
           <li><span class="st-t">按「發布」</span>——若有未排完的課或衝突,會先列出來再問一次;確認後可強制發布。</li>
-          <li><span class="st-t">舊版自動封存</span>——發布新版後,同學期原本已發布的那份會轉為「已封存」。</li>
+          <li><span class="st-t">舊版自動封存</span>——發布新版後,同學期原本已發布的那份會轉為「已封存」。已經登記的調課會<strong>自動接到新課表</strong>(同一門課、同一天、同一節還在就接上,v1.4.18);如果新課表把補課那堂課搬走了,發布後會提醒「有 N 筆調課的補課節次…」,請到「調代課處理」按該節的「撤回」後重新安排。</li>
         </ol>
         <div class="cal note"><div class="lab">📌 為什麼排好的課表還會有衝突</div><p>手動拖放每一步都有檢查、自動排課排出來的也一定合規,所以衝突幾乎都是<strong>課表排好之後又改了資料</strong>造成的:事後把某節設成教師「不可排」、改了配課的任課教師或每週節數、調低每日上限。系統不會自動調動已排的課,只會在「檢查課表」與發布時列出來,由你決定怎麼處理。</p><p>另外,在「教師 → 時段規則」儲存不可排時段時,如果這位老師在那些時段已經有課,<strong>儲存當下就會提示</strong>是哪份課表的哪幾節(規則仍會存好)。</p></div>
         <figure class="shot"><img src="manual-img/06-versions.png" alt="版本與發布頁(草稿列表,自排結果已發布)" loading="lazy"><figcaption><b>版本與發布</b>頁(草稿列表,自排結果已發布)</figcaption></figure>
@@ -856,8 +856,8 @@
         </div>
 
         <div class="foot">
-          <p>排課與調代課系統 · 教學組長操作手冊 · 對應 v1.4.17 · 開源免費(AGPL-3.0)· 單校自架</p>
-          <p>本手冊隨系統版本更新;截圖對應系統 v1.4.7,文字內容已更新至 v1.4.17(最後更新:2026-11-11)。</p>
+          <p>排課與調代課系統 · 教學組長操作手冊 · 對應 v1.4.18 · 開源免費(AGPL-3.0)· 單校自架</p>
+          <p>本手冊隨系統版本更新;截圖對應系統 v1.4.7,文字內容已更新至 v1.4.18(最後更新:2026-11-11)。</p>
         </div>
       </section>
 

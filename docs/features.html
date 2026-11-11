@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="排課與調代課系統 v1.4.17 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
+<meta name="description" content="排課與調代課系統 v1.4.18 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
 <title>功能總覽 · 排課與調代課系統</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📋</text></svg>">
 <style>
@@ -90,7 +90,7 @@
 <header>
   <div class="eyebrow">FEATURE OVERVIEW</div>
   <h1>排課與調代課系統 · 功能總覽</h1>
-  <p class="lead">目前最新版 <b>v1.4.17</b>(2026-11-11)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">加入 LINE 社群、寫信或到 GitHub Issues 回報</a>。</p>
+  <p class="lead">目前最新版 <b>v1.4.18</b>(2026-11-11)已經具備的全部功能,依「一個學期的工作流程」整理。每項功能的操作步驟請見<a href="index.html">教學組長操作手冊</a>;各版變更細節見 <a href="https://github.com/begin0808/Course_Scheduling_System/blob/main/CHANGELOG.md">CHANGELOG</a>。遇到問題或有建議,歡迎<a href="#feedback">加入 LINE 社群、寫信或到 GitHub Issues 回報</a>。</p>
   <div class="meta">
     <span class="chip">單校自架 · 資料不出校</span>
     <span class="chip">開源免費(AGPL-3.0)</span>
@@ -277,7 +277,7 @@
   <div class="card"><b>HTTPS</b><span>設定網域即自動申請憑證(Caddy);未設定時為校內 HTTP。</span></div>
   <div class="card"><b>資料不出校</b><span>單校自架,不連任何雲端服務;唯一的對外連線是每天一次的版本查詢,可關閉。</span></div>
 </div>
-<div class="note good">每一版發布前都經過:後端 779 項、前端 73 項、端對端 61 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
+<div class="note good">每一版發布前都經過:後端 783 項、前端 73 項、端對端 61 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
 
 <h2 id="limits"><span class="no">14</span>目前的限制</h2>
 <p class="intro">已知、尚未處理的部分。多數有變通做法(見手冊 FAQ)。</p>
@@ -341,6 +341,7 @@
   <tr><td>v1.4.12</td><td class="ver">2026-11-06</td><td>調課可以從較早的週開始找(提早請假先補課);換不了的節次寫出原因;代導半天改以「次」計</td></tr>
   <tr><td>v1.4.13</td><td class="ver">2026-11-09</td><td>修正:跑班群組在班級課表(與匯出)只顯示其中一位老師</td></tr>
   <tr><td>v1.4.14</td><td class="ver">2026-11-10</td><td>全校教師週總表:老師為欄、日期 × 節次為列,標出這週的調代課(列印與 Excel,可一次 1~4 週)</td></tr>
+  <tr><td>v1.4.18</td><td class="ver">2026-11-11</td><td>修正:調課之後重新發布課表,補課那一節在週課表、巡堂表消失,且可能被重複拿去調課;發布時自動接到新課表,升級時修好已發生的</td></tr>
   <tr><td>v1.4.17</td><td class="ver">2026-11-11</td><td>調代課紀錄與某一週的班級課表,調課寫出對調的另一節在哪一天(補課排在隔天、別週時不會以為只改了一半)</td></tr>
   <tr><td>v1.4.16</td><td class="ver">2026-11-10</td><td>跑班 5 組以內在班級課表列出每位老師;先調課再請假,已調走的節次不再列成待處理;銷假後的代導顯示修正</td></tr>
   <tr><td>v1.4.15</td><td class="ver">2026-11-10</td><td>課表查詢可以看某一週實際的課表(含調代課,異動標色);新增身心調適假等常用假別與「其他」</td></tr>
@@ -355,7 +356,7 @@
 </div>
 <div class="note good">回報問題時附上<b>系統版本</b>(選單底部)、<b>操作步驟</b>和<b>畫面截圖</b>,會更快找到原因;截圖請先遮住老師姓名等個人資料。</div>
 
-<footer>排課與調代課系統 · 功能總覽 · 對應 v1.4.17 · 開源免費(AGPL-3.0)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
+<footer>排課與調代課系統 · 功能總覽 · 對應 v1.4.18 · 開源免費(AGPL-3.0)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
 </div>
 </body>
 </html>

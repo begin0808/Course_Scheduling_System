@@ -40,7 +40,7 @@ from app.schemas.timetable import (
     TimetableWeekOut,
 )
 from app.services import conflict_checker as cc
-from app.services import timetable_check, timetable_week
+from app.services import swap_relink, timetable_check, timetable_week
 from app.services import timetable_publish as pub
 from app.services.teachers import current_teacher
 
@@ -285,6 +285,7 @@ def publish_timetable(
     # 條件 D:重新發布後,提醒仍有多少「今日之後」的調代課是依舊課表展開的
     out = get_timetable(timetable_id, db, None)
     out.stale_affected = pub.stale_future_affected_count(db, tt.semester_id)
+    out.swap_unlinked = swap_relink.unlinked_count(db, tt)
     return out
 
 

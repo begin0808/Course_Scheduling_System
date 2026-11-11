@@ -93,11 +93,18 @@ const issueGroups = computed(() => {
   return groups
 })
 
-function warnStale(n?: number) {
+function warnStale(n?: number, unlinked?: number) {
   if (n && n > 0) {
     message.warning(
       `有 ${n} 筆今日之後的調代課是依先前課表安排的,請至今日看板/調代課紀錄重新檢視`,
       { duration: 8000 })
+  }
+  // 調課的補課節次會自動接到新課表;那堂課被搬走的接不上,要組長重新安排(v1.4.18)
+  if (unlinked && unlinked > 0) {
+    message.warning(
+      `有 ${unlinked} 筆調課的補課節次,在新課表裡已經沒有原本那堂課,`
+        + '請到「調代課處理」按該節的「撤回」後重新安排',
+      { duration: 12000 })
   }
 }
 
@@ -106,7 +113,7 @@ async function onPublish(t: TimetableBrief) {
   try {
     const r = await publishTimetable(t.id)
     message.success(`已發布「${t.name}」`)
-    warnStale(r.stale_affected)
+    warnStale(r.stale_affected, r.swap_unlinked)
     await reload()
   } catch (e) {
     const r = publishReport((e as ApiError).detail)
@@ -128,7 +135,7 @@ async function onForcePublish() {
     const left = [issues.value.length ? '衝突' : '', incomplete.value ? '未排完課務' : '']
       .filter(Boolean).join('與')
     message.success(`已強制發布(仍有${left})`)
-    warnStale(r.stale_affected)
+    warnStale(r.stale_affected, r.swap_unlinked)
     await reload()
   } catch (e) {
     message.error((e as ApiError).detail as string || '發布失敗')
