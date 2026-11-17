@@ -25,6 +25,7 @@ from app.api import (
     substitution_log,
     substitution_stats,
     substitutions,
+    suspensions,
     system,
     timetables,
     users,
@@ -107,6 +108,7 @@ app.include_router(substitutions.router, prefix="/api")
 app.include_router(homeroom_covers.router, prefix="/api")
 app.include_router(substitution_log.router, prefix="/api")
 app.include_router(substitution_stats.router, prefix="/api")
+app.include_router(suspensions.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(settings_api.router, prefix="/api")
 app.include_router(backups.router, prefix="/api")

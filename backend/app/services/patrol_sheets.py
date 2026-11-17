@@ -31,9 +31,11 @@ from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, Leave
 from app.models.period import Period, PeriodTable, PeriodType
 from app.models.semester import Semester
 from app.models.substitution import Substitution, SubstitutionType
+from app.models.suspension import ClassSuspension
 from app.models.timetable import ScheduleEntry
 from app.services import period_tables as pt_service
 from app.services import settings as app_settings
+from app.services import suspensions as suspension_service
 from app.services.availability import published_timetable
 from app.services.slip_layout import school_title
 
@@ -125,6 +127,7 @@ class _Lesson:
     note: str
     original: str = ""      # 有異動時,課表上原本的老師(v1.4.15 課表查詢的週課表用)
     swap_with: str = ""     # 調課:對調的另一節「11/20 第三節」(v1.4.17 週課表用)
+    reason: str = ""        # 停課的說明「校慶補假」(v1.4.19 週課表用)
 
 
 def _days(date_from: date, date_to: date) -> Iterator[date]:
@@ -215,6 +218,19 @@ class Day:
             ap = db.get(AffectedPeriod, sub.affected_period_id)
             if ap is not None:
                 self.makeup[(sub.swap_entry_id, sub.swap_period_no)] = (ap, sub)
+        # 停課日(v1.4.19):停課的課不上,優先於當天的調代課(停課是事後設的,設定時已提醒組長)
+        self.calendar = suspension_service.Calendar(db, semester_id, on, on)
+
+    def suspended(self, entry: ScheduleEntry, period_no: int) -> ClassSuspension | None:
+        """這一格的這一節停課嗎(這門課的每一班都停課才算)。"""
+        return self.calendar.for_entry(entry, self.on, period_no) if self.calendar else None
+
+    @property
+    def all_off(self) -> bool:
+        """這一天所有的課都停課(例如全校校慶補假):巡堂表、教師週總表略過這一天。"""
+        return bool(self.calendar) and all(
+            self.suspended(e, p) is not None
+            for e in self.entries for p in range(e.period_no, e.period_no + e.span))
 
     def _lesson(self, entry: ScheduleEntry, period_no: int) -> _Lesson:
         a = entry.assignment
@@ -223,6 +239,13 @@ class Day:
         names = [at.teacher.name for at in a.teachers]
         original = "、".join(names)
         subject, note, swap_with = a.subject.name, "", ""
+        off = self.suspended(entry, period_no)
+        if off is not None:
+            return _Lesson(
+                unit_id=unit.id, unit_name=unit.name, is_group=unit.unit_type == "group",
+                subject=subject, teacher=original, room=room.name if room else "",
+                note=_NOTE[SubstitutionType.cancel.value], reason=off.reason,
+            )
 
         def replace(absent_name: str, by: str) -> None:
             """只換掉請假的那一位;協同教學的另一位老師照常上課。"""
@@ -331,7 +354,7 @@ def build(db: Session, semester_id: int, date_from: date, date_to: date) -> Patr
     result = PatrolSheets(title=school_title(db, semester_id), legend=legend(db))
     for on in _days(date_from, date_to):
         day = Day(db, semester_id, timetable.id, on)
-        if not day.entries:
+        if not day.entries or day.all_off:
             continue
         listed: set[tuple[int, int]] = set()      # 已出過分組單的 (群組, 節次)
         for table, members in by_table.values():
@@ -362,5 +385,5 @@ def build(db: Session, semester_id: int, date_from: date, date_to: date) -> Patr
                         page.rows.append(row)
                     result.pages.append(page)
     if not result.pages:
-        raise PatrolError("這段期間沒有任何課(可能是假日,或課表尚未排入)")
+        raise PatrolError("這段期間沒有任何課(可能是假日、停課,或課表尚未排入)")
     return result

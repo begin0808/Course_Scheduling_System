@@ -41,6 +41,7 @@ from app.models.semester import Semester
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.services import notifications
 from app.services import period_tables as pt_service
+from app.services import suspensions as suspension_service
 
 MAX_LEAVE_DAYS = 180  # 產假上限約 8 週;180 天足夠,同時擋住手殘輸入的 2099 年
 
@@ -146,10 +147,13 @@ class _Expander:
         return (subject.name if subject else ""), classes, (room.name if room else "")
 
 
-def expand(db: Session, leave: LeaveRequest) -> list[AffectedPeriod]:
+def expand(
+    db: Session, leave: LeaveRequest, suspended: list["Skipped"] | None = None,
+) -> list[AffectedPeriod]:
     """依已發布課表展開受影響節次。呼叫端負責 commit。
 
     課表尚未發布時回傳空清單——假單照樣成立,只是沒有課要處理。
+    停課的節次不列入(v1.4.19:那節本來就不上課);給了 `suspended` 就把它們記在裡面。
     """
     timetable = _published_timetable(db, leave.semester_id)
     if timetable is None:
@@ -160,6 +164,7 @@ def expand(db: Session, leave: LeaveRequest) -> list[AffectedPeriod]:
         return []
 
     exp = _Expander(db)
+    cal = suspension_service.Calendar(db, leave.semester_id, leave.start_date, leave.end_date)
     out: list[AffectedPeriod] = []
     seen: set[tuple[date, int, str]] = set()
     semester = db.get(Semester, leave.semester_id)
@@ -191,6 +196,11 @@ def expand(db: Session, leave: LeaveRequest) -> list[AffectedPeriod]:
                 if key in seen:
                     continue
                 seen.add(key)
+                off = cal.for_assignment(a, day, period.period_no)
+                if off is not None:
+                    if suspended is not None:
+                        suspended.append(Skipped(day, period.name, suspension_service.label(off)))
+                    continue
                 out.append(AffectedPeriod(
                     leave_request_id=leave.id, semester_id=leave.semester_id,
                     date=day, weekday=weekday, period_no=period.period_no,
@@ -225,6 +235,7 @@ def expand_covers(db: Session, leave: LeaveRequest) -> list[HomeroomCover]:
         return []
 
     exp = _Expander(db)
+    cal = suspension_service.Calendar(db, leave.semester_id, leave.start_date, leave.end_date)
     out: list[HomeroomCover] = []
     for klass in classes:
         table = pt_service.resolve_period_table(db, klass)
@@ -234,6 +245,8 @@ def expand_covers(db: Session, leave: LeaveRequest) -> list[HomeroomCover]:
                     continue
             elif day.isoweekday() > _DEFAULT_WEEKDAYS:
                 continue
+            if cal.all_day_for_class(klass.id, day) is not None:
+                continue        # 這班整天停課,不必代導(v1.4.19)
             begin, finish = _leave_window(leave, day)
             out.append(HomeroomCover(
                 leave_request_id=leave.id, semester_id=leave.semester_id,
@@ -247,11 +260,11 @@ def expand_covers(db: Session, leave: LeaveRequest) -> list[HomeroomCover]:
 
 @dataclass(frozen=True, slots=True)
 class Skipped:
-    """登記請假時沒列入的一節:它已經在別張假單或調課裡(v1.4.16)。"""
+    """登記請假時沒列入的一節:它已經在別張假單或調課裡(v1.4.16),或那一節停課(v1.4.19)。"""
 
     day: date
     period_name: str
-    taken_by: str  # 那張的假別名稱,例如「調課(未請假)」
+    taken_by: str  # 那張的假別名稱,例如「調課(未請假)」;停課時是「停課(校慶補假)」
 
 
 def cover_is_past(day: date) -> bool:
@@ -311,7 +324,7 @@ def create(
 
     taken = taken_slots(db, teacher.id, start_date, end_date)
     skipped: list[Skipped] = []
-    for period in expand(db, leave):
+    for period in expand(db, leave, suspended=skipped):
         label = taken.get((period.date, period.period_no))
         if label:
             skipped.append(Skipped(period.date, period.period_name, label))

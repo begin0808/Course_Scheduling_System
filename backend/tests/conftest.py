@@ -30,6 +30,7 @@ from app.api import (
     substitution_log,
     substitution_stats,
     substitutions,
+    suspensions,
     system,
     timetables,
     users,
@@ -96,6 +97,7 @@ def env():
     application.include_router(homeroom_covers.router, prefix="/api")
     application.include_router(substitution_log.router, prefix="/api")
     application.include_router(substitution_stats.router, prefix="/api")
+    application.include_router(suspensions.router, prefix="/api")
     application.include_router(notifications.router, prefix="/api")
     application.include_router(settings_api.router, prefix="/api")
     application.include_router(backups.router, prefix="/api")

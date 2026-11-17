@@ -28,6 +28,7 @@ from app.models.leave import AffectedPeriod
 from app.models.semester import Semester
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
+from app.services import suspensions as suspension_service
 from app.services.availability import published_timetable
 from app.services.patrol_sheets import Day, classes_by_period_table
 from app.services.slip_layout import Tables, school_title
@@ -202,7 +203,11 @@ def day_cells(b: Builder, day: Day) -> dict[tuple[int, int], list[Item]]:
         label = _label(e)
         for p in range(e.period_no, e.period_no + e.span):
             ordinal = b.ordinal(a.id, wd, p)
-            if (a.id, p) in day.absent:
+            off = day.suspended(e, p)
+            if off is not None:                # 停課(v1.4.19):原本的課沒上
+                for t in teacher_ids:
+                    put(t, ordinal, Item(label, OFF, suspension_service.label(off)))
+            elif (a.id, p) in day.absent:
                 ap, sub = day.absent[(a.id, p)]
                 absent_id = ap.leave_request.teacher_id
                 for t in teacher_ids:          # 協同教學的另一位照常上課
@@ -280,7 +285,7 @@ def build(db: Session, semester_id: int, on: date, weeks: int = 1) -> TeacherWee
             if semester and semester.end_date and d > semester.end_date:
                 continue
             day = Day(db, semester_id, timetable.id, d)
-            if not day.entries:
+            if not day.entries or day.all_off:
                 continue
             cells = day_cells(b, day)
             for ordinal, name in enumerate(_row_names(b, tables, d.isoweekday()), 1):
@@ -290,5 +295,5 @@ def build(db: Session, semester_id: int, on: date, weeks: int = 1) -> TeacherWee
         if week.rows:
             result.weeks.append(week)
     if not result.weeks:
-        raise TeacherWeekError("這段期間沒有任何課(可能是假日、不在學期內,或課表尚未排入)")
+        raise TeacherWeekError("這段期間沒有任何課(可能是假日、停課、不在學期內,或課表尚未排入)")
     return result

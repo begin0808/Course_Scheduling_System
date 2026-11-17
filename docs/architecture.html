@@ -771,6 +771,11 @@
       <td>類型:<code>substitute</code>(代課)/<code>swap</code>(調課)/<code>merge</code>(併班)/<code>self_study</code>(自習)/<code>cancel</code>(不處理);代課教師、是否計鐘點、經費來源標記。調課另記補課那一節:<code>swap_date</code>、<code>swap_period_no</code>、<code>swap_entry_id</code>(<strong>已發布課表的格子</strong>)。格子屬於某一份課表,學期中重新發布時新課表每一格都是新的一列,所以<strong>發布時要把這學期的調課接到新課表</strong>「同一配課、同一星期、涵蓋該節」的格子(<code>services/swap_relink.py</code>,v1.4.18);接不上(那堂課被搬走)的維持原樣,發布回傳 <code>swap_unlinked</code> 提醒組長重排。週課表、巡堂表、調課清單都以 <code>swap_entry_id</code> 比對已發布課表,沒接上就畫不出補課那一節、也可能重複調課。遷移 0020 只改資料:把升級前已發生的接回目前已發布的課表</td>
       </tr>
       <tr>
+      <td><code>class_suspension</code></td>
+      <td><strong>停課日</strong>(v1.4.19,遷移 0021)</td>
+      <td>起訖日期、對象(<code>whole_school</code>,或經 <code>class_suspension_classes</code> 指定班級;畫面上勾年級 = 勾整個年級的班)、範圍(<code>from_ordinal</code>~<code>to_ordinal</code>:第幾節,只數一般課,依各班自己的節次表換算;兩個都空 = 整天)、說明。判斷集中在 <code>services/suspensions.py</code>:<strong>一門課的每一個班都停課才算停課</strong>(合班、跑班還有一班要上,老師就要去)。效果:請假展開時不列受影響節次(回傳 <code>skipped</code>「停課(…)」)、整天停課的班不產生代導、調課清單不能拿停課的那一節補課;<code>patrol_sheets.Day</code> 把停課的課標「停課」並<strong>優先於當天的調代課</strong>,全校整天停課的日子巡堂表與教師週總表略過。停課是事後設的,之前已安排的調代課<strong>不自動改</strong>(可能已通知老師),儲存時回傳 <code>conflicts</code> 讓組長自行撤回或改成「不處理」</td>
+      </tr>
+      <tr>
       <td><code>notification</code></td>
       <td>通知</td>
       <td>站內+Email(v2 經 channel adapter 加 LINE/webhook);類型、收件人、已讀狀態</td>
