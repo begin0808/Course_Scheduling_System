@@ -6,6 +6,8 @@
 格線與跨週分頁等共用部分見 `slip_layout`。
 
 **一筆調課 = 兩個異動格。** 甲請假那節改由乙上;乙原本那節改由甲上。
+三角調課(v1.4.20)是三格:甲那節由乙上、乙那節由丙上、丙那節由甲上;
+記號指向「來上的老師自己空出來的那一節」。
 
 - 教師調課單:每位老師一張,只列他「要去上」的那一格(空出來的那一格不列——
   他那節不用去,紙本上也沒有)。
@@ -25,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.models.leave import AffectedPeriod, AffectedStatus, LeaveRequest, LeaveStatus
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
+from app.services import swap_legs
 from app.services.slip_layout import Move, SlipError, Slips, Tables, assemble, school_title
 
 
@@ -34,31 +37,32 @@ def _md(d: date) -> str:
 
 
 def _moves(db: Session, tables: Tables, ap: AffectedPeriod, sub: Substitution) -> list[Move]:
-    absent = ap.leave_request.teacher
-    partner = sub.handler
-    if partner is None or sub.swap_date is None or sub.swap_period_no is None:
+    """這筆調課換人上的每一格(互調兩格、三角調課三格,見 `swap_legs`)。"""
+    legs = swap_legs.legs(ap, sub)
+    if (sub.handler is None or len(legs) < 2
+            or (sub.is_triangle and (sub.tri_teacher is None or len(legs) < 3))):
         raise SlipError("這筆調課資料不完整(對調教師或補課節次已被刪除),無法列印")
-    same_class = ap.class_names == sub.swap_class_names
-    leave_table = tables.of_assignment(ap.course_assignment_id)
-    entry = db.get(ScheduleEntry, sub.swap_entry_id) if sub.swap_entry_id else None
-    swap_table = tables.of_assignment(entry.course_assignment_id) if entry else leave_table
-    swap_wd, leave_wd = sub.swap_date.isoweekday(), ap.date.isoweekday()
-    swap_ord = tables.ordinal(swap_table, swap_wd, sub.swap_period_no)
-    leave_ord = tables.ordinal(leave_table, leave_wd, ap.period_no)
-    return [
-        Move(  # 請假那節:改由乙上
-            date=ap.date, period_no=ap.period_no, class_names=ap.class_names,
-            subject_name=sub.swap_subject_name if same_class else ap.subject_name,
-            teacher_id=partner.id, teacher_name=partner.name, table_id=leave_table,
-            code=f"調{_md(sub.swap_date)}_{swap_wd}{swap_ord}",
-        ),
-        Move(  # 乙原本那節:改由甲上
-            date=sub.swap_date, period_no=sub.swap_period_no, class_names=sub.swap_class_names,
-            subject_name=ap.subject_name if same_class else sub.swap_subject_name,
-            teacher_id=absent.id, teacher_name=absent.name, table_id=swap_table,
-            code=f"調{_md(ap.date)}_{leave_wd}{leave_ord}",
-        ),
-    ]
+
+    def table(leg_entry: int | None, assignment: int | None) -> int | None:
+        if assignment is None and leg_entry is not None:
+            entry = db.get(ScheduleEntry, leg_entry)
+            assignment = entry.course_assignment_id if entry else ap.course_assignment_id
+        return tables.of_assignment(assignment or ap.course_assignment_id)
+
+    out: list[Move] = []
+    for leg in legs:
+        assert leg.teacher_id is not None and leg.back_date is not None
+        assert leg.back_period_no is not None
+        back_wd = leg.back_date.isoweekday()
+        back_ord = tables.ordinal(table(leg.back_entry_id, leg.back_assignment_id),
+                                  back_wd, leg.back_period_no)
+        out.append(Move(
+            date=leg.date, period_no=leg.period_no, class_names=leg.class_names,
+            subject_name=leg.subject_taught, teacher_id=leg.teacher_id,
+            teacher_name=leg.teacher_name, table_id=table(leg.entry_id, leg.assignment_id),
+            code=f"調{_md(leg.back_date)}_{back_wd}{back_ord}",
+        ))
+    return out
 
 
 def build(db: Session, semester_id: int, affected_ids: list[int]) -> Slips:

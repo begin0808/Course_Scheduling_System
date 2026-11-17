@@ -10,6 +10,7 @@ const base: LogEntry = {
   sub_type: 'swap', sub_type_label: '調課', handler_teacher_id: 2, handler_name: '林師',
   counts_toward_hours: null, swap_date: '2026-11-20', swap_period_name: '第三節',
   swap_class_names: '802', swap_subject_name: '輔導', note: '', row_kind: 'leave',
+  is_triangle: false, tri_teacher_name: '', tri_date: null, tri_period_name: '',
 }
 
 describe('調代課紀錄的處置欄', () => {
@@ -25,6 +26,17 @@ describe('調代課紀錄的處置欄', () => {
     expect(logDisposition({ ...base, row_kind: 'swap_makeup', handler_name: '王師',
       swap_date: '2026-11-19', swap_period_name: '第五節' }))
       .toBe('調課補課 · 王師(與 11/19(週四) 第五節 對調)')
+  })
+
+  it('三角調課寫出三位老師各上哪一節(v1.4.20)', () => {
+    const tri = { ...base, leave_type: 'sick', is_triangle: true, tri_teacher_name: '陳師',
+      tri_date: '2026-11-20', tri_period_name: '第二節', swap_date: '2026-11-23',
+      swap_period_name: '第三節' }
+    expect(logDisposition(tri))
+      .toBe('三角調課 · 林師(陳師 11/20(週五) 第二節代林師、王師 11/23(週一) 第三節補課)')
+    expect(logDisposition({ ...tri, row_kind: 'swap_makeup', handler_name: '陳師',
+      swap_date: '2026-11-23', swap_period_name: '第三節' }))
+      .toBe('三角調課 · 陳師(陳師原本的 11/23(週一) 第三節 由別人上)')
   })
 
   it('代課、待處理照舊', () => {

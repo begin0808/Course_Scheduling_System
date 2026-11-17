@@ -25,6 +25,16 @@ function handlerText(e: LogEntry): string {
 }
 
 function noteText(e: LogEntry): string {
+  // 三角調課(v1.4.20):三位老師輪流換課
+  if (e.is_triangle && e.row_kind === 'swap_makeup') {
+    return `三角調課(${e.handler_name}原本的 ${e.swap_date} ${e.swap_period_name} `
+      + `${e.swap_class_names}${e.swap_subject_name} 由別人上)`
+  }
+  if (e.is_triangle) {
+    return `三角調課:${e.tri_teacher_name} 於 ${e.tri_date} ${e.tri_period_name} 代${e.handler_name};`
+      + `${e.absent_teacher_name} 於 ${e.swap_date} ${e.swap_period_name} 補 `
+      + `${e.swap_class_names}${e.swap_subject_name}`
+  }
   if (e.row_kind === 'swap_makeup') {
     return `與 ${e.swap_date} ${e.swap_period_name} ${e.swap_class_names}${e.swap_subject_name} 對調`
   }

@@ -40,6 +40,11 @@ class LogEntryOut(BaseModel):
     swap_subject_name: str = ""
     note: str = ""
     row_kind: str = "leave"  # leave / swap_makeup(調課補課日被換來的那一節)
+    # 三角調課(v1.4.20):請假那一列另記丙與乙原本那一節
+    is_triangle: bool = False
+    tri_teacher_name: str = ""
+    tri_date: _Date | None = None
+    tri_period_name: str = ""
 
 
 class PatrolCellOut(BaseModel):

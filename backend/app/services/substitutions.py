@@ -9,6 +9,10 @@
 
 各處置的鐘點:代課計、併班/自習/不處理不計(§5.4 月結)。
 調課(swap)要驗兩位教師交換後都無衝突,拒絕時說出是誰在哪一節撞課。
+
+**三角調課**(v1.4.20,給了 `tri_teacher_id`):乙來上請假那節、丙來上乙的 `tri_*` 那節、
+甲回來上丙的 `swap_*` 那節。三格都要驗;成立時三位老師都收到通知,撤回時一起撤、都收到取消通知。
+鐘點都不計(和互調一樣)。
 """
 
 from dataclasses import dataclass
@@ -38,7 +42,7 @@ from app.models.substitution import (
 from app.models.timetable import ScheduleEntry
 from app.services import notifications
 from app.services.availability import Availability
-from app.services.swap_options import SwapChecker, block_periods
+from app.services.swap_options import SwapChecker, block_periods, triangle_unit
 
 
 class SubstitutionError(Exception):
@@ -78,8 +82,16 @@ def assign(
     created_by_name: str,
     swap_period_no: int | None = None,
     availability: Availability | None = None,
+    tri_teacher_id: int | None = None,
+    tri_entry_id: int | None = None,
+    tri_date: date | None = None,
+    tri_period_no: int | None = None,
 ) -> Substitution:
-    """對一個受影響節次做處置。呼叫端負責 commit。"""
+    """對一個受影響節次做處置。呼叫端負責 commit。
+
+    `tri_*` 給了就是三角調課(只限調課):丙(`tri_teacher_id`)來上乙的 `tri_entry_id` 那節,
+    甲回來上丙的 `swap_entry_id` 那節。
+    """
     if affected.status == AffectedStatus.cancelled.value:
         raise SubstitutionError("此節次已因銷假取消,無法處置")
     backfill = is_backfill(affected)
@@ -103,8 +115,17 @@ def assign(
     av = availability or Availability(db, affected.semester_id)
     handler = _resolve_handler(db, affected, sub_type, handler_teacher_id, av)
 
+    triangle = tri_teacher_id is not None
+    if triangle and sub_type != SubstitutionType.swap.value:
+        raise SubstitutionError("三角調課只能選調課")
     swap_fields: dict = {}
-    if sub_type == SubstitutionType.swap.value:
+    if sub_type == SubstitutionType.swap.value and triangle:
+        swap_fields = _validate_triangle(
+            db, affected, handler, av,
+            tri_teacher_id=tri_teacher_id, tri_entry_id=tri_entry_id, tri_date=tri_date,
+            tri_period_no=tri_period_no, swap_entry_id=swap_entry_id, swap_date=swap_date,
+            swap_period_no=swap_period_no)
+    elif sub_type == SubstitutionType.swap.value:
         swap_fields = _validate_swap(
             db, affected, handler, swap_entry_id, swap_date, swap_period_no, av)
 
@@ -121,10 +142,15 @@ def assign(
         sub_type, affected.leave_request.leave_type)
     sub.created_by_user_id = created_by_user_id
     sub.created_by_name = created_by_name
+    if sub.is_triangle and sub.tri_teacher_id != tri_teacher_id:
+        # 改派:原本三角調課的丙要知道不用來了
+        _notify_tri_cancelled(db, affected, sub, created_by_name)
     for k, v in swap_fields.items():
         setattr(sub, k, v)
     if sub_type != SubstitutionType.swap.value:
         _clear_swap(sub)
+    if not triangle:
+        _clear_tri(sub)
 
     affected.status = AffectedStatus.resolved.value
     affected.handler_teacher_id = handler.id if handler else None
@@ -349,6 +375,113 @@ def _validate_swap(
     }
 
 
+def _lesson_of(
+    db: Session, av: Availability, affected: AffectedPeriod, unit_id: int,
+    teacher: Teacher, entry_id: int | None, when: date | None, period_no: int | None,
+    what: str,
+) -> tuple[ScheduleEntry, int]:
+    """三角調課的一格:確認是這個班、這位老師在已發布課表裡的課,日期星期相符。"""
+    if entry_id is None or when is None:
+        raise SubstitutionError(f"三角調課需要指定{what}")
+    entry = db.get(ScheduleEntry, entry_id)
+    if entry is None or av.timetable is None or entry.timetable_id != av.timetable.id:
+        raise SubstitutionError(f"找不到{what}(需為已發布課表中的課)")
+    a = entry.assignment
+    if a.scheduling_unit_id != unit_id:
+        raise SubstitutionError(f"{what}不是 {affected.class_names} 的課(三角調課只限同一個班)")
+    if [t.teacher_id for t in a.teachers] != [teacher.id]:
+        raise SubstitutionError(f"{what}不是 {teacher.name} 一個人上的課")
+    if when.isoweekday() != entry.weekday:
+        raise SubstitutionError(
+            f"{when} 是 {_wd(when.isoweekday())},但{what}在 {_wd(entry.weekday)}")
+    if not av.entry_runs_on(entry, when):
+        raise SubstitutionError(f"{when} 那一週沒有{what}(單雙週的課)")
+    no = entry.period_no if period_no is None else period_no
+    if no not in block_periods(av, entry):
+        raise SubstitutionError(f"指定的節次不在{what}的時段內")
+    if when == affected.date and no == affected.period_no:
+        raise SubstitutionError(f"{what}不能是請假的同一節")
+    return entry, no
+
+
+def _validate_triangle(
+    db: Session,
+    affected: AffectedPeriod,
+    handler: Teacher | None,
+    av: Availability,
+    *,
+    tri_teacher_id: int | None,
+    tri_entry_id: int | None,
+    tri_date: date | None,
+    tri_period_no: int | None,
+    swap_entry_id: int | None,
+    swap_date: date | None,
+    swap_period_no: int | None,
+) -> dict:
+    """三角調課(v1.4.20):三格與 `swap_options.triangle_search` 同一套規則。
+
+      ① 乙(handler)在甲請假那節有空
+      ② 乙的 tri 那一節讓得出來(沒停課、乙沒請假、沒拿去調過),丙那節有空
+      ③ 丙的 swap 那一節,甲回得來(與互調的補課節次同一套檢查)
+    """
+    if handler is None:
+        raise SubstitutionError("調課需要指定對調教師")
+    unit_id, why = triangle_unit(db, affected)
+    if unit_id is None:
+        raise SubstitutionError(why)
+    third = db.scalar(select(Teacher).where(
+        Teacher.id == tri_teacher_id, Teacher.semester_id == affected.semester_id))
+    if third is None:
+        raise SubstitutionError("找不到三角調課的第三位老師")
+    absent_id = affected.leave_request.teacher_id
+    if third.id in (absent_id, handler.id):
+        raise SubstitutionError("三角調課要三位不同的老師")
+
+    mid, mid_no = _lesson_of(db, av, affected, unit_id, handler, tri_entry_id, tri_date,
+                             tri_period_no, f"{handler.name}要讓出的那一節")
+    makeup, makeup_no = _lesson_of(db, av, affected, unit_id, third, swap_entry_id, swap_date,
+                                   swap_period_no, f"{third.name}要讓出的那一節")
+    assert tri_date is not None and swap_date is not None
+
+    checker = SwapChecker(db, affected, av)
+    blocked = checker.partner_blocker(handler)
+    if blocked is not None:
+        raise SubstitutionError(f"{blocked},無法三角調課")
+    for entry, when, no in ((mid, tri_date, mid_no), (makeup, swap_date, makeup_no)):
+        if checker.out_of_reach(entry, when, no):
+            raise SubstitutionError(
+                f"{when} {_entry_period_name(av, entry, no)} 已經上過或不在學期內,無法調課")
+    reason = checker.mid_reason(handler, third, mid, tri_date, mid_no)
+    if reason:
+        raise SubstitutionError(f"{tri_date} {_entry_period_name(av, mid, mid_no)} {reason}")
+    blocked = checker.option_blocker(third, makeup, swap_date, makeup_no)
+    if blocked is not None:
+        raise SubstitutionError(blocked)
+
+    def snap(entry: ScheduleEntry) -> tuple[str, str]:
+        a = entry.assignment
+        return ("、".join(m.class_unit.name for m in a.scheduling_unit.members),
+                a.subject.name if a.subject else "")
+
+    mid_classes, mid_subject = snap(mid)
+    makeup_classes, makeup_subject = snap(makeup)
+    return {
+        "tri_teacher_id": third.id,
+        "tri_date": tri_date,
+        "tri_period_no": mid_no,
+        "tri_period_name": _entry_period_name(av, mid, mid_no),
+        "tri_class_names": mid_classes,
+        "tri_subject_name": mid_subject,
+        "tri_entry_id": mid.id,
+        "swap_date": swap_date,
+        "swap_period_no": makeup_no,
+        "swap_period_name": _entry_period_name(av, makeup, makeup_no),
+        "swap_class_names": makeup_classes,
+        "swap_subject_name": makeup_subject,
+        "swap_entry_id": makeup.id,
+    }
+
+
 def _entry_period_name(av: Availability, entry: ScheduleEntry, period_no: int) -> str:
     p = av.entry_period(entry, period_no)
     return p.name if p else f"第 {period_no} 格"
@@ -363,12 +496,41 @@ def _clear_swap(sub: Substitution) -> None:
     sub.swap_entry_id = None
 
 
+def _clear_tri(sub: Substitution) -> None:
+    sub.tri_teacher_id = None
+    sub.tri_date = None
+    sub.tri_period_no = None
+    sub.tri_period_name = ""
+    sub.tri_class_names = ""
+    sub.tri_subject_name = ""
+    sub.tri_entry_id = None
+
+
+def _notify_tri_cancelled(
+    db: Session, affected: AffectedPeriod, sub: Substitution, actor_name: str
+) -> None:
+    """三角調課取消:丙不必來上乙那一節(乙、甲另有通知)。"""
+    if sub.tri_teacher_id is None:
+        return
+    notifications.notify(
+        db, semester_id=affected.semester_id, teacher_id=sub.tri_teacher_id,
+        type=NotificationType.substitution_cancelled,
+        title="原訂三角調課已取消",
+        body=(f"{actor_name} 取消了 {affected.date} {affected.period_name} 的三角調課;"
+              f"您不必於 {sub.tri_date} {sub.tri_period_name} 上"
+              f"{sub.tri_class_names}的課,{sub.swap_date} {sub.swap_period_name} 照原課表上課"),
+    )
+
+
 def _notify_handler(
     db: Session, affected: AffectedPeriod, sub: Substitution, handler: Teacher
 ) -> None:
     absent = affected.leave_request.teacher
     type_cn = SUBSTITUTION_TYPE_CN[sub.type]
     where = f"{affected.date} {affected.period_name}({affected.class_names}{affected.subject_name})"
+    if sub.is_triangle and sub.tri_teacher is not None:
+        _notify_triangle(db, affected, sub, handler, sub.tri_teacher, where)
+        return
     if sub.type == SubstitutionType.swap.value:
         body = (
             f"請於 {where} 代 {absent.name} 一節;"
@@ -397,6 +559,33 @@ def _notify_handler(
         )
 
 
+def _notify_triangle(
+    db: Session, affected: AffectedPeriod, sub: Substitution, handler: Teacher, third: Teacher,
+    where: str,
+) -> None:
+    """三角調課:三位老師各要去上一節,各收一則通知。"""
+    absent = affected.leave_request.teacher
+    mid = f"{sub.tri_date} {sub.tri_period_name}({sub.tri_class_names}{sub.tri_subject_name})"
+    makeup = (f"{sub.swap_date} {sub.swap_period_name}"
+              f"({sub.swap_class_names}{sub.swap_subject_name})")
+    who = f"{absent.name}、{handler.name}、{third.name}"
+    for teacher, title, body in (
+        (handler, f"三角調課通知:{affected.date} {affected.period_name}",
+         f"請於 {where} 上課(代 {absent.name});您 {mid} 那一節由 {third.name} 上"),
+        (third, f"三角調課通知:{sub.tri_date} {sub.tri_period_name}",
+         f"請於 {sub.tri_date} {sub.tri_period_name} 上課(代 {handler.name} 的"
+         f"{sub.tri_class_names}{sub.tri_subject_name});您 {makeup} 那一節由 {absent.name} 上"),
+        (absent, f"三角調課補課通知:{sub.swap_date} {sub.swap_period_name}",
+         f"{handler.name} 將於 {where} 代您上課;請您於 {sub.swap_date} {sub.swap_period_name} "
+         f"上 {third.name} 的{sub.swap_class_names}{sub.swap_subject_name}"),
+    ):
+        notifications.notify(
+            db, semester_id=affected.semester_id, teacher_id=teacher.id,
+            type=NotificationType.substitution_assigned, title=title,
+            body=f"{body}({who} 三人輪流換課)",
+        )
+
+
 def clear(db: Session, affected: AffectedPeriod, *, actor_name: str) -> None:
     """撤回處置:受影響節次退回『待處理』,已指派的教師收到取消通知。呼叫端負責 commit。"""
     if affected.leave_request.status == LeaveStatus.cancelled.value:
@@ -413,6 +602,8 @@ def clear(db: Session, affected: AffectedPeriod, *, actor_name: str) -> None:
             title=f"原訂{SUBSTITUTION_TYPE_CN[sub.type]}已取消",
             body=f"{actor_name} 取消了 {affected.date} {affected.period_name} 的處置",
         )
+    if sub.is_triangle:
+        _notify_tri_cancelled(db, affected, sub, actor_name)
     if sub.type == SubstitutionType.swap.value:
         notifications.notify(
             db, semester_id=affected.semester_id, teacher_id=affected.leave_request.teacher_id,

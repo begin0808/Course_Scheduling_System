@@ -233,6 +233,21 @@ class Availability:
         for (swap_period_no,) in swaps:
             if swap_period_no == slot.period_no:  # 調課補課以節次號記錄
                 return Interval(slot.weekday, swap_period_no, None, None)
+        # (c) 三角調課的丙:來上乙原本那一節(tri_date,v1.4.20)
+        tris = self.db.execute(
+            select(Substitution.tri_period_no)
+            .join(AffectedPeriod, Substitution.affected_period_id == AffectedPeriod.id)
+            .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
+            .where(
+                Substitution.tri_date == when,
+                Substitution.tri_teacher_id == teacher_id,
+                LeaveRequest.status == LeaveStatus.registered.value,
+                AffectedPeriod.status != AffectedStatus.cancelled.value,
+            )
+        ).all()
+        for (tri_period_no,) in tris:
+            if tri_period_no == slot.period_no:
+                return Interval(slot.weekday, tri_period_no, None, None)
         return None
 
     # ── 對外:某教師某時段能不能用 ──

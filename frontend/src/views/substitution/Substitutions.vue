@@ -15,12 +15,14 @@ import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
 import {
   assignSubstitution, assignSubstitutionBatch, clearSubstitution, getMergeOptions,
-  getRecommendations, getSwapOptions, listFundingSources, listSubstitutionTypes, openSlips,
-  updateBilling, updateLeaveBilling,
+  getRecommendations, getSwapOptions, getTriangleOptions, listFundingSources,
+  listSubstitutionTypes, openSlips, updateBilling, updateLeaveBilling,
 } from '@/api/substitutions'
 import type {
   BatchSkip, Candidate, MergeOption, Recommendation, SwapOption, SwapOptions, SwapPartner,
+  TriangleOption, TriangleOptions,
 } from '@/api/substitutions'
+import { triangleDisposition, triangleSteps } from './triangleText'
 
 const message = useMessage()
 
@@ -57,6 +59,11 @@ const SWAP_WEEK_OPTIONS = [
 ]
 // 一位老師兩週內可換的節次常有二、三十個;先只列同班的,其他班收起來(展開過的老師記在這裡)
 const swapExpanded = ref<Set<number>>(new Set())
+// 三角調課(v1.4.20):同一班三位老師輪流換課。和互調共用範圍、從哪週開始找
+const swapMode = ref<'pair' | 'triangle'>('pair')
+const triangle = ref<TriangleOptions | null>(null)
+const TRIANGLE_PAGE = 10
+const triangleShown = ref(TRIANGLE_PAGE)
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 function withWeekday(iso: string): string {
@@ -96,6 +103,9 @@ async function reload() {
 function resetSwap() {
   swapOpen.value = false
   swap.value = null
+  swapMode.value = 'pair'
+  triangle.value = null
+  triangleShown.value = TRIANGLE_PAGE
   swapTeacherId.value = null
   swapStart.value = null
   swapExpanded.value = new Set()
@@ -209,6 +219,13 @@ function dispositionText(l: LeaveRequest, p: AffectedPeriod): string {
   if (!p.sub_type) return p.handler_name ? `→ ${p.handler_name}` : ''
   const label = types.value[p.sub_type] ?? p.sub_type
   const who = p.handler_name ? ` → ${p.handler_name}` : ''
+  if (p.sub_type === 'swap' && p.tri_teacher_name) {
+    return triangleDisposition({
+      handler: p.handler_name ?? '', absent: l.teacher_name, third: p.tri_teacher_name,
+      triDate: p.tri_date, triPeriod: p.tri_period_name,
+      swapDate: p.swap_date, swapPeriod: p.swap_period_name,
+    })
+  }
   if (p.sub_type === 'swap' && p.swap_date) {
     return `${label}${who}(${l.teacher_name} ${shortDate(p.swap_date)} ${p.swap_period_name}補課)`
   }
@@ -287,12 +304,48 @@ function swapTeacherOptions(l: LeaveRequest) {
 
 async function loadSwap(p: AffectedPeriod) {
   loadingSwap.value = true
+  const start = swapStart.value === null ? null : isoOf(swapStart.value)
   try {
-    swap.value = await getSwapOptions(
-      p.id, swapTeacherId.value, swapWeeks.value,
-      swapStart.value === null ? null : isoOf(swapStart.value))
+    if (swapMode.value === 'triangle') {
+      triangle.value = await getTriangleOptions(p.id, swapWeeks.value, start)
+      triangleShown.value = TRIANGLE_PAGE
+    } else {
+      swap.value = await getSwapOptions(p.id, swapTeacherId.value, swapWeeks.value, start)
+    }
   } finally {
     loadingSwap.value = false
+  }
+}
+
+async function onSwapModeChange(p: AffectedPeriod, mode: 'pair' | 'triangle') {
+  swapMode.value = mode
+  await loadSwap(p)
+}
+
+function swapRange(): { from: string; to: string } | null {
+  const r = swapMode.value === 'triangle' ? triangle.value : swap.value
+  return r ? { from: r.date_from, to: r.date_to } : null
+}
+
+async function assignTriangle(l: LeaveRequest, p: AffectedPeriod, o: TriangleOption) {
+  try {
+    await assignSubstitution(p.id, {
+      type: 'swap',
+      handler_teacher_id: o.partner_id,
+      tri_teacher_id: o.third_id,
+      tri_entry_id: o.mid.entry_id,
+      tri_date: o.mid.date,
+      tri_period_no: o.mid.period_no,
+      swap_entry_id: o.makeup.entry_id,
+      swap_date: o.makeup.date,
+      swap_period_no: o.makeup.period_no,
+    })
+    message.success(`已三角調課:${triangleSteps(l.teacher_name, o).join(';')}`)
+    openId.value = null
+    resetSwap()
+    await reload()
+  } catch (e) {
+    message.error((e as ApiError).message || '三角調課失敗')
   }
 }
 
@@ -861,21 +914,45 @@ function candidateTagType(c: Candidate): string {
 
                   <!-- 調課:乙來上這一節,甲在往後幾週內補回乙的一節 -->
                   <div v-if="swapOpen" class="swap" data-testid="sub-swap-panel">
+                    <n-space size="small" style="margin-bottom: 6px">
+                      <n-button
+                        size="small" :type="swapMode === 'pair' ? 'primary' : 'default'"
+                        :secondary="swapMode !== 'pair'" data-testid="sub-swap-mode-pair"
+                        @click="onSwapModeChange(p, 'pair')"
+                      >
+                        兩人互調
+                      </n-button>
+                      <n-button
+                        size="small" :type="swapMode === 'triangle' ? 'primary' : 'default'"
+                        :secondary="swapMode !== 'triangle'" data-testid="sub-swap-mode-triangle"
+                        @click="onSwapModeChange(p, 'triangle')"
+                      >
+                        三角調課
+                      </n-button>
+                    </n-space>
                     <n-text depth="3" class="swap-intro">
-                      調課 = 請另一位老師來上這一節,{{ l.teacher_name }}再找一天補回對方的一節(不計代課鐘點)。
-                      <template v-if="swap">
-                        以下是 {{ shortDate(swap.date_from) }} 到 {{ shortDate(swap.date_to) }}
-                        之間,雙方都有空的節次,點一下就成立。
+                      <template v-if="swapMode === 'pair'">
+                        調課 = 請另一位老師來上這一節,{{ l.teacher_name }}再找一天補回對方的一節(不計代課鐘點)。
+                      </template>
+                      <template v-else>
+                        三角調課 = 同一班三位老師輪流換課:甲老師來上這一節、乙老師來上甲的一節、
+                        {{ l.teacher_name }}回來上乙的一節(都不計代課鐘點)。兩人互調湊不出來時用。
+                      </template>
+                      <template v-if="swapRange()">
+                        以下是 {{ shortDate(swapRange()!.from) }} 到 {{ shortDate(swapRange()!.to) }}
+                        之間{{ swapMode === 'pair' ? ',雙方都有空的節次' : '可行的組合' }},點一下就成立。
                       </template>
                     </n-text>
                     <n-space align="center" size="small" style="margin-bottom: 6px">
-                      <n-select
-                        :value="swapTeacherId" :options="swapTeacherOptions(l)" filterable clearable
-                        size="small" style="width: 200px" placeholder="只看也教這班的老師"
-                        data-testid="sub-swap-teacher"
-                        @update:value="(v: number | null) => onSwapTeacherChange(p, v)"
-                      />
-                      <n-text depth="3">也可以指定其他老師</n-text>
+                      <template v-if="swapMode === 'pair'">
+                        <n-select
+                          :value="swapTeacherId" :options="swapTeacherOptions(l)" filterable clearable
+                          size="small" style="width: 200px" placeholder="只看也教這班的老師"
+                          data-testid="sub-swap-teacher"
+                          @update:value="(v: number | null) => onSwapTeacherChange(p, v)"
+                        />
+                        <n-text depth="3">也可以指定其他老師</n-text>
+                      </template>
                       <n-text depth="3" style="margin-left: 12px">範圍</n-text>
                       <n-select
                         :value="swapWeeks" :options="SWAP_WEEK_OPTIONS" size="small"
@@ -894,7 +971,49 @@ function candidateTagType(c: Candidate): string {
                     </n-space>
 
                     <n-text v-if="loadingSwap" depth="3">尋找可對調的節次…</n-text>
-                    <template v-else-if="swap">
+                    <!-- 三角調課(v1.4.20) -->
+                    <template v-else-if="swapMode === 'triangle' && triangle">
+                      <n-alert
+                        v-if="triangle.unavailable" type="info" :bordered="false"
+                        data-testid="sub-tri-unavailable"
+                      >
+                        {{ triangle.unavailable }}
+                      </n-alert>
+                      <n-alert
+                        v-else-if="!triangle.options.length" type="info" :bordered="false"
+                        data-testid="sub-tri-empty"
+                      >
+                        這段期間找不到三位老師都有空的組合,可試著放寬週數或改從其他週開始找。
+                      </n-alert>
+                      <template v-else>
+                        <n-text depth="3" class="swap-note">
+                          共 {{ triangle.total }} 組{{ triangle.total > triangle.options.length
+                            ? `(先列最早換完的 ${triangle.options.length} 組)` : '' }},兩節都越早的排越前面
+                        </n-text>
+                        <div class="tri-list">
+                          <n-button
+                            v-for="(o, i) in triangle.options.slice(0, triangleShown)"
+                            :key="i" class="tri-option" size="small" ghost type="primary"
+                            data-testid="sub-tri-option" @click="assignTriangle(l, p, o)"
+                          >
+                            <span
+                              v-for="(step, k) in triangleSteps(l.teacher_name, o)" :key="k"
+                              class="tri-step"
+                            >
+                              {{ ['①', '②', '③'][k] }} {{ step }}
+                            </span>
+                          </n-button>
+                        </div>
+                        <n-button
+                          v-if="triangle.options.length > triangleShown" size="small" text
+                          type="primary" data-testid="sub-tri-more"
+                          @click="triangleShown += TRIANGLE_PAGE"
+                        >
+                          再顯示 {{ Math.min(TRIANGLE_PAGE, triangle.options.length - triangleShown) }} 組
+                        </n-button>
+                      </template>
+                    </template>
+                    <template v-else-if="swapMode === 'pair' && swap">
                       <n-alert
                         v-if="!swap.partners.length" type="info" :bordered="false"
                         data-testid="sub-swap-empty"
@@ -917,7 +1036,7 @@ function candidateTagType(c: Candidate): string {
                           無法對調:{{ partner.blocked_reason }}
                         </n-text>
                         <n-text v-else-if="!partner.options.length" depth="3" class="swap-note">
-                          這段期間找不到雙方都有空的節次,可試著放寬週數或改從其他週開始找
+                          這段期間找不到雙方都有空的節次,可試著放寬週數、改從其他週開始找,或改用上方的「三角調課」
                         </n-text>
                         <n-space v-else size="small" class="swap-note">
                           <n-button
@@ -1233,4 +1352,8 @@ function candidateTagType(c: Candidate): string {
 .swap-note { display: block; margin: 4px 0 0 12px; }
 .swap-block { margin-left: 4px; opacity: 0.7; }
 .swap-blocked { margin: 4px 0 0; padding-left: 20px; opacity: 0.65; font-size: 13px; }
+.tri-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.tri-option { height: auto; padding: 6px 10px; justify-content: flex-start; white-space: normal; }
+.tri-option :deep(.n-button__content) { display: flex; flex-wrap: wrap; gap: 4px 14px; text-align: left; }
+.tri-step { white-space: nowrap; }
 </style>

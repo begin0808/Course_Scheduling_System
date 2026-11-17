@@ -9,6 +9,7 @@ import {
 } from '@/api/substitutionLog'
 import type { DailyBoard, LogEntry } from '@/api/substitutionLog'
 import { listSemesters } from '@/api/semesters'
+import { logDisposition } from './logText'
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
@@ -121,6 +122,7 @@ async function exportTeacherWeek() {
 
 function dispositionText(e: LogEntry): string {
   if (!e.disposed) return '待安排'
+  if (e.is_triangle) return logDisposition(e)   // 三角調課(v1.4.20)
   if (e.row_kind === 'swap_makeup') {
     return `調課補課 · ${e.handler_name}(與 ${e.swap_date} ${e.swap_period_name} 對調)`
   }

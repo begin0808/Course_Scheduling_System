@@ -17,6 +17,16 @@ export function shortDate(iso: string): string {
  */
 export function logDisposition(e: LogEntry): string {
   if (!e.disposed) return '—'
+  // 三角調課(v1.4.20):請假那一列寫出另外兩位;其他兩列寫來上的老師空出哪一節
+  if (e.is_triangle && e.row_kind === 'swap_makeup' && e.swap_date) {
+    return `三角調課 · ${e.handler_name}(${e.handler_name}原本的 `
+      + `${shortDate(e.swap_date)} ${e.swap_period_name} 由別人上)`
+  }
+  if (e.is_triangle && e.swap_date) {
+    const tri = e.tri_date ? `${shortDate(e.tri_date)} ${e.tri_period_name}` : e.tri_period_name
+    return `三角調課 · ${e.handler_name}(${e.tri_teacher_name} ${tri}代${e.handler_name}、`
+      + `${e.absent_teacher_name} ${shortDate(e.swap_date)} ${e.swap_period_name}補課)`
+  }
   if (e.sub_type === 'swap' && e.swap_date) {
     const when = `${shortDate(e.swap_date)} ${e.swap_period_name}`.trim()
     if (e.row_kind === 'swap_makeup') return `調課補課 · ${e.handler_name}(與 ${when} 對調)`

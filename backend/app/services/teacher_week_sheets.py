@@ -29,6 +29,7 @@ from app.models.semester import Semester
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
 from app.services import suspensions as suspension_service
+from app.services import swap_legs
 from app.services.availability import published_timetable
 from app.services.patrol_sheets import Day, classes_by_period_table
 from app.services.slip_layout import Tables, school_title
@@ -218,18 +219,14 @@ def day_cells(b: Builder, day: Day) -> dict[tuple[int, int], list[Item]]:
                 if sub is not None and sub.handler is not None:
                     put(sub.handler_teacher_id, ordinal, _taken_over(b, ap, sub))
             elif (e.id, p) in day.makeup:
-                ap, sub = day.makeup[(e.id, p)]
-                partner_id = sub.handler_teacher_id
-                absent = ap.leave_request.teacher
+                # 調課換人上的這一格:原本的老師劃掉寫「調給某師」,來上的老師紅字
+                ap, sub, leg = day.makeup[(e.id, p)]
                 for t in teacher_ids:
-                    if t != partner_id:
+                    if t != leg.owner_id:
                         put(t, ordinal, Item(label))
-                put(partner_id, ordinal, Item(label, OFF, f"調給{absent.name if absent else ''}"))
-                same_class = ap.class_names == sub.swap_class_names
-                subject = ap.subject_name if same_class else sub.swap_subject_name
-                put(ap.leave_request.teacher_id, ordinal, Item(
-                    _snap(sub.swap_class_names, subject), SWAP,
-                    b.swap_code(ap.date, ap.course_assignment_id, ap.period_no)))
+                put(leg.owner_id, ordinal, Item(label, OFF, f"調給{leg.teacher_name}"))
+                put(leg.teacher_id, ordinal, Item(
+                    _snap(leg.class_names, leg.subject_taught), SWAP, _back_code(b, leg)))
             else:
                 for t in teacher_ids:
                     put(t, ordinal, Item(label))
@@ -241,13 +238,18 @@ def _taken_over(b: Builder, ap: AffectedPeriod, sub: Substitution) -> Item:
     absent = ap.leave_request.teacher
     absent_name = absent.name if absent else ""
     if sub.type == SubstitutionType.swap.value and sub.swap_date and sub.swap_period_no:
-        same_class = ap.class_names == sub.swap_class_names
-        subject = sub.swap_subject_name if same_class else ap.subject_name
-        code = b.swap_code(sub.swap_date, b.entry_assignment(sub.swap_entry_id),
-                           sub.swap_period_no)
-        return Item(_snap(ap.class_names, subject), SWAP, code)
+        leg = swap_legs.legs(ap, sub)[0]
+        return Item(_snap(ap.class_names, leg.subject_taught), SWAP, _back_code(b, leg))
     verb = "併" if sub.type == SubstitutionType.merge.value else "代"
     return Item(_snap(ap.class_names, ap.subject_name), COVER, f"{verb}{absent_name}")
+
+
+def _back_code(b: Builder, leg: swap_legs.Leg) -> str:
+    """來上這一格的老師,自己空出來的那一節:「調11/20_53」。"""
+    if leg.back_date is None or leg.back_period_no is None:
+        return ""
+    assignment = leg.back_assignment_id or b.entry_assignment(leg.back_entry_id)
+    return b.swap_code(leg.back_date, assignment, leg.back_period_no)
 
 
 def _row_names(b: Builder, tables: list[int], weekday: int) -> list[str]:

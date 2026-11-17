@@ -12,6 +12,7 @@ const affected = {
   start_time: null, end_time: null, subject_name: '國文', class_names: '701', room_name: '',
   status: 'pending', is_past: false, handler_teacher_id: null, handler_name: null, sub_type: null,
   swap_date: null, swap_period_name: '', funding_source: '', counts_toward_hours: null,
+  tri_teacher_name: '', tri_date: null, tri_period_name: '',
 }
 const leave = {
   id: 5, semester_id: 1, teacher_id: 1, teacher_name: '王師', leave_type: 'sick',

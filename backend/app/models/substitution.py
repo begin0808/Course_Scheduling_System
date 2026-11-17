@@ -10,6 +10,11 @@
 **swap(調課)的語意**:甲請假日的某節由乙代;交換條件是甲之後補乙一節(乙原本那節放掉)。
 因此要驗四件事都無衝突:乙在甲那節、甲在乙那節、以及兩個班各自不重複排課。
 `swap_*` 欄位記錄「乙原本要放掉、改由甲補」的那一節(以快照保存,課表改版不影響已成立的調課)。
+
+**三角調課**(v1.4.20,`tri_teacher_id` 非空):同一班三位老師輪流換課——
+甲請假那節由乙上、乙原本的一節(`tri_*`)由丙上、丙原本的一節(`swap_*`)由甲回來上。
+`swap_*` 仍是「甲回來上的那一節」,只是那一節變成丙的課;三格記在同一筆,撤回時一起撤。
+各處要逐格處理時用 `services.swap_legs.legs`,不要自己拼。
 """
 
 import enum
@@ -95,6 +100,19 @@ class Substitution(Base):
         ForeignKey("schedule_entries.id", ondelete="SET NULL"), nullable=True
     )
 
+    # ── 三角調課(v1.4.20):第三位老師丙,與乙原本那一節(改由丙上)──
+    tri_teacher_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teachers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    tri_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    tri_period_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tri_period_name: Mapped[str] = mapped_column(String(32), default="")
+    tri_class_names: Mapped[str] = mapped_column(String(128), default="")
+    tri_subject_name: Mapped[str] = mapped_column(String(64), default="")
+    tri_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("schedule_entries.id", ondelete="SET NULL"), nullable=True
+    )
+
     note: Mapped[str] = mapped_column(Text, default="")
     created_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -105,4 +123,11 @@ class Substitution(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    handler: Mapped[Teacher | None] = relationship(lazy="selectin")
+    handler: Mapped[Teacher | None] = relationship(
+        lazy="selectin", foreign_keys=[handler_teacher_id])
+    tri_teacher: Mapped[Teacher | None] = relationship(
+        lazy="selectin", foreign_keys=[tri_teacher_id])
+
+    @property
+    def is_triangle(self) -> bool:
+        return self.type == SubstitutionType.swap.value and self.tri_teacher_id is not None

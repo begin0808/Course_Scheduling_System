@@ -30,6 +30,13 @@ export interface Substitution {
   swap_period_name: string
   swap_class_names: string
   swap_subject_name: string
+  // 三角調課(v1.4.20):丙來上乙的 tri 那一節;swap_* 是丙那一節(甲回來上)
+  tri_teacher_id: number | null
+  tri_teacher_name: string
+  tri_date: string | null
+  tri_period_name: string
+  tri_class_names: string
+  tri_subject_name: string
   created_by_name: string
 }
 
@@ -71,6 +78,44 @@ export interface AssignBody {
   swap_entry_id?: number | null
   swap_date?: string | null
   swap_period_no?: number | null // 連堂格位換其中哪一節
+  // 三角調課(v1.4.20)
+  tri_teacher_id?: number | null
+  tri_entry_id?: number | null
+  tri_date?: string | null
+  tri_period_no?: number | null
+}
+
+/** 三角調課的一格:這一班某一天某一節的課(一位老師上) */
+export interface TriangleLesson {
+  entry_id: number
+  date: string
+  weekday: number
+  period_no: number
+  period_name: string
+  class_names: string
+  subject_name: string
+  in_block: boolean
+  teacher_id: number
+  teacher_name: string
+}
+
+/** 一組三角調課:乙(partner)來上請假那節;丙(third)來上乙的 mid;請假老師回來上丙的 makeup */
+export interface TriangleOption {
+  partner_id: number
+  partner_name: string
+  mid: TriangleLesson
+  third_id: number
+  third_name: string
+  makeup: TriangleLesson
+}
+
+export interface TriangleOptions {
+  affected_period_id: number
+  date_from: string
+  date_to: string
+  unavailable: string // 非空 = 這一節不能三角調課(跑班、協同教學…)
+  total: number // 一共幾組(清單最多回 200 組)
+  options: TriangleOption[]
 }
 
 export const listSubstitutionTypes = (): Promise<Record<string, string>> =>
@@ -140,6 +185,15 @@ export const getSwapOptions = (
   if (teacherId) q.set('teacher_id', String(teacherId))
   if (start) q.set('start', start)
   return apiGet(`/affected-periods/${affectedId}/swap-options?${q}`)
+}
+
+/** 三角調課(v1.4.20):範圍與互調相同 */
+export const getTriangleOptions = (
+  affectedId: number, weeks = 2, start?: string | null,
+): Promise<TriangleOptions> => {
+  const q = new URLSearchParams({ weeks: String(weeks) })
+  if (start) q.set('start', start)
+  return apiGet(`/affected-periods/${affectedId}/triangle-options?${q}`)
 }
 
 // ── 通知單(調課單 v1.2.2、代課單 v1.2.5;兩者版面相同,表頭與格子內容不同)──

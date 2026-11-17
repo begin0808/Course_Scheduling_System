@@ -34,6 +34,7 @@ from app.schemas.substitution import (
     SlipsOut,
     SubstitutionOut,
     SwapOptionsOut,
+    TriangleOptionsOut,
 )
 from app.services import sub_slips, swap_options, swap_slips
 from app.services import substitution_recommender as recommender
@@ -61,6 +62,10 @@ def _sub_out(sub: Substitution) -> SubstitutionOut:
         counts_toward_hours=sub.counts_toward_hours, funding_source=sub.funding_source,
         swap_date=sub.swap_date, swap_period_name=sub.swap_period_name,
         swap_class_names=sub.swap_class_names, swap_subject_name=sub.swap_subject_name,
+        tri_teacher_id=sub.tri_teacher_id,
+        tri_teacher_name=sub.tri_teacher.name if sub.tri_teacher else "",
+        tri_date=sub.tri_date, tri_period_name=sub.tri_period_name,
+        tri_class_names=sub.tri_class_names, tri_subject_name=sub.tri_subject_name,
         created_by_name=sub.created_by_name,
     )
 
@@ -114,6 +119,21 @@ def get_swap_options(
         db, affected, teacher_id=teacher_id, weeks=weeks, start=start)))
 
 
+@router.get("/affected-periods/{affected_id}/triangle-options",
+            response_model=TriangleOptionsOut)
+def get_triangle_options(
+    affected_id: int,
+    weeks: int = Query(default=swap_options.DEFAULT_WEEKS, ge=1, le=swap_options.MAX_WEEKS),
+    start: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: User = Depends(editor),
+):
+    """三角調課(v1.4.20):同一班三位老師輪流換課的可行組合,範圍與互調相同。"""
+    affected = _get_affected(db, affected_id)
+    return TriangleOptionsOut.model_validate(asdict(swap_options.triangle_search(
+        db, affected, weeks=weeks, start=start)))
+
+
 @router.get("/swap-slips", response_model=SlipsOut)
 def get_swap_slips(
     semester_id: int = Query(...),
@@ -162,6 +182,8 @@ def assign_substitution(
             swap_entry_id=body.swap_entry_id, swap_date=body.swap_date,
             swap_period_no=body.swap_period_no,
             created_by_user_id=user.id, created_by_name=user.username,
+            tri_teacher_id=body.tri_teacher_id, tri_entry_id=body.tri_entry_id,
+            tri_date=body.tri_date, tri_period_no=body.tri_period_no,
         )
     except sub_service.SubstitutionError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -172,8 +194,9 @@ def assign_substitution(
         detail=(
             ("補登 " if backfill else "")
             + f"{affected.leave_request.teacher.name} {affected.date} {affected.period_name}"
-            f" → {SUBSTITUTION_TYPE_CN.get(sub.type, sub.type)}"
+            f" → {'三角調課' if sub.is_triangle else SUBSTITUTION_TYPE_CN.get(sub.type, sub.type)}"
             + (f"({sub.handler.name})" if sub.handler else "")
+            + (f"、{sub.tri_teacher.name}" if sub.tri_teacher else "")
         )[:500],
     ))
     db.commit()
