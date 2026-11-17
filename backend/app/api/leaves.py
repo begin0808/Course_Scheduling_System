@@ -97,6 +97,10 @@ def _serialize(leave: LeaveRequest) -> LeaveRequestOut:
                 sub_type=p.substitution.type if p.substitution else None,
                 swap_date=p.substitution.swap_date if p.substitution else None,
                 swap_period_name=p.substitution.swap_period_name if p.substitution else "",
+                tri_teacher_name=(p.substitution.tri_teacher.name
+                                  if p.substitution and p.substitution.tri_teacher else ""),
+                tri_date=p.substitution.tri_date if p.substitution else None,
+                tri_period_name=p.substitution.tri_period_name if p.substitution else "",
                 funding_source=p.substitution.funding_source if p.substitution else "",
                 counts_toward_hours=(
                     p.substitution.counts_toward_hours if p.substitution else None),

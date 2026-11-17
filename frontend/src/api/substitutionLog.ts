@@ -35,6 +35,12 @@ export interface LogEntry {
   // leave:請假的那一節。swap_makeup:調課補課日被換來的那一節——原任教師是對調的老師、
   // 接手是回來補課的請假教師,swap_* 反過來指回請假那一節
   row_kind: 'leave' | 'swap_makeup'
+  // 三角調課(v1.4.20):請假那一列另記丙與乙原本那一節;swap_makeup 列的 swap_* 是
+  // 「來上的老師自己空出來的那一節」
+  is_triangle: boolean
+  tri_teacher_name: string
+  tri_date: string | null
+  tri_period_name: string
 }
 
 export interface DailyBoard {

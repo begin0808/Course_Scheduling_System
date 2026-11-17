@@ -475,6 +475,20 @@ def cancel(
             body=f"以下 {len(periods)} 節課不需要您代課了:{detail}",
         )
 
+    # 三角調課的丙(v1.4.20):不必來上乙那一節,自己那一節也照原課表
+    for period in revoked:
+        sub = period.substitution
+        if sub is not None and sub.is_triangle and sub.tri_teacher_id is not None:
+            notifications.notify(
+                db, semester_id=leave.semester_id, teacher_id=sub.tri_teacher_id,
+                type=NotificationType.substitution_cancelled,
+                title=f"原訂三角調課已取消({leave.teacher.name} "
+                      f"{'取消調課' if swap_only else '銷假'})",
+                body=(f"您不必於 {sub.tri_date} {sub.tri_period_name} 上"
+                      f"{sub.tri_class_names}的課,{sub.swap_date} {sub.swap_period_name}"
+                      " 照原課表上課"),
+            )
+
     # 代導:已經過完的日子保留(代過了,代導費照算),其餘取消並通知代導老師
     revoked_covers: list[HomeroomCover] = []
     covers_by_handler: dict[int, list[HomeroomCover]] = {}

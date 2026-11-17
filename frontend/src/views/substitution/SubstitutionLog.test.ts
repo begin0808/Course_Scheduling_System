@@ -13,6 +13,7 @@ const entry = (id: number) => ({
   status: 'pending', status_label: '待處理', disposed: false, sub_type: null, sub_type_label: null,
   handler_teacher_id: null, handler_name: null, counts_toward_hours: null, swap_date: null,
   swap_period_name: '', swap_class_names: '', swap_subject_name: '', note: '', row_kind: 'leave',
+  is_triangle: false, tri_teacher_name: '', tri_date: null, tri_period_name: '',
 })
 
 function stubFetch(rows: number) {

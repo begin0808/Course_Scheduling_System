@@ -49,6 +49,11 @@ class AssignRequest(BaseModel):
     swap_entry_id: int | None = None
     swap_date: date | None = None
     swap_period_no: int | None = None  # 連堂格位換其中哪一節;空 = 第一節
+    # 三角調課(v1.4.20):丙來上乙的 tri 那一節;swap_* 改指丙那一節(甲回來上)
+    tri_teacher_id: int | None = None
+    tri_entry_id: int | None = None
+    tri_date: date | None = None
+    tri_period_no: int | None = None
 
 
 class BatchAssignRequest(BaseModel):
@@ -98,6 +103,12 @@ class SubstitutionOut(BaseModel):
     swap_period_name: str = ""
     swap_class_names: str = ""
     swap_subject_name: str = ""
+    tri_teacher_id: int | None = None
+    tri_teacher_name: str = ""
+    tri_date: date | None = None
+    tri_period_name: str = ""
+    tri_class_names: str = ""
+    tri_subject_name: str = ""
     created_by_name: str
 
 
@@ -134,6 +145,39 @@ class SwapOptionsOut(BaseModel):
     date_to: date
     partners: list[SwapPartnerOut] = []
 
+
+
+class TriangleLessonOut(BaseModel):
+    entry_id: int
+    date: date
+    weekday: int
+    period_no: int
+    period_name: str
+    class_names: str
+    subject_name: str
+    in_block: bool = False
+    teacher_id: int
+    teacher_name: str
+
+
+class TriangleOptionOut(BaseModel):
+    partner_id: int
+    partner_name: str
+    mid: TriangleLessonOut       # 乙原本的那一節,丙來上
+    third_id: int
+    third_name: str
+    makeup: TriangleLessonOut    # 丙原本的那一節,甲回來上
+
+
+class TriangleOptionsOut(BaseModel):
+    """三角調課(v1.4.20):可行的三人組合。`unavailable` 非空 = 這一節不能三角調課。"""
+
+    affected_period_id: int
+    date_from: date
+    date_to: date
+    unavailable: str = ""
+    total: int = 0
+    options: list[TriangleOptionOut] = []
 
 
 class SlipRowOut(BaseModel):

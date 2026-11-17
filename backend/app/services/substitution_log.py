@@ -29,7 +29,7 @@ from app.models.leave import (
 )
 from app.models.substitution import SUBSTITUTION_TYPE_CN, Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
-from app.services import leaves
+from app.services import leaves, swap_legs
 from app.services.availability import Availability
 
 # 欄位名 date/start_time 會遮蔽同名型別,故以別名標註型別
@@ -79,6 +79,12 @@ class LogEntry:
     # leave:請假的那一節。swap_makeup:調課補課日的那一節——「原任教師」是對調的乙,
     # 「接手」是回來補課的甲,swap_* 反過來記請假那一節(兩列互相指向對方)。
     row_kind: str = ROW_LEAVE
+    # 三角調課(v1.4.20):請假那一列另記丙與乙原本那一節(丙來上)。
+    # swap_makeup 列的 swap_* 是「來上的老師自己空出來的那一節」
+    is_triangle: bool = False
+    tri_teacher_name: str = ""
+    tri_date: _Date | None = None
+    tri_period_name: str = ""
 
 
 def school_today() -> date:
@@ -133,6 +139,10 @@ def _build(ap: AffectedPeriod, sub: Substitution | None) -> LogEntry:
         swap_class_names=sub.swap_class_names if sub else "",
         swap_subject_name=sub.swap_subject_name if sub else "",
         note=ap.note or (sub.note if sub else ""),
+        is_triangle=bool(sub and sub.is_triangle),
+        tri_teacher_name=sub.tri_teacher.name if sub and sub.tri_teacher else "",
+        tri_date=sub.tri_date if sub else None,
+        tri_period_name=sub.tri_period_name if sub else "",
     )
 
 
@@ -142,6 +152,7 @@ def _makeup_rows(db: Session, semester_id: int, on: date) -> list[LogEntry]:
     調課成立後那天有兩處異動:請假日由乙代甲,補課日由甲上乙原本那節。後者在
     `affected_period` 裡沒有一列(乙沒請假),只記在 `substitution.swap_*`——
     不另外列出,補課那天的看板與公告單就會漏掉,那一班會看到「課表上是乙、來的是甲」。
+    三角調課(v1.4.20)另有丙上乙原本那一節,一樣列出(見 `swap_legs`)。
     """
     subs = db.scalars(
         select(Substitution)
@@ -150,7 +161,7 @@ def _makeup_rows(db: Session, semester_id: int, on: date) -> list[LogEntry]:
         .where(
             Substitution.semester_id == semester_id,
             Substitution.type == SubstitutionType.swap.value,
-            Substitution.swap_date == on,
+            or_(Substitution.swap_date == on, Substitution.tri_date == on),
             LeaveRequest.status == LeaveStatus.registered.value,
             AffectedPeriod.status != AffectedStatus.cancelled.value,
         )
@@ -164,47 +175,50 @@ def _makeup_rows(db: Session, semester_id: int, on: date) -> list[LogEntry]:
         ap = db.get(AffectedPeriod, sub.affected_period_id)
         if ap is None:
             continue
-        leave = ap.leave_request
-        entry = db.get(ScheduleEntry, sub.swap_entry_id) if sub.swap_entry_id else None
-        period = av.entry_period(entry, sub.swap_period_no) if entry else None
-        start = period.start_time if period else None
-        end = period.end_time if period else None
-        room_name = ""
-        if entry is not None:
-            room_id = entry.room_id if entry.room_id is not None else entry.assignment.room_id
-            room = db.get(Room, room_id) if room_id else None
-            room_name = room.name if room else ""
-        status = leaves.effective_status(ap.status, on, end)
-        out.append(LogEntry(
-            affected_period_id=ap.id,
-            date=on,
-            weekday=on.isoweekday(),
-            period_no=sub.swap_period_no or 0,
-            period_name=sub.swap_period_name,
-            start_time=start,
-            end_time=end,
-            class_names=sub.swap_class_names,
-            subject_name=sub.swap_subject_name,
-            room_name=room_name,
-            absent_teacher_id=sub.handler_teacher_id or 0,
-            absent_teacher_name=sub.handler.name if sub.handler else "(已移除)",
-            leave_type="",
-            leave_type_label="調課補課",
-            status=status,
-            status_label=AFFECTED_STATUS_CN.get(status, status),
-            disposed=True,
-            sub_type=sub.type,
-            sub_type_label=SUBSTITUTION_TYPE_CN.get(sub.type),
-            handler_teacher_id=leave.teacher_id,
-            handler_name=leave.teacher.name if leave.teacher else "(已移除)",
-            counts_toward_hours=sub.counts_toward_hours,
-            swap_date=ap.date,
-            swap_period_name=ap.period_name,
-            swap_class_names=ap.class_names,
-            swap_subject_name=ap.subject_name,
-            note="",
-            row_kind=ROW_SWAP_MAKEUP,
-        ))
+        for leg in swap_legs.legs(ap, sub):
+            if leg.absent_slot or leg.date != on:
+                continue
+            entry = db.get(ScheduleEntry, leg.entry_id) if leg.entry_id else None
+            period = av.entry_period(entry, leg.period_no) if entry else None
+            start = period.start_time if period else None
+            end = period.end_time if period else None
+            room_name = ""
+            if entry is not None:
+                room_id = entry.room_id if entry.room_id is not None else entry.assignment.room_id
+                room = db.get(Room, room_id) if room_id else None
+                room_name = room.name if room else ""
+            status = leaves.effective_status(ap.status, on, end)
+            out.append(LogEntry(
+                affected_period_id=ap.id,
+                date=on,
+                weekday=on.isoweekday(),
+                period_no=leg.period_no,
+                period_name=leg.period_name,
+                start_time=start,
+                end_time=end,
+                class_names=leg.class_names,
+                subject_name=leg.subject_name,
+                room_name=room_name,
+                absent_teacher_id=leg.owner_id or 0,
+                absent_teacher_name=leg.owner_name or "(已移除)",
+                leave_type="",
+                leave_type_label="三角調課" if sub.is_triangle else "調課補課",
+                status=status,
+                status_label=AFFECTED_STATUS_CN.get(status, status),
+                disposed=True,
+                sub_type=sub.type,
+                sub_type_label=SUBSTITUTION_TYPE_CN.get(sub.type),
+                handler_teacher_id=leg.teacher_id,
+                handler_name=leg.teacher_name or "(已移除)",
+                counts_toward_hours=sub.counts_toward_hours,
+                swap_date=leg.back_date,
+                swap_period_name=leg.back_period_name,
+                swap_class_names=leg.back_class_names,
+                swap_subject_name=leg.back_subject_name,
+                note="",
+                row_kind=ROW_SWAP_MAKEUP,
+                is_triangle=sub.is_triangle,
+            ))
     return out
 
 
@@ -264,6 +278,9 @@ def query(
         stmt = stmt.where(or_(
             LeaveRequest.teacher_id == teacher_id,
             AffectedPeriod.handler_teacher_id == teacher_id,
+            # 三角調課的丙(v1.4.20):他也換了課
+            AffectedPeriod.id.in_(select(Substitution.affected_period_id)
+                                  .where(Substitution.tri_teacher_id == teacher_id)),
         ))
     rows = db.scalars(
         stmt.order_by(AffectedPeriod.date.desc(), AffectedPeriod.period_no).limit(limit)

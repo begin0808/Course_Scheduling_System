@@ -27,7 +27,7 @@ _Date = date
 
 # 班級課表的異動種類:巡堂表的備註 → 格子樣式(與教師週總表同一套顏色)
 _KIND = {
-    "代課": tw.COVER, "併班": tw.COVER, "調課": tw.SWAP,
+    "代課": tw.COVER, "併班": tw.COVER, "調課": tw.SWAP, "三角調課": tw.SWAP,
     "自習": tw.OFF, "停課": tw.OFF, "請假待處理": tw.PENDING,
 }
 
@@ -69,7 +69,7 @@ def _note(x: _Lesson) -> str:
     補課排在隔天,只看到一格變色,以為只有一個人被調)。"""
     extra = [f"原:{x.original}"] if x.original and x.teacher != x.original else []
     if x.swap_with:
-        extra.append(f"與 {x.swap_with}對調")
+        extra.append(x.swap_with)
     if x.reason:
         extra.append(x.reason)                  # 停課的說明「校慶補假」(v1.4.19)
     return f"{x.note}({','.join(extra)})" if extra else x.note

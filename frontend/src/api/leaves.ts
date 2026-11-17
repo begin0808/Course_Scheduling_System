@@ -20,6 +20,10 @@ export interface AffectedPeriod {
   sub_type: string | null // 已處置時的處置方式(substitute/swap/…)
   swap_date: string | null // 調課才有:請假教師回來補課的日期
   swap_period_name: string
+  // 三角調課(v1.4.20):丙來上乙的那一節
+  tri_teacher_name: string
+  tri_date: string | null
+  tri_period_name: string
   funding_source: string // 代課的計費方式(v1.4.4 起可事後修改)
   counts_toward_hours: boolean | null
 }

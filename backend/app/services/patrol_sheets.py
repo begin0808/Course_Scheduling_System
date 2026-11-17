@@ -22,7 +22,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.week_parity import runs_in_week, week_parity
@@ -36,6 +36,7 @@ from app.models.timetable import ScheduleEntry
 from app.services import period_tables as pt_service
 from app.services import settings as app_settings
 from app.services import suspensions as suspension_service
+from app.services import swap_legs
 from app.services.availability import published_timetable
 from app.services.slip_layout import school_title
 
@@ -58,6 +59,7 @@ _NOTE = {
     SubstitutionType.cancel.value: "停課",
 }
 _PENDING = "請假待處理"
+TRIANGLE_NOTE = "三角調課"  # v1.4.20
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +128,7 @@ class _Lesson:
     room: str
     note: str
     original: str = ""      # 有異動時,課表上原本的老師(v1.4.15 課表查詢的週課表用)
-    swap_with: str = ""     # 調課:對調的另一節「11/20 第三節」(v1.4.17 週課表用)
+    swap_with: str = ""     # 調課:「與 11/20 第三節對調」(v1.4.17 週課表用;三角調課寫另兩節)
     reason: str = ""        # 停課的說明「校慶補假」(v1.4.19 週課表用)
 
 
@@ -155,15 +157,6 @@ def _halves(periods: list[Period]) -> list[list[tuple[int, Period]]]:
     morning = [x for x in numbered if is_morning(x[1])]
     afternoon = [x for x in numbered if not is_morning(x[1])]
     return [half for half in (morning, afternoon) if half]
-
-
-def _slot(day: date, period_name: str) -> str:
-    """調課對調的另一節:「11/20 第三節」。"""
-    return f"{day.month}/{day.day} {period_name}".strip()
-
-
-def _same_class(ap: AffectedPeriod, sub: Substitution) -> bool:
-    return ap.class_names == sub.swap_class_names
 
 
 class Day:
@@ -205,19 +198,24 @@ class Day:
         self.absent: dict[tuple[int | None, int], tuple[AffectedPeriod, Substitution | None]] = {
             (a.course_assignment_id, a.period_no): (a, subs.get(a.id)) for a in absent
         }
-        # 當天因調課回來補課的節次:(格位, 節次) → (請假那一節, 調課處置)
-        self.makeup: dict[tuple[int | None, int | None], tuple[AffectedPeriod, Substitution]] = {}
+        # 當天因調課換人上的其他節次(互調:甲回來補課;三角調課:丙上乙那節、甲上丙那節):
+        # (格位, 節次) → (請假那一節, 調課處置, 這一格)
+        self.makeup: dict[tuple[int | None, int | None],
+                          tuple[AffectedPeriod, Substitution, swap_legs.Leg]] = {}
         for sub in db.scalars(
             select(Substitution)
             .join(AffectedPeriod, Substitution.affected_period_id == AffectedPeriod.id)
             .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
             .where(
                 Substitution.type == SubstitutionType.swap.value,
-                Substitution.swap_date == on, *live)
+                or_(Substitution.swap_date == on, Substitution.tri_date == on), *live)
         ):
             ap = db.get(AffectedPeriod, sub.affected_period_id)
-            if ap is not None:
-                self.makeup[(sub.swap_entry_id, sub.swap_period_no)] = (ap, sub)
+            if ap is None:
+                continue
+            for leg in swap_legs.legs(ap, sub):
+                if not leg.absent_slot and leg.date == on:
+                    self.makeup[(leg.entry_id, leg.period_no)] = (ap, sub, leg)
         # 停課日(v1.4.19):停課的課不上,優先於當天的調代課(停課是事後設的,設定時已提醒組長)
         self.calendar = suspension_service.Calendar(db, semester_id, on, on)
 
@@ -265,20 +263,18 @@ class Day:
                     replace(absent_name, sub.handler.name)
                 elif absent_name in names:      # 自習、停課:沒有人接手,請假的那位不會來
                     names.remove(absent_name)
+                if sub.is_triangle:
+                    note = TRIANGLE_NOTE
                 if sub.type == SubstitutionType.swap.value:
-                    if sub.swap_date is not None:
-                        swap_with = _slot(sub.swap_date, sub.swap_period_name)
-                    if _same_class(ap, sub):
-                        subject = sub.swap_subject_name or subject   # 同班互調:科目跟著老師走
+                    legs = swap_legs.legs(ap, sub)
+                    swap_with = swap_legs.partner_text(ap, sub, legs[0])
+                    subject = legs[0].subject_taught or subject   # 同班:科目跟著老師走
         elif (entry.id, period_no) in self.makeup:
-            ap, sub = self.makeup[(entry.id, period_no)]
-            note = _NOTE[SubstitutionType.swap.value]
-            partner = sub.handler.name if sub.handler else ""
-            back = ap.leave_request.teacher.name if ap.leave_request.teacher else ""
-            replace(partner, back)
-            swap_with = _slot(ap.date, ap.period_name)
-            if _same_class(ap, sub):
-                subject = ap.subject_name or subject
+            ap, sub, leg = self.makeup[(entry.id, period_no)]
+            note = TRIANGLE_NOTE if sub.is_triangle else _NOTE[SubstitutionType.swap.value]
+            replace(leg.owner_name, leg.teacher_name)
+            swap_with = swap_legs.partner_text(ap, sub, leg)
+            subject = leg.subject_taught or subject
 
         return _Lesson(
             unit_id=unit.id, unit_name=unit.name, is_group=unit.unit_type == "group",

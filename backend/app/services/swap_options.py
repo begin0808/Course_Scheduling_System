@@ -7,6 +7,10 @@
 
 **列出的與送出時驗的必須是同一套規則**,否則清單上點得到、按下去卻被拒絕。
 所以逐項檢查集中在 `SwapChecker`,`substitutions._validate_swap` 也呼叫它。
+
+**三角調課**(v1.4.20,`triangle_search`):兩人互調湊不出來時,同一班三位老師輪流換課——
+乙來上甲請假那節、丙來上乙原本的一節、甲回來上丙原本的一節。只限同一個班的一般課
+(一位老師上的課;跑班、單雙週組、協同教學不列),找的範圍與互調相同。
 """
 
 from dataclasses import dataclass, field
@@ -29,6 +33,7 @@ from app.models.period import PeriodType
 from app.models.semester import Semester
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
+from app.services import leaves
 from app.services import suspensions as suspension_service
 from app.services.availability import Availability, Interval
 
@@ -65,6 +70,7 @@ class SwapChecker:
         self.absent: Teacher = affected.leave_request.teacher
         self.semester = db.get(Semester, affected.semester_id)
         self._taken: set[tuple[int, date, int]] | None = None
+        self._in_leave: dict[tuple[int, date], dict[int, str]] = {}
         self._labels: dict[int, str] = {}
         # 停課的那一節不上課,不能拿來補課(v1.4.19)
         self.calendar = suspension_service.Calendar(
@@ -87,11 +93,15 @@ class SwapChecker:
         return f"{partner.name} {a.date} {a.period_name} {conflict.detail}"
 
     def _taken_slots(self) -> set[tuple[int, date, int]]:
-        """已經被其他有效調課拿去換的 (乙的格位, 日期, 節次)。同一節課不能換給兩個人補。"""
+        """已經被其他有效調課拿去換的 (乙的格位, 日期, 節次)。同一節課不能換給兩個人補。
+
+        三角調課(v1.4.20)換掉的兩格(乙那節、丙那節)都算,三角調的節次不能再調。
+        """
         if self._taken is None:
             rows = self.db.execute(
                 select(Substitution.swap_entry_id, Substitution.swap_date,
-                       Substitution.swap_period_no)
+                       Substitution.swap_period_no, Substitution.tri_entry_id,
+                       Substitution.tri_date, Substitution.tri_period_no)
                 .join(AffectedPeriod, Substitution.affected_period_id == AffectedPeriod.id)
                 .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
                 .where(
@@ -103,9 +113,23 @@ class SwapChecker:
                 )
             ).all()
             self._taken = {
-                (e, d, n) for e, d, n in rows if e is not None and d is not None and n is not None
+                (e, d, n) for r in rows for e, d, n in (r[:3], r[3:])
+                if e is not None and d is not None and n is not None
             }
         return self._taken
+
+    def in_leave(self, teacher: Teacher, when: date, period_no: int) -> str:
+        """這位老師這一節已經在別張有效的假單或「調課(未請假)」裡 → 那張的假別名稱。
+
+        那一節已經交給別人處理了,不能再拿來對調(v1.4.20)。請假的本人不算
+        (他那幾節就是這一筆要處理的)。
+        """
+        if teacher.id == self.absent.id:
+            return ""
+        key = (teacher.id, when)
+        if key not in self._in_leave:
+            self._in_leave[key] = leaves.taken_periods(self.db, teacher.id, when)
+        return self._in_leave[key].get(period_no, "")
 
     def option_blocker(
         self, partner: Teacher, entry: ScheduleEntry, when: date, period_no: int
@@ -148,6 +172,9 @@ class SwapChecker:
             return f"{partner.name}這節也請假,這節課本身就需要安排,不能拿來對調"
         if (entry.id, when, period_no) in self._taken_slots():
             return f"{partner.name}這節已經和別的老師調課了"
+        taken = self.in_leave(partner, when, period_no)
+        if taken:
+            return f"{partner.name}這節已經在「{taken}」裡,不能拿來對調"
         absent = self.absent.name
         released = self._released(when)
         if self.av.is_on_leave(self.absent.id, when, slot):
@@ -163,6 +190,43 @@ class SwapChecker:
         conflict = self.av.conflict_for(self.absent.id, when, slot, released)
         if conflict is not None:
             return f"{absent}{conflict.detail}"
+        return None
+
+    def mid_reason(
+        self, owner: Teacher, third: Teacher, entry: ScheduleEntry, when: date, period_no: int
+    ) -> str | None:
+        """三角調課的中間那一節:乙(`owner`)原本的這一節,能不能改由丙(`third`)來上。"""
+        return (self.mid_base_reason(owner, entry, when, period_no)
+                or self.third_reason(third, entry, when, period_no))
+
+    def mid_base_reason(
+        self, owner: Teacher, entry: ScheduleEntry, when: date, period_no: int
+    ) -> str | None:
+        """中間那一節本身能不能讓出來(與來上的是誰無關)。"""
+        off = self.calendar.for_entry(entry, when, period_no)
+        if off is not None:
+            return f"這節{suspension_service.label(off)},不能調課"
+        slot = self.av.entry_slot(entry, period_no)
+        if self.av.is_on_leave(owner.id, when, slot):
+            return f"{owner.name}這節也請假,這節課本身就需要安排,不能拿來對調"
+        if (entry.id, when, period_no) in self._taken_slots():
+            return f"{owner.name}這節已經和別的老師調課了"
+        taken = self.in_leave(owner, when, period_no)
+        if taken:
+            return f"{owner.name}這節已經在「{taken}」裡,不能拿來對調"
+        return None
+
+    def third_reason(
+        self, third: Teacher, entry: ScheduleEntry, when: date, period_no: int
+    ) -> str | None:
+        """丙這一節能不能來上課(自己有課、請假、已被安排代課都不行)。"""
+        slot = self.av.entry_slot(entry, period_no)
+        hit = self.av.lesson_at(third.id, slot, when)
+        if hit is not None:
+            return f"{third.name}這節自己有課({self._lesson_label(hit[1])})"
+        conflict = self.av.conflict_for(third.id, when, slot)
+        if conflict is not None:
+            return f"{third.name}{conflict.detail}"
         return None
 
     def _lesson_label(self, assignment_id: int) -> str:
@@ -368,4 +432,168 @@ def search(
     # 有得換的排前面;同班老師優先
     result.partners.sort(key=lambda p: (
         not p.options, not p.teaches_same_class, p.teacher_name))
+    return result
+
+
+# ── 三角調課(v1.4.20)────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class Lesson:
+    """這一班某一天某一節的一般課(一位老師上),三角調課的候選格。"""
+
+    entry_id: int
+    date: date
+    weekday: int
+    period_no: int
+    period_name: str
+    class_names: str
+    subject_name: str
+    in_block: bool
+    teacher_id: int
+    teacher_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class TriangleOption:
+    """一組三角調課:乙來上請假那節;丙來上乙的 `mid`;甲回來上丙的 `makeup`。"""
+
+    partner_id: int
+    partner_name: str
+    mid: Lesson
+    third_id: int
+    third_name: str
+    makeup: Lesson
+
+
+@dataclass
+class TriangleSearch:
+    affected_period_id: int
+    date_from: date
+    date_to: date
+    unavailable: str = ""   # 非空 = 這一節不能三角調課的原因(跑班、協同教學…)
+    total: int = 0          # 一共幾組(清單只回前 MAX_TRIANGLES 組)
+    options: list[TriangleOption] = field(default_factory=list)
+
+
+MAX_TRIANGLES = 200
+
+
+def triangle_unit(db: Session, affected: AffectedPeriod) -> tuple[int | None, str]:
+    """請假那節能不能三角調課:回 (排課單位 id, 不能的原因)。
+
+    只限一個班、一位老師上的一般課——跑班、單雙週組、協同教學一節裡有好幾門課或好幾位老師,
+    三個人輪流換,學生那一節到底上什麼會說不清楚。
+    """
+    a = (db.get(CourseAssignment, affected.course_assignment_id)
+         if affected.course_assignment_id else None)
+    if a is None:
+        return None, "找不到這一節的配課"
+    if a.scheduling_unit.unit_type != "single":
+        return None, "跑班或單雙週組的課不能三角調課,請用互調或代課"
+    if len(a.teachers) != 1:
+        return None, "協同教學的課不能三角調課,請用互調或代課"
+    return a.scheduling_unit_id, ""
+
+
+def class_lessons(
+    db: Session, av: Availability, checker: SwapChecker, unit_id: int, dates: list[date],
+) -> list[Lesson]:
+    """這個班在這段期間、請假老師以外的每一節一般課(還沒上過的)。"""
+    assert av.timetable is not None
+    affected = checker.affected
+    out: list[Lesson] = []
+    entries = db.scalars(
+        select(ScheduleEntry)
+        .join(CourseAssignment, ScheduleEntry.course_assignment_id == CourseAssignment.id)
+        .where(ScheduleEntry.timetable_id == av.timetable.id,
+               CourseAssignment.scheduling_unit_id == unit_id)
+    ).all()
+    for entry in entries:
+        a = entry.assignment
+        if len(a.teachers) != 1:
+            continue
+        teacher = a.teachers[0].teacher
+        if teacher.id == checker.absent.id or not teacher.is_active:
+            continue
+        class_names = "、".join(m.class_unit.name for m in a.scheduling_unit.members)
+        for when in dates:
+            if when.isoweekday() != entry.weekday or not av.entry_runs_on(entry, when):
+                continue
+            for no in block_periods(av, entry):
+                if when == affected.date and no == affected.period_no:
+                    continue
+                if checker.out_of_reach(entry, when, no):
+                    continue
+                out.append(Lesson(
+                    entry_id=entry.id, date=when, weekday=entry.weekday, period_no=no,
+                    period_name=_period_label(av, entry, no), class_names=class_names,
+                    subject_name=a.subject.name if a.subject else "",
+                    in_block=entry.span > 1, teacher_id=teacher.id, teacher_name=teacher.name,
+                ))
+    return out
+
+
+def triangle_search(
+    db: Session,
+    affected: AffectedPeriod,
+    *,
+    weeks: int = DEFAULT_WEEKS,
+    start: date | None = None,
+    availability: Availability | None = None,
+) -> TriangleSearch:
+    """列出可行的三人組合:乙在甲那節有空、丙在乙那節有空、甲在丙那節有空。
+
+    每一格的檢查與互調同一套(`SwapChecker`):停課、請假、已經拿去調課、自己有課、
+    已被安排代課都不行。依兩節裡較晚的那天排序(越早換完越好)。
+    """
+    av = availability or Availability(db, affected.semester_id)
+    date_from, date_to = search_window(affected.date, weeks, start)
+    result = TriangleSearch(affected_period_id=affected.id, date_from=date_from, date_to=date_to)
+    if av.timetable is None:
+        result.unavailable = "此學期尚無已發布的課表"
+        return result
+    unit_id, why = triangle_unit(db, affected)
+    if unit_id is None:
+        result.unavailable = why
+        return result
+
+    checker = SwapChecker(db, affected, av)
+    dates = [date_from + timedelta(days=i) for i in range((date_to - date_from).days + 1)]
+    lessons = class_lessons(db, av, checker, unit_id, dates)
+    teachers = {t.id: t for t in db.scalars(
+        select(Teacher).where(Teacher.id.in_({x.teacher_id for x in lessons} or [0])))}
+    entries = {e.id: e for e in db.scalars(
+        select(ScheduleEntry).where(ScheduleEntry.id.in_({x.entry_id for x in lessons} or [0])))}
+
+    partner_ok = {tid: checker.partner_blocker(t) is None for tid, t in teachers.items()}
+    # 甲能不能回來上這一節(丙的課)
+    makeups: dict[int, list[Lesson]] = {}
+    for x in lessons:
+        if checker.reason(teachers[x.teacher_id], entries[x.entry_id], x.date,
+                          x.period_no) is None:
+            makeups.setdefault(x.teacher_id, []).append(x)
+
+    found: list[TriangleOption] = []
+    for mid in lessons:
+        if not partner_ok[mid.teacher_id]:
+            continue
+        owner, entry = teachers[mid.teacher_id], entries[mid.entry_id]
+        if checker.mid_base_reason(owner, entry, mid.date, mid.period_no) is not None:
+            continue
+        for third_id, options in makeups.items():
+            if third_id == mid.teacher_id:
+                continue
+            third = teachers[third_id]
+            if checker.third_reason(third, entry, mid.date, mid.period_no) is not None:
+                continue
+            for z in options:
+                found.append(TriangleOption(
+                    partner_id=owner.id, partner_name=owner.name, mid=mid,
+                    third_id=third.id, third_name=third.name, makeup=z))
+
+    found.sort(key=lambda o: (max(o.mid.date, o.makeup.date), o.mid.date, o.mid.period_no,
+                              o.makeup.date, o.makeup.period_no, o.partner_name, o.third_name))
+    result.total = len(found)
+    result.options = found[:MAX_TRIANGLES]
     return result

@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.assignment import CourseAssignment
@@ -31,6 +31,7 @@ from app.models.substitution import Substitution, SubstitutionType
 from app.models.suspension import ClassSuspension
 from app.models.timetable import ScheduleEntry
 from app.services import period_tables as pt_service
+from app.services import swap_legs
 
 
 def label(s: ClassSuspension) -> str:
@@ -216,17 +217,26 @@ def conflicts(db: Session, s: ClassSuspension) -> list[Conflict]:
         .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
         .where(
             Substitution.type == SubstitutionType.swap.value,
-            Substitution.swap_date >= s.start_date, Substitution.swap_date <= s.end_date, *live)
+            or_(and_(Substitution.swap_date >= s.start_date,
+                     Substitution.swap_date <= s.end_date),
+                and_(Substitution.tri_date >= s.start_date,
+                     Substitution.tri_date <= s.end_date)), *live)
     ):
-        entry = db.get(ScheduleEntry, sub.swap_entry_id) if sub.swap_entry_id else None
-        if (entry is None or sub.swap_date is None or sub.swap_period_no is None
-                or cal.for_entry(entry, sub.swap_date, sub.swap_period_no) is None):
-            continue
         absent = db.get(AffectedPeriod, sub.affected_period_id)
-        who = absent.leave_request.teacher.name if absent and absent.leave_request.teacher else ""
-        out.append(Conflict(sub.swap_date, (
-            f"{_md(sub.swap_date)} {sub.swap_period_name} {sub.swap_class_names}:"
-            f"{who} 調課回來補課")))
+        if absent is None:
+            continue
+        # 調課換人上的其他節次(互調:甲回來補課;三角調課另有丙上乙那節)
+        for leg in swap_legs.legs(absent, sub):
+            entry = db.get(ScheduleEntry, leg.entry_id) if leg.entry_id else None
+            if (leg.absent_slot or entry is None
+                    or not s.start_date <= leg.date <= s.end_date
+                    or cal.for_entry(entry, leg.date, leg.period_no) is None):
+                continue
+            back_home = leg.teacher_id == absent.leave_request.teacher_id
+            what = "調課回來補課" if back_home else "三角調課來上課"
+            out.append(Conflict(leg.date, (
+                f"{_md(leg.date)} {leg.period_name} {leg.class_names}:"
+                f"{leg.teacher_name} {what}")))
 
     for cover in db.scalars(
         select(HomeroomCover)
