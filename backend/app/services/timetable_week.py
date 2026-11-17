@@ -70,6 +70,8 @@ def _note(x: _Lesson) -> str:
     extra = [f"原:{x.original}"] if x.original and x.teacher != x.original else []
     if x.swap_with:
         extra.append(f"與 {x.swap_with}對調")
+    if x.reason:
+        extra.append(x.reason)                  # 停課的說明「校慶補假」(v1.4.19)
     return f"{x.note}({','.join(extra)})" if extra else x.note
 
 

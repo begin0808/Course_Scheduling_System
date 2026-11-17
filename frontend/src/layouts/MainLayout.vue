@@ -68,6 +68,7 @@ const menuOptions = computed(() => {
         { label: menuLink('substitution-log', '調代課紀錄'), key: 'substitution-log' },
         { label: menuLink('substitution-stats', '代課鐘點統計'), key: 'substitution-stats' },
         { label: menuLink('notification-board', '通知確認看板'), key: 'notification-board' },
+        { label: menuLink('suspensions', '停課日'), key: 'suspensions' },
       ],
     },
     { label: menuLink('system', '系統管理'), key: 'system' },

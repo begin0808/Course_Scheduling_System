@@ -125,6 +125,12 @@ const routes = [
         component: () => import('@/views/substitution/SubstitutionStats.vue'),
       },
       {
+        // 停課日(v1.4.19)
+        path: 'suspensions',
+        name: 'suspensions',
+        component: () => import('@/views/substitution/Suspensions.vue'),
+      },
+      {
         path: 'scheduling/versions',
         name: 'versions',
         component: () => import('@/views/scheduling/Versions.vue'),

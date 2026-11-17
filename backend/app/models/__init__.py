@@ -41,6 +41,7 @@ from app.models.substitution import (
     Substitution,
     SubstitutionType,
 )
+from app.models.suspension import ClassSuspension
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import Role, User, UserRole
 from app.models.wizard import WizardState
@@ -87,4 +88,5 @@ __all__ = [
     "Substitution",
     "SubstitutionType",
     "SUBSTITUTION_TYPE_CN",
+    "ClassSuspension",
 ]

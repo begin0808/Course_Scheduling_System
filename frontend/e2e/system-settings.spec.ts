@@ -36,17 +36,19 @@ test('系統管理:三張卡片渲染、可立即備份並刪除備份', async (
   await expect(versionCard.getByText(/上次檢查/)).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/system-1-page.png` })
 
-  // 立即備份 → 清單多一列(這條路徑會打到 worker-ops 的 pg_dump)
+  // 立即備份 → 最上面多一份新的(這條路徑會打到 worker-ops 的 pg_dump)。
+  // 不比數量:備份滿 30 份時,建立新的會同時輪替掉最舊的一份,總數不變。
   const rows = page.getByTestId('backup-row')
-  const before = await rows.count()
+  const newest = (await rows.count()) ? await rows.first().innerText() : ''
   await page.getByTestId('backup-now').click()
   await expect(page.getByText('已建立備份')).toBeVisible({ timeout: 60_000 })
-  await expect(rows).toHaveCount(before + 1)
+  await expect(rows.first()).not.toHaveText(newest)
+  const after = await rows.count()
   await page.screenshot({ path: `${SHOTS}/system-2-backup.png` })
 
   // 刪除剛才那份,不留垃圾(最新的在最上面)
   await rows.first().getByRole('button', { name: '刪除' }).click()
   await page.getByRole('button', { name: '確定' }).click()
   await expect(page.getByText('已刪除備份')).toBeVisible()
-  await expect(rows).toHaveCount(before)
+  await expect(rows).toHaveCount(after - 1)
 })

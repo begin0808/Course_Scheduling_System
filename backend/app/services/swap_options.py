@@ -29,6 +29,7 @@ from app.models.period import PeriodType
 from app.models.semester import Semester
 from app.models.substitution import Substitution, SubstitutionType
 from app.models.timetable import ScheduleEntry
+from app.services import suspensions as suspension_service
 from app.services.availability import Availability, Interval
 
 
@@ -65,6 +66,9 @@ class SwapChecker:
         self.semester = db.get(Semester, affected.semester_id)
         self._taken: set[tuple[int, date, int]] | None = None
         self._labels: dict[int, str] = {}
+        # 停課的那一節不上課,不能拿來補課(v1.4.19)
+        self.calendar = suspension_service.Calendar(
+            db, affected.semester_id, date.min, date.max)
         # 補登已經上過的調課(v1.4.10,組長回報:事後補登,留紀錄查老師多常換課):
         # 兩邊都已經上完了,補課那節也可以是過去的。只限「調課(未請假)」——
         # 請假的節次過去了只能補登代課(`substitutions.assign`)。
@@ -136,6 +140,9 @@ class SwapChecker:
         v1.4.12:組長兩度回報「調課清單抓不到某一節」,兩次系統都對,只是看不出原因
         (補課老師那節自己有課;請假時段蓋住那一節)。所以換不了的也列出來、寫原因。
         """
+        off = self.calendar.for_entry(entry, when, period_no)
+        if off is not None:
+            return f"這節{suspension_service.label(off)},不能補課"
         slot = self.av.entry_slot(entry, period_no)
         if self.av.is_on_leave(partner.id, when, slot):
             return f"{partner.name}這節也請假,這節課本身就需要安排,不能拿來對調"
