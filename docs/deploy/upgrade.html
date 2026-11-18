@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v1420調代課處置的資料表新增三角調課欄位">升級到 v1.4.20:調代課處置的資料表新增三角調課欄位</a><a class="lv2" href="#升級到-v1419新增停課日用的資料表">升級到 v1.4.19:新增停課日用的資料表</a><a class="lv2" href="#升級到-v142-v1418補登修改假別與計費方式未請假的調課批次-pdf登入鎖定資安修正">升級到 v1.4.2 ~ v1.4.18:補登、修改假別與計費方式、未請假的調課、批次 PDF、登入鎖定資安修正</a><a class="lv2" href="#升級到-v141授權改為-agpl-30">升級到 v1.4.1:授權改為 AGPL-3.0</a><a class="lv2" href="#升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</a><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v1420-退回-v1419">從 v1.4.20 退回 v1.4.19</a><a class="lv3" href="#從-v1419-退回-v1418">從 v1.4.19 退回 v1.4.18</a><a class="lv3" href="#從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v1421三角調課指定老師">升級到 v1.4.21:三角調課指定老師</a><a class="lv2" href="#升級到-v1420調代課處置的資料表新增三角調課欄位">升級到 v1.4.20:調代課處置的資料表新增三角調課欄位</a><a class="lv2" href="#升級到-v1419新增停課日用的資料表">升級到 v1.4.19:新增停課日用的資料表</a><a class="lv2" href="#升級到-v142-v1418補登修改假別與計費方式未請假的調課批次-pdf登入鎖定資安修正">升級到 v1.4.2 ~ v1.4.18:補登、修改假別與計費方式、未請假的調課、批次 PDF、登入鎖定資安修正</a><a class="lv2" href="#升級到-v141授權改為-agpl-30">升級到 v1.4.1:授權改為 AGPL-3.0</a><a class="lv2" href="#升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</a><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v1420-退回-v1419">從 v1.4.20 退回 v1.4.19</a><a class="lv3" href="#從-v1419-退回-v1418">從 v1.4.19 退回 v1.4.18</a><a class="lv3" href="#從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -190,6 +190,9 @@
       <blockquote>
       <p><strong>開始前先備份。</strong> 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見<a href="backup.html">備份指南</a>。</p>
       </blockquote>
+      <h2 id="升級到-v1421三角調課指定老師">升級到 v1.4.21:三角調課指定老師</h2>
+      <p>v1.4.21 沒有資料表變更,照下方方式 A 或方式 B 一般升級即可;從 v1.4.19 或更早的版本升上來,一樣會經過
+      v1.4.20 的資料表變更(會先自動備份)。要退回 v1.4.20,把 <code>IMAGE_TAG</code> 改回 v1.4.20 再 <code>pull</code>、<code>up -d</code> 即可。</p>
       <h2 id="升級到-v1420調代課處置的資料表新增三角調課欄位">升級到 v1.4.20:調代課處置的資料表新增三角調課欄位</h2>
       <p>v1.4.20 在「調代課處置」的資料表新增幾個欄位(三角調課的第三位老師與中間那一節,都可以是空的),
       <strong>既有的資料都不動</strong>——升級前的調課都是兩人互調,這些欄位留空。和 v1.4.19 一樣,<code>api</code> 容器發現資料庫結構

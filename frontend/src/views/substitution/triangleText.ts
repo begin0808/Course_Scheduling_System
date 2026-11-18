@@ -1,4 +1,4 @@
-import type { TriangleOption } from '@/api/substitutions'
+import type { TriangleOption, TriangleTeacherCheck } from '@/api/substitutions'
 import { shortDate } from './logText'
 
 /**
@@ -32,4 +32,13 @@ export function triangleDisposition(p: TriangleParts): string {
   const at = (d: string | null, name: string) => `${d ? shortDate(d) : ''} ${name}`.trim()
   return `三角調課 → ${p.handler}(${p.third} ${at(p.triDate, p.triPeriod)}代${p.handler}、`
     + `${p.absent} ${at(p.swapDate, p.swapPeriod)}補課)`
+}
+
+/** 指定老師的結果標題(v1.4.21):「陳師可以湊成 2 組(列在下面);其他節次湊不成的原因:」 */
+export function checkTitle(c: TriangleTeacherCheck): string {
+  const reasons = c.as_partner.length + c.as_third.length > 0
+  if (c.found) {
+    return `${c.teacher_name}可以湊成 ${c.found} 組(列在下面)${reasons ? ';其他節次湊不成的原因:' : ''}`
+  }
+  return `${c.teacher_name}湊不成三角調課${reasons ? ',原因:' : ''}`
 }

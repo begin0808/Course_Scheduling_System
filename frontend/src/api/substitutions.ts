@@ -109,6 +109,16 @@ export interface TriangleOption {
   makeup: TriangleLesson
 }
 
+/** 指定老師(v1.4.21):他能湊成幾組,其餘節次為什麼湊不成 */
+export interface TriangleTeacherCheck {
+  teacher_id: number
+  teacher_name: string
+  found: number
+  note: string // 非空 = 這段期間沒有這一班的課
+  as_partner: string[] // 當 ①:來上請假那一節
+  as_third: string[] // 當 ②:來上別人讓出的一節,請假老師回來上他的課
+}
+
 export interface TriangleOptions {
   affected_period_id: number
   date_from: string
@@ -116,6 +126,8 @@ export interface TriangleOptions {
   unavailable: string // 非空 = 這一節不能三角調課(跑班、協同教學…)
   total: number // 一共幾組(清單最多回 200 組)
   options: TriangleOption[]
+  teachers: { teacher_id: number; teacher_name: string }[] // 這一班有課的老師(指定老師的選單)
+  check: TriangleTeacherCheck | null
 }
 
 export const listSubstitutionTypes = (): Promise<Record<string, string>> =>
@@ -189,10 +201,11 @@ export const getSwapOptions = (
 
 /** 三角調課(v1.4.20):範圍與互調相同 */
 export const getTriangleOptions = (
-  affectedId: number, weeks = 2, start?: string | null,
+  affectedId: number, weeks = 2, start?: string | null, teacherId?: number | null,
 ): Promise<TriangleOptions> => {
   const q = new URLSearchParams({ weeks: String(weeks) })
   if (start) q.set('start', start)
+  if (teacherId) q.set('teacher_id', String(teacherId))
   return apiGet(`/affected-periods/${affectedId}/triangle-options?${q}`)
 }
 

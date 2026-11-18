@@ -91,6 +91,15 @@ test('三角調課:互調湊不出來時列出三人組合,點一下成立,三�
     await expect(first).toContainText(`三角陳師 上三角林師的 ${short(THU)} 第二節 三角數學`)
     await expect(first).toContainText(`三角王師 上三角陳師的 ${short(FRI)} 第三節 三角英語`)
 
+    // 一之二、指定老師(v1.4.21):只列有他的組合,並寫出其他位置為什麼不行
+    await panel.getByTestId('sub-tri-teacher').click()
+    await page.locator('.n-base-select-option', { hasText: '三角陳師' }).click()
+    const check = panel.getByTestId('sub-tri-check')
+    await expect(check).toContainText('三角陳師可以湊成 4 組(列在下面);其他節次湊不成的原因:')
+    await expect(check.getByTestId('sub-tri-check-partner')).toContainText(
+      '三角陳師這節自己有課(703 三角英語)')
+    await expect(options).toHaveCount(4)
+
     // 二、點一下成立;清單寫出三位老師各上哪一節
     await first.click()
     await expect(page.getByText('已三角調課')).toBeVisible()
