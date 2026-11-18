@@ -22,7 +22,7 @@ import type {
   BatchSkip, Candidate, MergeOption, Recommendation, SwapOption, SwapOptions, SwapPartner,
   TriangleOption, TriangleOptions,
 } from '@/api/substitutions'
-import { triangleDisposition, triangleSteps } from './triangleText'
+import { checkTitle, triangleDisposition, triangleSteps } from './triangleText'
 
 const message = useMessage()
 
@@ -62,6 +62,8 @@ const swapExpanded = ref<Set<number>>(new Set())
 // 三角調課(v1.4.20):同一班三位老師輪流換課。和互調共用範圍、從哪週開始找
 const swapMode = ref<'pair' | 'triangle'>('pair')
 const triangle = ref<TriangleOptions | null>(null)
+// 指定老師(v1.4.21,組長回報「清單裡找不到某位老師」):只列有他的組合,並寫出其餘節次為什麼不行
+const triTeacherId = ref<number | null>(null)
 const TRIANGLE_PAGE = 10
 const triangleShown = ref(TRIANGLE_PAGE)
 
@@ -106,6 +108,7 @@ function resetSwap() {
   swapMode.value = 'pair'
   triangle.value = null
   triangleShown.value = TRIANGLE_PAGE
+  triTeacherId.value = null
   swapTeacherId.value = null
   swapStart.value = null
   swapExpanded.value = new Set()
@@ -307,7 +310,7 @@ async function loadSwap(p: AffectedPeriod) {
   const start = swapStart.value === null ? null : isoOf(swapStart.value)
   try {
     if (swapMode.value === 'triangle') {
-      triangle.value = await getTriangleOptions(p.id, swapWeeks.value, start)
+      triangle.value = await getTriangleOptions(p.id, swapWeeks.value, start, triTeacherId.value)
       triangleShown.value = TRIANGLE_PAGE
     } else {
       swap.value = await getSwapOptions(p.id, swapTeacherId.value, swapWeeks.value, start)
@@ -377,6 +380,11 @@ async function assignMerge(p: AffectedPeriod, o: MergeOption) {
 
 async function onSwapTeacherChange(p: AffectedPeriod, id: number | null) {
   swapTeacherId.value = id
+  await loadSwap(p)
+}
+
+async function onTriTeacherChange(p: AffectedPeriod, id: number | null) {
+  triTeacherId.value = id
   await loadSwap(p)
 }
 
@@ -953,6 +961,15 @@ function candidateTagType(c: Candidate): string {
                         />
                         <n-text depth="3">也可以指定其他老師</n-text>
                       </template>
+                      <template v-else-if="triangle && !triangle.unavailable">
+                        <n-select
+                          :value="triTeacherId"
+                          :options="triangle.teachers.map((t) => ({ label: t.teacher_name, value: t.teacher_id }))"
+                          filterable clearable size="small" style="width: 200px"
+                          placeholder="指定老師(選填)" data-testid="sub-tri-teacher"
+                          @update:value="(v: number | null) => onTriTeacherChange(p, v)"
+                        />
+                      </template>
                       <n-text depth="3" style="margin-left: 12px">範圍</n-text>
                       <n-select
                         :value="swapWeeks" :options="SWAP_WEEK_OPTIONS" size="small"
@@ -979,16 +996,42 @@ function candidateTagType(c: Candidate): string {
                       >
                         {{ triangle.unavailable }}
                       </n-alert>
-                      <n-alert
-                        v-else-if="!triangle.options.length" type="info" :bordered="false"
-                        data-testid="sub-tri-empty"
-                      >
-                        這段期間找不到三位老師都有空的組合,可試著放寬週數或改從其他週開始找。
-                      </n-alert>
                       <template v-else>
-                        <n-text depth="3" class="swap-note">
+                        <!-- 指定老師:寫出湊不成的原因(v1.4.21) -->
+                        <div v-if="triangle.check" class="tri-check" data-testid="sub-tri-check">
+                          <n-alert v-if="triangle.check.note" type="info" :bordered="false">
+                            {{ triangle.check.note }}
+                          </n-alert>
+                          <template v-else>
+                            <n-text strong>{{ checkTitle(triangle.check) }}</n-text>
+                            <template v-if="triangle.check.as_partner.length">
+                              <n-text depth="3" class="tri-check-role">
+                                當 ①(來上這一節,讓出自己的一節):
+                              </n-text>
+                              <ul data-testid="sub-tri-check-partner">
+                                <li v-for="(t, k) in triangle.check.as_partner" :key="k">{{ t }}</li>
+                              </ul>
+                            </template>
+                            <template v-if="triangle.check.as_third.length">
+                              <n-text depth="3" class="tri-check-role">
+                                當 ②(來上別人讓出的一節,{{ l.teacher_name }}回來上{{ triangle.check.teacher_name }}的課):
+                              </n-text>
+                              <ul data-testid="sub-tri-check-third">
+                                <li v-for="(t, k) in triangle.check.as_third" :key="k">{{ t }}</li>
+                              </ul>
+                            </template>
+                          </template>
+                        </div>
+                        <n-alert
+                          v-if="!triangle.options.length && !triangle.check" type="info" :bordered="false"
+                          data-testid="sub-tri-empty"
+                        >
+                          這段期間找不到三位老師都有空的組合,可試著放寬週數或改從其他週開始找。
+                        </n-alert>
+                        <n-text v-if="triangle.options.length" depth="3" class="swap-note">
                           共 {{ triangle.total }} 組{{ triangle.total > triangle.options.length
-                            ? `(先列最早換完的 ${triangle.options.length} 組)` : '' }},兩節都越早的排越前面
+                            ? `(先列最早換完的 ${triangle.options.length} 組)` : '' }},兩節都越早的排越前面{{
+                            triangle.check ? '' : '。找不到想要的老師?在「指定老師」選他,會寫出湊不成的原因' }}
                         </n-text>
                         <div class="tri-list">
                           <n-button
@@ -1353,6 +1396,9 @@ function candidateTagType(c: Candidate): string {
 .swap-block { margin-left: 4px; opacity: 0.7; }
 .swap-blocked { margin: 4px 0 0; padding-left: 20px; opacity: 0.65; font-size: 13px; }
 .tri-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.tri-check { margin: 4px 0 8px; padding: 8px 12px; border-left: 3px solid #2080f0; background: rgba(32, 128, 240, 0.06); }
+.tri-check ul { margin: 2px 0 6px; padding-left: 20px; }
+.tri-check-role { display: block; margin-top: 4px; }
 .tri-option { height: auto; padding: 6px 10px; justify-content: flex-start; white-space: normal; }
 .tri-option :deep(.n-button__content) { display: flex; flex-wrap: wrap; gap: 4px 14px; text-align: left; }
 .tri-step { white-space: nowrap; }

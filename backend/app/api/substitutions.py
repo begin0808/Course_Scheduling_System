@@ -125,13 +125,17 @@ def get_triangle_options(
     affected_id: int,
     weeks: int = Query(default=swap_options.DEFAULT_WEEKS, ge=1, le=swap_options.MAX_WEEKS),
     start: date | None = Query(default=None),
+    teacher_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     _: User = Depends(editor),
 ):
-    """三角調課(v1.4.20):同一班三位老師輪流換課的可行組合,範圍與互調相同。"""
+    """三角調課(v1.4.20):同一班三位老師輪流換課的可行組合,範圍與互調相同。
+
+    `teacher_id`(v1.4.21):只列有這位老師的組合,並寫出他其餘節次為什麼湊不成。
+    """
     affected = _get_affected(db, affected_id)
     return TriangleOptionsOut.model_validate(asdict(swap_options.triangle_search(
-        db, affected, weeks=weeks, start=start)))
+        db, affected, weeks=weeks, start=start, teacher_id=teacher_id)))
 
 
 @router.get("/swap-slips", response_model=SlipsOut)

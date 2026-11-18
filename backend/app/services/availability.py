@@ -199,11 +199,17 @@ class Availability:
         return False
 
     # ── 當日已接手:已被指派代別班/調課到那個時段 ──
-    def _already_covering(self, teacher_id: int, when: date, slot: Interval) -> Interval | None:
+    def _already_covering(self, teacher_id: int, when: date, slot: Interval) -> str | None:
+        """已經被安排在這個時段去上別班的課 → 去上哪一班(「代 702 國文」);沒有回 None。
+
+        寫出是哪一班(v1.4.21,組長回報「三角調課抓不到某位老師」):只寫「已被安排代其他課」,
+        組長不知道要去哪裡找那一筆。
+        """
         # (a) 身為其他受影響節次的代課/接手者
         rows = self.db.execute(
             select(AffectedPeriod.weekday, AffectedPeriod.period_no,
-                   AffectedPeriod.start_time, AffectedPeriod.end_time)
+                   AffectedPeriod.start_time, AffectedPeriod.end_time,
+                   AffectedPeriod.class_names, AffectedPeriod.subject_name)
             .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
             .where(
                 AffectedPeriod.handler_teacher_id == teacher_id,
@@ -212,15 +218,15 @@ class Availability:
                 AffectedPeriod.date == when,
             )
         ).all()
-        for weekday, period_no, start, end in rows:
-            other = Interval(weekday, period_no, start, end)
-            if slot.overlaps(other):
-                return other
+        for weekday, period_no, start, end, classes, subject in rows:
+            if slot.overlaps(Interval(weekday, period_no, start, end)):
+                return f"代 {classes} {subject}".strip()
         # (b) 身為調課的補課者(swap 的甲方,補在 swap_date)。
         # **補課方是該筆調課「請假的當事人」**,不是 handler(乙);必須以
         # AffectedPeriod→LeaveRequest.teacher_id 比對,否則會把全校在該時段都誤判為已佔用。
         swaps = self.db.execute(
-            select(Substitution.swap_period_no)
+            select(Substitution.swap_period_no, Substitution.swap_class_names,
+                   Substitution.swap_subject_name)
             .join(AffectedPeriod, Substitution.affected_period_id == AffectedPeriod.id)
             .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
             .where(
@@ -230,12 +236,13 @@ class Availability:
                 AffectedPeriod.status != AffectedStatus.cancelled.value,
             )
         ).all()
-        for (swap_period_no,) in swaps:
+        for swap_period_no, classes, subject in swaps:
             if swap_period_no == slot.period_no:  # 調課補課以節次號記錄
-                return Interval(slot.weekday, swap_period_no, None, None)
+                return f"回 {classes} {subject} 調課補課".replace("  ", " ")
         # (c) 三角調課的丙:來上乙原本那一節(tri_date,v1.4.20)
         tris = self.db.execute(
-            select(Substitution.tri_period_no)
+            select(Substitution.tri_period_no, Substitution.tri_class_names,
+                   Substitution.tri_subject_name)
             .join(AffectedPeriod, Substitution.affected_period_id == AffectedPeriod.id)
             .join(LeaveRequest, AffectedPeriod.leave_request_id == LeaveRequest.id)
             .where(
@@ -245,9 +252,9 @@ class Availability:
                 AffectedPeriod.status != AffectedStatus.cancelled.value,
             )
         ).all()
-        for (tri_period_no,) in tris:
+        for tri_period_no, classes, subject in tris:
             if tri_period_no == slot.period_no:
-                return Interval(slot.weekday, tri_period_no, None, None)
+                return f"去 {classes} {subject} 三角調課".replace("  ", " ")
         return None
 
     # ── 對外:某教師某時段能不能用 ──
@@ -311,8 +318,9 @@ class Availability:
             return Conflict("teaching", "該時段有自己的課")
         if self._on_leave(teacher_id, when, slot):
             return Conflict("on_leave", "當天也請假")
-        if self._already_covering(teacher_id, when, slot) is not None:
-            return Conflict("already_covering", "已被安排代其他課")
+        covering = self._already_covering(teacher_id, when, slot)
+        if covering is not None:
+            return Conflict("already_covering", f"已被安排{covering}")
         return None
 
     def is_free(self, teacher_id: int, when: date, slot: Interval) -> bool:

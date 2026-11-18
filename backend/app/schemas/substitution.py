@@ -169,6 +169,22 @@ class TriangleOptionOut(BaseModel):
     makeup: TriangleLessonOut    # 丙原本的那一節,甲回來上
 
 
+class ClassTeacherOut(BaseModel):
+    teacher_id: int
+    teacher_name: str
+
+
+class TeacherCheckOut(BaseModel):
+    """指定老師(v1.4.21):能湊成幾組,其餘節次為什麼不行。"""
+
+    teacher_id: int
+    teacher_name: str
+    found: int = 0
+    note: str = ""
+    as_partner: list[str] = []   # 當 ①:來上請假那一節
+    as_third: list[str] = []     # 當 ②:來上別人讓出的一節,請假老師回來上他的課
+
+
 class TriangleOptionsOut(BaseModel):
     """三角調課(v1.4.20):可行的三人組合。`unavailable` 非空 = 這一節不能三角調課。"""
 
@@ -178,6 +194,8 @@ class TriangleOptionsOut(BaseModel):
     unavailable: str = ""
     total: int = 0
     options: list[TriangleOptionOut] = []
+    teachers: list[ClassTeacherOut] = []
+    check: TeacherCheckOut | None = None
 
 
 class SlipRowOut(BaseModel):
