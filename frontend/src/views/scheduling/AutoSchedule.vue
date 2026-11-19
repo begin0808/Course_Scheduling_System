@@ -6,7 +6,7 @@ import {
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import {
   cancelSolveJob, getSolveJob, listRelaxable, preflight, startAutoSchedule, stopSolveJob,
@@ -117,7 +117,7 @@ async function onSemesterChange(id: number) {
 
 onMounted(async () => {
   ;[semesters.value, relaxable.value] = await Promise.all([listSemesters(), listRelaxable()])
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 async function poll() {

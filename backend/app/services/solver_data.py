@@ -264,6 +264,7 @@ def load_problem(
     return Problem(
         semester_id=semester_id,
         semester_label=semester.label,
+        is_tutoring=semester.is_tutoring,
         tables=tables,
         classes=classes,
         teachers=teachers,

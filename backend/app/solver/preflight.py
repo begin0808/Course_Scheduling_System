@@ -231,7 +231,7 @@ def _check_teachers(problem: Problem, issues: list[Issue]) -> None:
                 "teacher", teacher.id,
                 {"assigned": assigned, "available": available, "unavailable": blocked},
             ))
-        if assigned > teacher.target_periods:
+        if assigned > teacher.target_periods and not problem.is_tutoring:
             issues.append(Issue(
                 "warning", "teacher_over_hours",
                 f"教師{teacher.name} 配課 {fmt_periods(assigned)} 節,超出應授鐘點 "

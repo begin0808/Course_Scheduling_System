@@ -189,6 +189,7 @@ class Problem:
     units: Mapping[int, UnitSpec]
     assignments: tuple[AssignmentSpec, ...]
     fixed_entries: tuple[FixedEntry, ...] = ()
+    is_tutoring: bool = False  # 寒暑假輔導(v1.4.22):不檢查超出應授鐘點
 
     # ── 導覽 ────────────────────────
     def classes_of(self, a: AssignmentSpec) -> tuple[ClassSpec, ...]:

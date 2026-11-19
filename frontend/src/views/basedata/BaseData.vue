@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NAlert, NSelect, NSpace, NTabPane, NTabs } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import ClassesTab from './ClassesTab.vue'
 import ImportTab from './ImportTab.vue'
@@ -18,7 +18,7 @@ const semesterOptions = computed(() =>
 
 onMounted(async () => {
   semesters.value = await listSemesters()
-  if (semesters.value.length) currentId.value = semesters.value[0].id
+  if (semesters.value.length) currentId.value = defaultSemester(semesters.value).id
 })
 </script>
 

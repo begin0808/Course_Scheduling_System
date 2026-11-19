@@ -3,11 +3,12 @@ import { NButton, NCheckbox, NEmpty, NSelect, NSpace, NTag, NText, useMessage } 
 import { computed, onMounted, ref } from 'vue'
 import { notificationBoard, remind } from '@/api/notifications'
 import type { BoardEntry } from '@/api/notifications'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
+import type { SemesterPick } from '@/api/semesters'
 
 const message = useMessage()
 
-const semesters = ref<{ id: number; label: string }[]>([])
+const semesters = ref<SemesterPick[]>([])
 const sid = ref<number | null>(null)
 const entries = ref<BoardEntry[]>([])
 const unackOnly = ref(true) // 預設只看未確認——那才是組長要追的
@@ -34,7 +35,7 @@ async function onSemesterChange(id: number) {
 
 onMounted(async () => {
   semesters.value = await listSemesters()
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 async function onRemind(e: BoardEntry) {

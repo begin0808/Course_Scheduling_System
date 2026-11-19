@@ -51,6 +51,7 @@ export interface TeacherLoad {
   delta: number
   max_overtime: number // 超鐘點上限(節);0 = 學校未設限
   over_limit: boolean  // delta 已超過上限
+  tutoring?: boolean   // 寒暑假輔導學期(v1.4.22):不比應授、不算超鐘點
 }
 export interface ClassLoad {
   class_id: number

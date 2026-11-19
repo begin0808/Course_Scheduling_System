@@ -16,7 +16,7 @@ from app.core.db import get_db
 from app.models.assignment import CourseAssignment
 from app.models.basedata import ClassUnit, Room, Teacher
 from app.models.period import PeriodTable
-from app.models.semester import Semester
+from app.models.semester import Semester, sorted_semesters
 from app.models.timetable import ScheduleEntry, Timetable, TimetableStatus
 from app.models.user import Role, User
 from app.schemas.timetable import (
@@ -306,9 +306,11 @@ def published_semesters(db: Session = Depends(get_db), _: User = Depends(get_act
         select(Semester)
         .join(Timetable, Timetable.semester_id == Semester.id)
         .where(Timetable.status == TimetableStatus.published.value)
-        .order_by(Semester.academic_year.desc(), Semester.term.desc())
-    ).all()
-    return [PublicSemester(id=s.id, label=s.label) for s in rows]
+    ).unique().all()
+    return [
+        PublicSemester(id=s.id, label=s.label, start_date=s.start_date, end_date=s.end_date)
+        for s in sorted_semesters(rows)
+    ]
 
 
 @router.get("/published/my-teacher", response_model=NamedBrief | None)

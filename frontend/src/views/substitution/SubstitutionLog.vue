@@ -3,7 +3,8 @@ import { NAlert, NButton, NDatePicker, NEmpty, NSelect, NSpace, NTag, NText } fr
 import { computed, onMounted, ref } from 'vue'
 import { listTeachers } from '@/api/basedata'
 import { listLeaveTypes } from '@/api/leaves'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
+import type { SemesterPick } from '@/api/semesters'
 import { getSubstitutionLog } from '@/api/substitutionLog'
 import type { LogEntry } from '@/api/substitutionLog'
 import { openSlips } from '@/api/substitutions'
@@ -24,7 +25,7 @@ function withWeekday(iso: string): string {
   return `${iso}(${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`
 }
 
-const semesters = ref<{ id: number; label: string }[]>([])
+const semesters = ref<SemesterPick[]>([])
 const sid = ref<number | null>(null)
 const teacherOptions = ref<{ label: string; value: number }[]>([])
 const leaveTypes = ref<Record<string, string>>({})
@@ -85,7 +86,7 @@ onMounted(async () => {
   semesters.value = sems
   // 調課(未請假)不是假別、請假登記選不到,但查「老師多常換課」時要能篩出來(v1.4.10,組長回報)
   leaveTypes.value = { ...types, swap_only: '調課(未請假)' }
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 // 篩選結果中還有效的調課/代課:依日期區間篩出本週(或某位老師)的處置,一次印齊

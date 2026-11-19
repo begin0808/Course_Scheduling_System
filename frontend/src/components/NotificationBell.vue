@@ -4,7 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { acknowledge, markRead, myNotifications } from '@/api/notifications'
 import type { Notification } from '@/api/notifications'
 import { publishedSemesters } from '@/api/timetables'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -23,7 +23,7 @@ const canManage = computed(() =>
 async function resolveSemester() {
   // 教師看已發布課表的學期;管理者看全部學期。取最近一個。
   const list = canManage.value ? await listSemesters() : await publishedSemesters()
-  sid.value = list[0]?.id ?? null
+  sid.value = list.length ? defaultSemester(list).id : null
 }
 
 async function refresh() {

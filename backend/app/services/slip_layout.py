@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.models.assignment import CourseAssignment
 from app.models.period import Period, PeriodType
-from app.models.semester import Semester
+from app.models.semester import TERM_NAMES, Semester
 from app.services import period_tables as pt_service
 from app.services import settings as app_settings
 
@@ -166,6 +166,8 @@ def school_title(db: Session, semester_id: int | None = None) -> str:
     sem = db.get(Semester, semester_id) if semester_id else None
     if sem is None:
         return school
+    if sem.is_tutoring:  # v1.4.22:「115學年暑期輔導」
+        return f"{school}{sem.academic_year}學年{TERM_NAMES[sem.term]}"
     return f"{school}{sem.academic_year}學年第{_TERM_CN.get(sem.term, str(sem.term))}學期"
 
 

@@ -17,6 +17,7 @@ import {
   exportBatchZip, exportSchoolPdf, exportSchoolWorkbook, exportTimetable,
 } from '@/api/exports'
 import type { ExportFmt } from '@/api/exports'
+import { defaultSemester } from '@/api/semesters'
 import { useAuthStore } from '@/stores/auth'
 
 const semesters = ref<PublicSemester[]>([])
@@ -107,7 +108,7 @@ async function load(id: number) {
 onMounted(async () => {
   try {
     semesters.value = await publishedSemesters()
-    if (semesters.value.length) await load(semesters.value[0].id)
+    if (semesters.value.length) await load(defaultSemester(semesters.value).id)
   } finally {
     loading.value = false
   }

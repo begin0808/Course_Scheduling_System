@@ -13,6 +13,7 @@ from app.models.assignment import (
     SchedulingUnitType,
 )
 from app.models.basedata import ClassUnit, Teacher
+from app.models.semester import Semester
 from app.services import period_tables as pt_service
 from app.services import settings as settings_service
 
@@ -165,6 +166,9 @@ def teacher_loads(db: Session, semester_id: int) -> list[dict]:
         select(Teacher).where(Teacher.semester_id == semester_id).order_by(Teacher.name)
     )
     limit = settings_service.max_overtime(db)
+    # 寒暑假輔導(v1.4.22)不管基本鐘點與超鐘點:上幾節給幾節
+    semester = db.get(Semester, semester_id)
+    tutoring = semester is not None and semester.is_tutoring
     out: list[dict] = []
     for t in teachers:
         target = max(t.base_periods - t.admin_reduction, 0)
@@ -174,13 +178,13 @@ def teacher_loads(db: Session, semester_id: int) -> list[dict]:
             "teacher_id": t.id, "name": t.name,
             "base_periods": t.base_periods, "admin_reduction": t.admin_reduction,
             "target": target, "assigned": assigned, "delta": delta,
-            "max_overtime": limit,
+            "max_overtime": limit, "tutoring": tutoring,
             # 兩種情況不算違規:
             #   limit=0  → 學校未設上限
             #   base=0   → 這位教師沒填基本鐘點。「應授 0 節」不是真的不用上課,
             #              而是資料還沒建;此時談超鐘點沒有意義,硬擋會讓沒有
             #              維護基鐘的學校連一般配課都做不了。
-            "over_limit": limit > 0 and t.base_periods > 0 and delta > limit,
+            "over_limit": not tutoring and limit > 0 and t.base_periods > 0 and delta > limit,
         })
     return out
 
