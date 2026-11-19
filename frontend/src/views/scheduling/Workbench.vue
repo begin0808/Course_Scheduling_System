@@ -12,7 +12,7 @@ import { listAssignments } from '@/api/assignments'
 import type { Assignment } from '@/api/assignments'
 import { listClassUnits, listRooms, listTeachers } from '@/api/basedata'
 import type { ClassUnit, Room, Teacher } from '@/api/basedata'
-import { getSemester, listSemesters } from '@/api/semesters'
+import { getSemester, listSemesters, defaultSemester } from '@/api/semesters'
 import type { PeriodTable, SemesterListItem } from '@/api/semesters'
 import {
   checkConflict, conflictText, createTimetable, deleteEntry, getClassPeriodTable, getTimetable,
@@ -98,7 +98,7 @@ async function loadPeriods() {
 
 onMounted(async () => {
   semesters.value = await listSemesters()
-  if (semesters.value.length) await loadSemester(semesters.value[0].id)
+  if (semesters.value.length) await loadSemester(defaultSemester(semesters.value).id)
   window.addEventListener('keydown', onKey)
 })
 onUnmounted(() => window.removeEventListener('keydown', onKey))

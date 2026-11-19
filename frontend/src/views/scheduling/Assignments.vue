@@ -14,7 +14,7 @@ import type {
 } from '@/api/assignments'
 import { listClassUnits, listRooms, listSubjects, listTeachers, ROOM_TYPE_LABELS } from '@/api/basedata'
 import type { ClassUnit, Room, Subject, Teacher } from '@/api/basedata'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 
 const message = useMessage()
@@ -22,6 +22,8 @@ const message = useMessage()
 const semesters = ref<SemesterListItem[]>([])
 const sid = ref<number | null>(null)
 const semesterOptions = computed(() => semesters.value.map((s) => ({ label: s.label, value: s.id })))
+// 寒暑假輔導(v1.4.22)不比基本鐘點、不算超鐘點:上幾節就是幾節
+const tutoring = computed(() => semesters.value.find((s) => s.id === sid.value)?.is_tutoring ?? false)
 
 const classes = ref<ClassUnit[]>([])
 const subjects = ref<Subject[]>([])
@@ -70,7 +72,7 @@ async function onSemesterChange(id: number) {
 
 onMounted(async () => {
   semesters.value = await listSemesters()
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 const overCapacity = computed(() => classLoads.value.filter((c) => c.over_capacity))
@@ -380,8 +382,22 @@ function blockLabel(a: Assignment): string {
 
       <!-- 側欄:鐘點統計 -->
       <div class="sidebar">
-        <n-card title="教師鐘點" size="small" data-testid="teacher-load">
+        <n-card :title="tutoring ? '教師輔導節數' : '教師鐘點'" size="small" data-testid="teacher-load">
           <n-empty v-if="loads.length === 0" description="尚無教師" size="small" />
+          <template v-else-if="tutoring">
+            <n-text depth="3" style="font-size: 12px; display: block; margin-bottom: 4px">
+              寒暑假輔導不比基本鐘點、不算超鐘點,上幾節就是幾節。
+            </n-text>
+            <table class="data-table compact" data-testid="teacher-load-tutoring">
+              <thead><tr><th>教師</th><th>每週節數</th></tr></thead>
+              <tbody>
+                <tr v-for="l in loads.filter((x) => x.assigned > 0)" :key="l.teacher_id">
+                  <td>{{ l.name }}</td>
+                  <td>{{ num(l.assigned) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
           <table v-else class="data-table compact">
             <thead><tr><th>教師</th><th>已配/應授</th><th>狀態</th></tr></thead>
             <tbody>

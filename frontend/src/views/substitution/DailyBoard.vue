@@ -8,7 +8,8 @@ import {
   exportPatrolSheets, exportTeacherWeekSheets, getDailyBoard, openPatrolSheets, openTeacherWeekSheets,
 } from '@/api/substitutionLog'
 import type { DailyBoard, LogEntry } from '@/api/substitutionLog'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
+import type { SemesterPick } from '@/api/semesters'
 import { logDisposition } from './logText'
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
@@ -32,7 +33,7 @@ function parseISODate(iso: string): number {
 
 const route = useRoute()
 const message = useMessage()
-const semesters = ref<{ id: number; label: string }[]>([])
+const semesters = ref<SemesterPick[]>([])
 const sid = ref<number | null>(null)
 const dateTs = ref<number>(
   typeof route.query.date === 'string' ? parseISODate(route.query.date) : todayTs())
@@ -62,7 +63,7 @@ onMounted(async () => {
   semesters.value = await listSemesters()
   if (!semesters.value.length) return
   const qsid = Number(route.query.semester_id)
-  const initial = semesters.value.find((s) => s.id === qsid)?.id ?? semesters.value[0].id
+  const initial = semesters.value.find((s) => s.id === qsid)?.id ?? defaultSemester(semesters.value).id
   await onSemesterChange(initial)
 })
 

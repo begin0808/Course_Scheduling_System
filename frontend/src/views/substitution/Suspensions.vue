@@ -8,7 +8,8 @@ import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
 import { listClassUnits } from '@/api/basedata'
 import type { ClassUnit } from '@/api/basedata'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
+import type { SemesterPick } from '@/api/semesters'
 import {
   createSuspension, deleteSuspension, listSuspensions, updateSuspension,
 } from '@/api/suspensions'
@@ -16,7 +17,7 @@ import type { Suspension, SuspensionIn } from '@/api/suspensions'
 import { dateRangeText, gradeGroups } from './suspensionText'
 
 const message = useMessage()
-const semesters = ref<{ id: number; label: string }[]>([])
+const semesters = ref<SemesterPick[]>([])
 const sid = ref<number | null>(null)
 const items = ref<Suspension[]>([])
 const classes = ref<ClassUnit[]>([])
@@ -49,7 +50,7 @@ async function onSemesterChange(id: number) {
 
 onMounted(async () => {
   semesters.value = await listSemesters()
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 // ── 新增/編輯 ──

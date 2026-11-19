@@ -3,7 +3,7 @@ import { NButton, NCard, NEmpty, NSpace, NStatistic, NTag } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import LiveOverviewCard from '@/components/LiveOverviewCard.vue'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import { getDailyBoard } from '@/api/substitutionLog'
 import type { DailyBoard } from '@/api/substitutionLog'
@@ -32,10 +32,10 @@ onMounted(async () => {
   try {
     const semesters = await listSemesters()
     if (semesters.length) {
-      semester.value = semesters[0]
+      semester.value = defaultSemester(semesters)
       ;[summary.value, board.value] = await Promise.all([
-        getSemesterSummary(semesters[0].id),
-        getDailyBoard(semesters[0].id).catch(() => null),
+        getSemesterSummary(semester.value.id),
+        getDailyBoard(semester.value.id).catch(() => null),
       ])
     }
   } finally {

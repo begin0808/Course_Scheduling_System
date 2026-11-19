@@ -5,7 +5,8 @@ import {
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { listTeachers } from '@/api/basedata'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
+import type { SemesterPick } from '@/api/semesters'
 import { publishedSemesters } from '@/api/timetables'
 import { getMyStats, getStats, statsExportUrl } from '@/api/substitutionStats'
 import type { MonthlyReport, StatsPeriod } from '@/api/substitutionStats'
@@ -87,7 +88,7 @@ function onModeChange(v: 'month' | 'range') {
   reload()
 }
 
-const semesters = ref<{ id: number; label: string }[]>([])
+const semesters = ref<SemesterPick[]>([])
 const sid = ref<number | null>(null)
 const monthValue = ref<number>(initialMonthTs())
 const teacherOptions = ref<{ label: string; value: number }[]>([])
@@ -164,7 +165,7 @@ onMounted(async () => {
   semesters.value = canManage.value ? await listSemesters() : await publishedSemesters()
   if (!semesters.value.length) return
   const qsid = Number(route.query.semester_id)
-  const initial = semesters.value.find((s) => s.id === qsid)?.id ?? semesters.value[0].id
+  const initial = semesters.value.find((s) => s.id === qsid)?.id ?? defaultSemester(semesters.value).id
   await onSemesterChange(initial)
 })
 </script>

@@ -3,12 +3,12 @@ import {
   NButton, NCard, NCheckbox, NDatePicker, NDivider, NEmpty, NInputNumber, NModal,
   NPopconfirm, NSelect, NSpace, NSwitch, NTag, NText, useMessage,
 } from 'naive-ui'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import {
-  STATUS_LABELS, copySemester, createPeriodTable, createSemester, deletePeriodTable,
-  deleteSemester, listSemesters, listTemplates, updateSemester,
+  STATUS_LABELS, TERM_OPTIONS, copySemester, createPeriodTable, createSemester, deletePeriodTable,
+  deleteSemester, isTutoringTerm, listSemesters, listTemplates, updateSemester,
 } from '@/api/semesters'
 import type { CopyOptions, SemesterListItem, Semester, Template } from '@/api/semesters'
 import { getSemester } from '@/api/semesters'
@@ -31,10 +31,7 @@ const templateOptions = computed(() => [
   { label: '空白(不帶入節次表)', value: '' },
   ...templates.value.map((t) => ({ label: `${t.name}(${t.minutes_per_period} 分/節)`, value: t.key })),
 ])
-const termOptions = [
-  { label: '第 1 學期', value: 1 },
-  { label: '第 2 學期', value: 2 },
-]
+const termOptions = TERM_OPTIONS
 
 async function reload() {
   loading.value = true
@@ -183,6 +180,16 @@ function openCopy(sem: Semester) {
   showCopy.value = true
 }
 
+// 複製成寒暑假輔導(v1.4.22):通常是同一批學生 → 同一學年度、年級不進位(暑輔若是新學年的
+// 班級再自己打開);往後推半年的日期對輔導沒有意義,清空讓組長照校曆填
+watch(() => copyForm.value.term, (term, old) => {
+  if (!isTutoringTerm(term) || isTutoringTerm(old) || !copySource.value) return
+  copyForm.value.academic_year = copySource.value.academic_year
+  copyForm.value.grade_promotion = false
+  copyForm.value.start_date = null
+  copyForm.value.end_date = null
+})
+
 async function onCopy() {
   if (!copySource.value) return
   try {
@@ -211,7 +218,10 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
         <n-space align="center" :wrap="true">
           <n-text>學年度</n-text>
           <n-input-number v-model:value="form.academic_year" :min="100" :max="200" style="width: 120px" />
-          <n-select v-model:value="form.term" :options="termOptions" style="width: 130px" />
+          <n-select
+            v-model:value="form.term" :options="termOptions" style="width: 130px"
+            data-testid="sem-term"
+          />
           <n-text>學制範本</n-text>
           <n-select
             v-model:value="form.template_key"
@@ -233,6 +243,10 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
         </n-space>
         <n-text depth="3" style="font-size: 13px">
           起訖日期依貴校校曆填寫;請假展開節次、今日看板與調代課都以它為準。
+        </n-text>
+        <n-text v-if="isTutoringTerm(form.term)" depth="3" style="font-size: 13px; display: block" data-testid="sem-tutoring-hint">
+          寒暑假輔導:日期不能和其他學期重疊;配課不比基本鐘點、不算超鐘點(上幾節就是幾節)。
+          通常用下方學期的「複製到新學期」比較快(老師、班級一起帶過來),再改節次表、刪掉沒有輔導的班級。
         </n-text>
       </n-card>
 
@@ -358,7 +372,10 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
         <n-space align="center">
           <n-text>目標學年度</n-text>
           <n-input-number v-model:value="copyForm.academic_year" :min="100" :max="200" style="width: 120px" />
-          <n-select v-model:value="copyForm.term" :options="termOptions" style="width: 130px" />
+          <n-select
+            v-model:value="copyForm.term" :options="termOptions" style="width: 130px"
+            data-testid="copy-term"
+          />
         </n-space>
         <!-- 起訖日必填:請假展開、今日看板、代課的「已上過」判定都吃它,漏填不會報錯但整個算錯 -->
         <n-space align="center">
@@ -375,6 +392,10 @@ const statusType: Record<string, 'default' | 'success' | 'warning'> = {
         </n-space>
         <n-text depth="3" style="font-size: 12px">
           已依來源學期往後推半年帶入預設值,請確認實際校曆後修改。
+        </n-text>
+        <n-text v-if="isTutoringTerm(copyForm.term)" depth="3" style="font-size: 12px" data-testid="copy-tutoring-hint">
+          寒暑假輔導:日期不能和其他學期重疊。建好後到節次表改成輔導的作息(每天幾節由學校決定),
+          刪掉沒有輔導的班級;併班上課就另外新增班級(例如「三年級輔導 A 班」)。
         </n-text>
         <n-text strong>複製項目</n-text>
         <n-space>

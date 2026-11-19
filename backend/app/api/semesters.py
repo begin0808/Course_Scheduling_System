@@ -3,6 +3,8 @@
 權限:讀取 = 教學組長/教務主任;寫入 = 教學組長(admin 一律通過)。
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -11,7 +13,7 @@ from app.core.auth import require_roles
 from app.core.db import get_db
 from app.models.basedata import ClassUnit, Room, Subject, Teacher
 from app.models.period import Period, PeriodTable
-from app.models.semester import Semester
+from app.models.semester import TUTORING_TERMS, Semester, sorted_semesters
 from app.models.user import Role
 from app.schemas.semester import (
     AvailableSlot,
@@ -52,6 +54,32 @@ def _get_period_table(db: Session, table_id: int) -> PeriodTable:
     return table
 
 
+def _check_dates(
+    db: Session, term: int, start: date | None, end: date | None, exclude_id: int | None = None
+) -> None:
+    """寒暑假輔導(v1.4.22)要填起訖日期,且不能和其他學期重疊。
+
+    請假、代課是依日期落在哪個學期來判斷;輔導學期通常在學期進行中就先建好,
+    日期一重疊就分不清楚。只檢查「有一邊是輔導」的組合,一般學期之間照舊不擋。
+    """
+    tutoring = term in TUTORING_TERMS
+    if tutoring and (start is None or end is None):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "寒暑假輔導要填開始日與結束日")
+    if start is None or end is None:
+        return
+    for other in db.scalars(select(Semester).where(Semester.id != (exclude_id or 0))):
+        if other.start_date is None or other.end_date is None:
+            continue
+        if not tutoring and not other.is_tutoring:
+            continue
+        if start <= other.end_date and other.start_date <= end:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"日期和「{other.label}」({other.start_date:%Y/%m/%d}~{other.end_date:%Y/%m/%d})"
+                "重疊;寒暑假輔導的日期不能和其他學期重疊",
+            )
+
+
 def _unset_other_defaults(db: Session, semester_id: int, keep_id: int | None) -> None:
     others = db.scalars(
         select(PeriodTable).where(
@@ -80,9 +108,7 @@ def list_templates(_: object = Depends(viewer)) -> list[TemplateOut]:
 # ── 學期 ──────────────────────────────
 @router.get("/semesters", response_model=list[SemesterListItem])
 def list_semesters(db: Session = Depends(get_db), _: object = Depends(viewer)):
-    return db.scalars(
-        select(Semester).order_by(Semester.academic_year.desc(), Semester.term.desc())
-    ).all()
+    return sorted_semesters(db.scalars(select(Semester)).all())
 
 
 @router.post("/semesters", response_model=SemesterOut, status_code=status.HTTP_201_CREATED)
@@ -96,6 +122,7 @@ def create_semester(
     )
     if exists:
         raise HTTPException(status.HTTP_409_CONFLICT, "該學年度學期已存在")
+    _check_dates(db, body.term, body.start_date, body.end_date)
 
     if body.template_key:
         if tpl.get_template(body.template_key) is None:
@@ -138,6 +165,7 @@ def copy_to_new_semester(
     )
     if exists:
         raise HTTPException(status.HTTP_409_CONFLICT, "目標學年度學期已存在")
+    _check_dates(db, body.term, body.start_date, body.end_date)
     opts = CopyOptions(
         period_tables=body.period_tables,
         subjects=body.subjects,
@@ -191,10 +219,12 @@ def update_semester(
     data = body.model_dump(exclude_unset=True)
     if "status" in data and data["status"] is not None:
         semester.status = data["status"].value
-    if "start_date" in data:
-        semester.start_date = data["start_date"]
-    if "end_date" in data:
-        semester.end_date = data["end_date"]
+    start = data["start_date"] if "start_date" in data else semester.start_date
+    end = data["end_date"] if "end_date" in data else semester.end_date
+    if "start_date" in data or "end_date" in data:
+        _check_dates(db, semester.term, start, end, exclude_id=semester.id)
+    semester.start_date = start
+    semester.end_date = end
     db.commit()
     db.refresh(semester)
     return semester

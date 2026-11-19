@@ -10,7 +10,8 @@ import { assignCover, clearCover, getCoverOptions, openCoverSlips } from '@/api/
 import type { CoverOption } from '@/api/homeroomCovers'
 import { cancelLeave, createSwapRequest, getDayPeriods, listLeaves } from '@/api/leaves'
 import type { AffectedPeriod, DayPeriod, HomeroomCover, LeaveRequest } from '@/api/leaves'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
+import type { SemesterPick } from '@/api/semesters'
 import { listTeachers } from '@/api/basedata'
 import type { Teacher } from '@/api/basedata'
 import {
@@ -26,7 +27,7 @@ import { checkTitle, triangleDisposition, triangleSteps } from './triangleText'
 
 const message = useMessage()
 
-const semesters = ref<{ id: number; label: string }[]>([])
+const semesters = ref<SemesterPick[]>([])
 const sid = ref<number | null>(null)
 const leaves = ref<LeaveRequest[]>([])
 const types = ref<Record<string, string>>({})
@@ -161,7 +162,7 @@ onMounted(async () => {
     [listSemesters(), listSubstitutionTypes(), listFundingSources()])
   ;[semesters.value, types.value] = [sems, subTypes]
   fundingOptions.value = fundings.map((f) => ({ label: f, value: f }))
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 async function openPeriod(p: AffectedPeriod) {

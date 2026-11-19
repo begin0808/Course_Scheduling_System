@@ -78,7 +78,12 @@ export interface TimetableCheck {
 }
 
 // ── 全員唯讀查詢 ──
-export interface PublicSemester { id: number; label: string }
+export interface PublicSemester {
+  id: number
+  label: string
+  start_date?: string | null
+  end_date?: string | null
+}
 export interface NamedBrief { id: number; name: string }
 export interface PublicClass {
   id: number

@@ -66,7 +66,7 @@ class PeriodTableUpdate(BaseModel):
 # ── 學期 ──────────────────────────────
 class SemesterCreate(BaseModel):
     academic_year: int = Field(ge=100, le=200)  # 民國學年度
-    term: int = Field(ge=1, le=2)
+    term: int = Field(ge=1, le=4)  # 1、2 學期;3 寒假輔導、4 暑期輔導(v1.4.22)
     start_date: date | None = None
     end_date: date | None = None
     # 若指定,依此學制範本帶入預設節次表
@@ -81,7 +81,7 @@ class SemesterUpdate(BaseModel):
 
 class SemesterCopyRequest(BaseModel):
     academic_year: int = Field(ge=100, le=200)
-    term: int = Field(ge=1, le=2)
+    term: int = Field(ge=1, le=4)  # 1、2 學期;3 寒假輔導、4 暑期輔導(v1.4.22)
     # 新學期的起訖日:不能沿用來源學期(那是上學期的日期)。少了它,請假展開、今日看板、
     # 代課的「已上過」判定全部失準,而且畫面上看不出哪裡不對(M6-4)。
     start_date: date | None = None
@@ -110,6 +110,7 @@ class SemesterListItem(BaseModel):
     status: SemesterStatus
     start_date: date | None = None
     end_date: date | None = None
+    is_tutoring: bool = False  # 寒暑假輔導:不管基本鐘點與超鐘點
 
 
 class SemesterOut(SemesterListItem):

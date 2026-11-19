@@ -139,6 +139,9 @@ class UnavailableHitOut(BaseModel):
 class PublicSemester(BaseModel):
     id: int
     label: str
+    # v1.4.22:前端預設選「今天落在起訖日期內」的學期
+    start_date: _WeekDate | None = None
+    end_date: _WeekDate | None = None
 
 
 class NamedBrief(BaseModel):

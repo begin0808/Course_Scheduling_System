@@ -119,6 +119,7 @@ class TeacherLoad(BaseModel):
     delta: float         # assigned - target(正=超鐘點,負=不足)
     max_overtime: int    # 超鐘點上限(節);0 = 學校未設限
     over_limit: bool     # delta 已超過上限
+    tutoring: bool = False  # 寒暑假輔導學期:不比應授、不算超鐘點(v1.4.22)
 
 
 class ClassLoad(BaseModel):

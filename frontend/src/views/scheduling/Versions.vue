@@ -5,7 +5,7 @@ import {
 } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import type { ApiError } from '@/api/client'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import {
   STATUS_LABELS, checkTimetable, createTimetable, deleteTimetable, duplicateTimetable,
@@ -33,7 +33,7 @@ async function onSemesterChange(id: number) {
 }
 onMounted(async () => {
   semesters.value = await listSemesters()
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 async function onCreate() {

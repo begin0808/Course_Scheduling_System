@@ -8,7 +8,8 @@ import type { ApiError } from '@/api/client'
 import { listTeachers } from '@/api/basedata'
 import { cancelLeave, createLeave, listLeaveTypes, listLeaves, updateLeave } from '@/api/leaves'
 import type { AffectedPeriod, LeaveRequest } from '@/api/leaves'
-import { listSemesters } from '@/api/semesters'
+import { listSemesters, defaultSemester } from '@/api/semesters'
+import type { SemesterPick } from '@/api/semesters'
 import { publishedSemesters } from '@/api/timetables'
 import { useAuthStore } from '@/stores/auth'
 import { coverHint, skippedText } from './leaveText'
@@ -20,7 +21,7 @@ const message = useMessage()
 const canManage = computed(() =>
   auth.hasRole('admin') || auth.hasRole('scheduler') || auth.hasRole('director'))
 
-const semesters = ref<{ id: number; label: string }[]>([])
+const semesters = ref<SemesterPick[]>([])
 const sid = ref<number | null>(null)
 const leaveTypes = ref<Record<string, string>>({})
 const teachers = ref<{ id: number; name: string }[]>([])
@@ -80,7 +81,7 @@ async function onSemesterChange(id: number) {
 onMounted(async () => {
   leaveTypes.value = await listLeaveTypes()
   semesters.value = canManage.value ? await listSemesters() : await publishedSemesters()
-  if (semesters.value.length) await onSemesterChange(semesters.value[0].id)
+  if (semesters.value.length) await onSemesterChange(defaultSemester(semesters.value).id)
 })
 
 const canSubmit = computed(() =>
