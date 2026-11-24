@@ -4,9 +4,41 @@
 
 破壞性變更(需人工介入才能升級)以 ⚠️ 標註。
 
-> **新使用者請直接安裝 v1.4.22**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.4.21 是先前版本;以下條目保留作為變更紀錄。
+> **新使用者請直接安裝 v1.5.0**(見 [README](README.md) 快速開始)。v1.0.0 ~ v1.4.22 是先前版本;以下條目保留作為變更紀錄。
 
 ## [Unreleased]
+
+## [1.5.0] — 2026-11-24
+
+**安全強化**:依數位發展部公共程式平臺的源碼檢測(Fortify)與第三方元件掃描(Mend)報告,
+修補中、高、嚴重等級的項目。功能沒有變動。
+
+照一般方式升級即可(`.env` 改 `IMAGE_TAG=v1.5.0` → `docker compose pull && docker compose up -d`),
+**不需要手動處理任何事**:容器改用一般使用者執行時,啟動程序會自動調整備份與 HTTPS 憑證資料夾的權限。
+沒有資料表變更。
+
+官方映像(amd64 + arm64 雙架構)已發布於 GHCR:
+`ghcr.io/begin0808/course_scheduling_system-{api,worker,web}:v1.5.0`
+
+### 安全
+- **容器不再以 root 執行**:api、worker 以 `app` 使用者、web(Caddy)以 `caddy` 使用者執行。
+  啟動時以 root 把備份 volume 與 HTTPS 憑證 volume 的擁有者改好(v1.4 以前是 root 寫入的),
+  隨即降權(做法同官方 postgres、redis 映像)。
+- **寄信加密並驗證伺服器憑證**:勾選 TLS 時走 STARTTLS、465 埠走 SMTPS,兩者都驗證郵件伺服器憑證
+  (先前 STARTTLS 不驗證憑證)。新設定預設 587 埠並勾選 TLS;沒加密又填了帳密時,畫面會提醒。
+  ⚠️ 學校的郵件伺服器若使用自簽憑證,寄信會失敗,請在「系統管理」按「寄測試信」確認;已存的 SMTP 設定不受影響。
+- **程式碼不再內建任何密碼與金鑰**:
+  - 資料庫連線改由 `.env` 的 `POSTGRES_*` 組出,`.env.example` 不再有含密碼的 `DATABASE_URL`
+    (舊安裝的 `.env` 裡有 `DATABASE_URL` 照舊優先使用)。
+  - **新安裝時,安裝程式自動產生隨機的資料庫密碼**;重新設定(`--reconfigure`)會沿用既有的資料庫密碼。
+  - 沒有設定 `ADMIN_PASSWORD` 時,第一次啟動自動產生一組臨時密碼,寫在 api 的啟動紀錄
+    (`docker compose logs api`),登入後強制更改。用安裝程式安裝的不受影響(安裝程式一律會問密碼)。
+  - `SECRET_KEY` 沒設定時自動產生隨機金鑰(原本的行為,只是程式碼不再寫死範例值)。
+- **第三方套件**:
+  - 前端:vue 3.5.46、vitest 4.1.12、vue-tsc 3.3.14,以及 postcss 8.5.33、source-map-js 1.2.4、nanoid 3.3.20 等,
+    `npm audit` 0 個弱點。
+  - CI 新增 `npm audit` 與 Python 套件弱點檢查(`pip-audit`),有中風險以上的已知弱點就不發布映像。
+- CI 測試用的資料庫與管理員密碼改為每次執行隨機產生。
 
 ## [1.4.22] — 2026-11-19
 

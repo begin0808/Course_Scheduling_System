@@ -3,8 +3,9 @@
 import logging
 import secrets
 from functools import lru_cache
+from urllib.parse import quote
 
-from pydantic import model_validator
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -12,8 +13,8 @@ logger = logging.getLogger(__name__)
 # 已知不安全的 SECRET_KEY 值(程式碼預設 + .env.example 範例)。啟動時若仍是這些,
 # 代表部署者沒設定——用隨機金鑰取代並警告,避免以公開金鑰簽署 session。
 _INSECURE_SECRETS = {
-    "dev-insecure-change-me",
-    "please-change-this-to-a-random-secret",
+    "dev-insecure-change-me",  # v1.4 以前的程式碼預設值
+    "please-change-this-to-a-random-secret",  # .env.example 的範例值
     "",
 }
 
@@ -40,17 +41,25 @@ class Settings(BaseSettings):
     backup_keep: int = 30
     backup_hour: int = 2  # 每日自動備份的小時(學校時區)
 
-    # 資料庫與佇列
-    database_url: str = "postgresql+psycopg://scheduler:scheduler@postgres:5432/scheduler"
+    # 資料庫與佇列。程式碼不內建任何密碼(v1.5.0,數發部源碼檢測):
+    # 有 DATABASE_URL 就用它(v1.4 以前安裝的 .env 都有);沒有就由 POSTGRES_* 組出來,
+    # 與 docker-compose 建資料庫用的是同一組設定,不會兩邊不一致。
+    database_url: str = ""
+    postgres_user: str = "scheduler"
+    postgres_password: SecretStr | None = None
+    postgres_db: str = "scheduler"
+    postgres_host: str = "postgres"
+    postgres_port: int = 5432
     redis_url: str = "redis://redis:6379/0"
 
-    # 首次啟動建立的管理員
+    # 首次啟動建立的管理員。沒設定 ADMIN_PASSWORD 時,第一次啟動自動產生臨時密碼
+    # 並寫在 api 的啟動紀錄(docker compose logs api),登入後強制更改(v1.5.0)
     admin_username: str = "admin"
-    admin_password: str = "changeme"
+    admin_password: SecretStr | None = None
 
     # 認證與 session
-    # 用於簽署 session cookie;正式部署務必於 .env 設定隨機值
-    secret_key: str = "dev-insecure-change-me"
+    # 用於簽署 session cookie;沒設定時每次啟動自動產生隨機金鑰(見 _harden)
+    secret_key: str | None = None
     session_max_age_seconds: int = 60 * 60 * 8  # 登入有效時間,預設 8 小時
     # 站台位址(與 Caddy 共用同一 .env 變數):設為網域即代表走 HTTPS
     site_address: str = ""
@@ -84,16 +93,36 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _harden(self) -> "Settings":
         # A:SECRET_KEY 仍為預設/範例值 → 換隨機金鑰,避免以公開金鑰簽署 session
-        if self.secret_key in _INSECURE_SECRETS:
+        if self.secret_key is None or self.secret_key in _INSECURE_SECRETS:
             self.secret_key = secrets.token_hex(32)
             logger.warning(
                 "未設定 SECRET_KEY,已改用隨機金鑰(重啟會使所有登入失效);"
                 "請於 .env 設定固定的 SECRET_KEY(例:openssl rand -hex 32)。"
             )
+        # C:沒有 DATABASE_URL → 用 POSTGRES_* 組(密碼只來自環境變數)
+        if not self.database_url:
+            self.database_url = self.postgres_url()
         # B:設了網域(走 HTTPS)但未顯式指定 COOKIE_SECURE → 自動開啟 Secure 旗標
         if "cookie_secure" not in self.model_fields_set and _is_real_domain(self.site_address):
             self.cookie_secure = True
         return self
+
+    @property
+    def signing_key(self) -> str:
+        """簽署 session 的金鑰;_harden 保證一定有值。"""
+        if self.secret_key is None:  # pragma: no cover - _harden 已補上
+            raise RuntimeError("SECRET_KEY 未初始化")
+        return self.secret_key
+
+    def postgres_url(self) -> str:
+        password = self.postgres_password.get_secret_value() if self.postgres_password else None
+        auth = quote(self.postgres_user, safe="")
+        if password:
+            auth += ":" + quote(password, safe="")
+        return (
+            f"postgresql+psycopg://{auth}@{self.postgres_host}:{self.postgres_port}"
+            f"/{quote(self.postgres_db, safe='')}"
+        )
 
 
 @lru_cache

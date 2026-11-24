@@ -15,6 +15,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
+# 不以 root 執行(v1.5.0,數發部源碼檢測):程式以 app 使用者執行。
+# 進入點以 root 啟動只為了把備份 volume 的擁有者改成 app(舊版以 root 寫入),
+# 隨即用 setpriv 降權(做法同官方 postgres、redis 映像)。
+RUN groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --create-home --home-dir /home/app app \
+    && mkdir -p /backups && chown app:app /backups
+
 # 先裝相依(利用 layer 快取)
 COPY pyproject.toml ./
 RUN pip install --upgrade pip && pip install .

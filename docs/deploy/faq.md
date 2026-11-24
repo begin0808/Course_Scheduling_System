@@ -17,7 +17,8 @@ docker compose logs api    # 看 api 是否卡在遷移或報錯
 docker compose logs --tail=50 <服務名>   # 例如 api / worker / postgres
 ```
 
-常見:`.env` 的 `DATABASE_URL` 與 `POSTGRES_*` 帳密不一致;`SECRET_KEY` 未設。
+常見:資料庫建好之後才改 `.env` 的 `POSTGRES_PASSWORD`(資料庫仍是第一次啟動時的密碼,要改回原本那組);
+v1.4 以前安裝的 `.env` 若有 `DATABASE_URL`,它的帳密要與 `POSTGRES_*` 一致。
 
 **Q:80 埠被占用,啟動失敗(port is already allocated)。**
 改 `.env` 的 `HTTP_PORT`(例如 `8080`)再 `docker compose up -d`,改用 `http://<主機IP>:8080`。
@@ -25,7 +26,7 @@ docker compose logs --tail=50 <服務名>   # 例如 api / worker / postgres
 **Q:裝好後第一次登入就一直「帳號或密碼錯誤」,接著被鎖 15 分鐘。**
 會鎖定代表管理員帳號已經建好,只是資料庫裡的密碼和你輸入的不同;跟網路、IP、手機熱點或在國外都無關(用 `localhost` 登入時,連線根本不出這台電腦)。常見原因:
 
-- **先啟動過一次才改 `.env` 的密碼。** 管理員帳號只在第一次啟動時依 `.env` 建立,之後改 `.env` 不會生效。這時的密碼是當時 `.env` 的值,通常是預設的 `changeme`。
+- **先啟動過一次才改 `.env` 的密碼。** 管理員帳號只在第一次啟動時依 `.env` 建立,之後改 `.env` 不會生效。這時的密碼是當時 `.env` 的值;當時沒設 `ADMIN_PASSWORD` 的話,系統會自動產生臨時密碼,用 `docker compose logs api` 查看(v1.4 以前的版本是 `changeme`)。
 - **密碼裡有 `$` 或 `#`。** docker compose 會把 `$` 當成變數截掉,`#` 前有空白會被當成註解。
 
 另外,鎖定是鎖**帳號**,不是鎖網路:被鎖的 15 分鐘內,換網路、換 IP、甚至密碼打對都進不去。

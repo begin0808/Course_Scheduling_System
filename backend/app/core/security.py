@@ -4,6 +4,8 @@
 - session:itsdangerous 簽署的 timed token,放在 HttpOnly cookie,無需伺服器端 session 表
 """
 
+import secrets
+
 import bcrypt
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
@@ -33,7 +35,7 @@ def password_fingerprint(password_hash: str) -> str:
     return password_hash[-12:]
 
 
-_serializer = URLSafeTimedSerializer(settings.secret_key, salt="session")
+_serializer = URLSafeTimedSerializer(settings.signing_key, salt="session")
 
 
 def create_session_token(user_id: int, pv: str) -> str:
@@ -59,3 +61,13 @@ def session_issued_at(token: str, max_age: int) -> float | None:
         return ts.timestamp()
     except (BadSignature, SignatureExpired, ValueError, TypeError):
         return None
+
+
+# 臨時密碼:只含英文與數字(避開 .env 裡 $、# 的問題),去掉容易看錯的 0/O、1/l/I。
+# 用在「重設系統管理員密碼」指令與首次啟動未設 ADMIN_PASSWORD 時(v1.5.0)。
+_TEMP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+_TEMP_LENGTH = 12
+
+
+def temp_password() -> str:
+    return "".join(secrets.choice(_TEMP_ALPHABET) for _ in range(_TEMP_LENGTH))

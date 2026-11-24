@@ -6,6 +6,14 @@
 # 兩者同一個映像,只差在守哪條佇列(M6-2)。
 set -e
 
+# 不以 root 執行(v1.5.0):以 root 啟動時,先把備份 volume 的擁有者改成 app
+# (v1.4 以前的備份是 root 寫入的),再降成 app 使用者重新執行本腳本。
+# docker compose exec 進來的維運指令(reset_admin 等)不經過這裡,照常可用。
+if [ "$(id -u)" = "0" ]; then
+    chown -R app:app /backups 2>/dev/null || true
+    exec setpriv --reuid=app --regid=app --init-groups env HOME=/home/app "$0" "$@"
+fi
+
 ROLE="${1:-api}"
 
 if [ "$ROLE" = "api" ]; then

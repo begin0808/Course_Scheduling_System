@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.core.security import hash_password
+from app.core.security import hash_password, temp_password
 from app.models.user import Role, User, UserRole
 
 logger = logging.getLogger("app.users")
@@ -44,13 +44,24 @@ def ensure_admin() -> None:
         user_count = db.scalar(select(func.count()).select_from(User))
         if user_count and user_count > 0:
             return
+        configured = settings.admin_password.get_secret_value() if settings.admin_password else None
+        password = configured or temp_password()
         create_user(
             db,
             username=settings.admin_username,
-            password=settings.admin_password,
+            password=password,
             roles=[Role.admin],
             display_name="系統管理員",
             must_change_password=True,
         )
         db.commit()
-        logger.info("已建立初始管理員帳號:%s(首次登入需改密碼)", settings.admin_username)
+        if configured:
+            logger.info("已建立初始管理員帳號:%s(首次登入需改密碼)", settings.admin_username)
+        else:
+            # 沒設 ADMIN_PASSWORD(v1.5.0 起程式不內建預設密碼):產生臨時密碼寫在啟動紀錄,
+            # 架設的人用 docker compose logs api 查看;登入後強制更改
+            logger.warning(
+                "已建立初始管理員帳號:%s,臨時密碼:%s(.env 沒有設定 ADMIN_PASSWORD;"
+                "登入後系統會要求立即改成新密碼)",
+                settings.admin_username, password,
+            )
