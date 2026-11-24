@@ -1,5 +1,7 @@
 """全域系統設定:SMTP 寄信(M4-3)、排課相關規則。管理員專用。"""
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -121,19 +123,37 @@ def put_patrol(
     return PatrolSettings(legend=app_settings.patrol_legend(db))
 
 
+class SmtpTestIn(BaseModel):
+    to: str = Field(max_length=200)
+
+
+# 只擋明顯打錯的(沒有 @、有空白);是否真的收得到交給郵件伺服器判斷
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 @router.post("/settings/smtp/test", status_code=status.HTTP_200_OK)
 def test_smtp(
-    to: str, db: Session = Depends(get_db), _: User = Depends(admin_only)
+    body: SmtpTestIn, db: Session = Depends(get_db), _: User = Depends(admin_only)
 ):
-    """寄一封測試信,當場回報成功或錯誤(不走 RQ,好讓管理員立刻看到結果)。"""
+    """用**已儲存**的設定寄一封測試信,當場回報成功或錯誤(不走 RQ,好讓管理員立刻看到結果)。
+
+    v1.5.1:收件人改放 JSON body(不出現在網址與存取紀錄);失敗時寫出可能原因。
+    """
+    to = body.to.strip()
+    if not _EMAIL_RE.match(to):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "收件人 Email 格式不正確")
     cfg = app_settings.smtp_config(db)
     if not cfg.configured:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "尚未設定 SMTP 主機與寄件人")
-    try:
-        sent = email_service.send(
-            db, to=to, subject="排課系統測試信",
-            body="這是一封測試信,收到代表 SMTP 設定正確。",
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "尚未設定 SMTP 主機與寄件人,請先填寫並儲存"
         )
-    except Exception as exc:  # noqa: BLE001 - 把 SMTP 錯誤原文回給管理員
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"寄送失敗:{exc}") from exc
-    return {"sent": sent, "to": to}
+    try:
+        email_service.send(
+            db, to=to, subject="排課系統測試信",
+            body="這是一封測試信,收到代表排課系統的 SMTP 設定正確,調代課通知可以寄到老師的信箱。",
+        )
+    except Exception as exc:  # noqa: BLE001 - 任何 SMTP 錯誤都回給管理員看
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, email_service.describe_error(exc, cfg)
+        ) from exc
+    return {"sent": True, "to": to}

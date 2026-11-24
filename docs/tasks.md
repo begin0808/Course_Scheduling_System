@@ -364,7 +364,7 @@ Course_Scheduling_System/
 - **NotificationChannel 分層**:`notifications.notify()` 建立站內通知列(永遠送達)後,逐一經 `CHANNELS`(`InAppChannel` no-op + `EmailChannel`)派送;v2 加 webhook/LINE 只需再實作一個 channel 並 append。
 - **Email 的交易語意**:EmailChannel 不直接 enqueue,而是把信放進 `session.info` 的寄件匣;SQLAlchemy 的 `after_commit` 事件才排入 RQ,`after_rollback` 則丟棄——交易回復(rollback)就不會寄出一封對應到不存在通知的信(雙寫問題的正解)。已測交易回復不寄、commit 才寄。
 - **站內永遠可用,Email 是加分**:SMTP 未設定時 `email.send` 回 False、`email_job` 只記 log,整個調代課流程照常。這是驗收③,實機在 mailhog 上驗過雙通道。
-- **SMTP 設定存 `app_settings`**(全域 key/value,非學期範圍);密碼留空 = 不變更,回傳不含明文。管理員專屬。`POST /settings/smtp/test` 當場寄測試信回報結果(不走 RQ)。
+- **SMTP 設定存 `app_settings`**(全域 key/value,非學期範圍);密碼留空 = 不變更,回傳不含明文。管理員專屬。`POST /settings/smtp/test`(body `{to}`,v1.5.1 起)用已儲存的設定當場寄測試信回報結果(不走 RQ),失敗時寫出可能原因。
 - **確認收到 = 通知層已讀確認**,不影響課務(指派即生效,2026-07-09 定案)。教師鈴鐺(輪詢 20s + 未讀數 badge)、組長看板(確認狀態 + 對未確認者「再次提醒」重發,已確認則 409)。
 - **開發用 mailhog**:docker-compose 加 `mailhog`(profile `dev`,不影響正式部署);`docker compose --profile dev up` 才啟動,Web UI :8025。
 - **E2E 教訓**:共用 e2e_teacher 帳號 + 發布課表的測試會用「最近學期」預設互相污染;測試中途失敗會跳過收尾清理,故改用 `test.afterEach` 兜底刪除學期。另 Naive 的 message toast 與 tag 同字串會觸發 strict-mode(getByText 命中兩個),toast 文案要與 tag 區隔。

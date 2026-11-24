@@ -34,7 +34,8 @@ async function mountLog(rows: number) {
 }
 
 describe('SubstitutionLog 查詢上限', () => {
-  it('取到上限筆數時提示被截斷,並告訴使用者怎麼看到更早的', async () => {
+  // 渲染 1000 列在較慢的機器上要 9 秒以上;vitest 4 起逾時會確實中斷
+  it('取到上限筆數時提示被截斷,並告訴使用者怎麼看到更早的', { timeout: 60_000 }, async () => {
     const wrapper = await mountLog(MAX_ROWS)
     expect(wrapper.find('[data-testid="log-truncated"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('只顯示最新的 1000 筆')
