@@ -6,9 +6,12 @@ SMTP 未設定時 `send` 直接回 False——站內通知已經送達,Email 只
 
 傳輸安全(v1.5.0,數發部源碼檢測):465 埠走 SMTPS(一連線就加密),勾 TLS 時走 STARTTLS;
 兩者都**驗證伺服器憑證**(先前 starttls() 沒帶 context,不驗證憑證,等於可被中間人攔截)。
+
+寄測試信(v1.5.1):`describe_error` 把常見的 SMTP 錯誤翻成組長看得懂的說明,原始訊息附在後面。
 """
 
 import smtplib
+import socket
 import ssl
 from email.message import EmailMessage
 
@@ -50,3 +53,39 @@ def _connect(cfg: app_settings.SmtpConfig) -> smtplib.SMTP:
     if cfg.use_tls:
         server.starttls(context=context)
     return server
+
+
+def describe_error(exc: BaseException, cfg: app_settings.SmtpConfig) -> str:
+    """寄測試信失敗時給管理員看的說明:先講可能原因與怎麼改,原始訊息附在括號裡方便查。
+
+    判斷順序有講究:SMTP 例外、憑證錯誤、DNS 錯誤都是 OSError 的子類別,要先比對具體的。
+    """
+    where = f"{cfg.host}:{cfg.port}"
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        hint = "郵件伺服器拒絕登入:帳號或密碼不正確"
+    elif isinstance(exc, smtplib.SMTPSenderRefused):
+        hint = f"郵件伺服器拒絕寄件人「{cfg.sender}」:請確認寄件人地址是這個帳號可以使用的"
+    elif isinstance(exc, smtplib.SMTPRecipientsRefused):
+        hint = "郵件伺服器拒收這個收件人:請確認收件人 Email"
+    elif isinstance(exc, smtplib.SMTPNotSupportedError):
+        hint = "郵件伺服器不支援 STARTTLS 加密:若伺服器提供 465 埠,請改用 465 埠"
+    elif isinstance(exc, smtplib.SMTPServerDisconnected):
+        hint = (f"郵件伺服器 {where} 中斷了連線:"
+                "請確認連接埠與加密方式(587 埠勾「使用 TLS」、465 埠是 SMTPS)")
+    elif isinstance(exc, ssl.SSLCertVerificationError):
+        hint = ("郵件伺服器的憑證驗證失敗,可能是自簽憑證、憑證過期,或主機名稱和憑證不符:"
+                "請改用有正式憑證的郵件伺服器,或請資訊人員協助")
+    elif isinstance(exc, ssl.SSLError):
+        hint = "加密連線失敗:連接埠與加密方式可能不符(587 埠勾「使用 TLS」、465 埠是 SMTPS)"
+    elif isinstance(exc, socket.gaierror):
+        hint = f"找不到郵件主機「{cfg.host}」:請確認主機名稱"
+    elif isinstance(exc, TimeoutError):
+        hint = f"連線到 {where} 逾時:請確認主機、連接埠,以及防火牆是否允許對外寄信"
+    elif isinstance(exc, ConnectionRefusedError):
+        hint = f"{where} 拒絕連線:請確認連接埠是否正確"
+    elif isinstance(exc, OSError):
+        hint = f"連不上郵件主機 {where}:請確認主機、連接埠,以及防火牆是否允許對外寄信"
+    else:
+        hint = "寄送失敗"
+    detail = str(exc).strip() or exc.__class__.__name__
+    return f"{hint}(原始訊息:{detail})"

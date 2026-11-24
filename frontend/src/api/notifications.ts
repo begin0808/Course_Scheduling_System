@@ -65,3 +65,7 @@ export const getSmtp = (): Promise<SmtpSettings> => apiGet('/settings/smtp')
 
 export const saveSmtp = (body: Omit<SmtpSettings, 'configured' | 'has_password'>
   & { password: string }): Promise<SmtpSettings> => apiPut('/settings/smtp', body)
+
+/** 用已儲存的 SMTP 設定寄一封測試信;失敗時錯誤訊息會寫出可能原因(v1.5.1)。 */
+export const testSmtp = (to: string): Promise<{ sent: boolean, to: string }> =>
+  apiPost('/settings/smtp/test', { to })

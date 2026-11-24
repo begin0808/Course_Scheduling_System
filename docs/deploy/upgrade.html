@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v150安全強化">升級到 v1.5.0:安全強化</a><a class="lv2" href="#升級到-v1422寒暑假輔導">升級到 v1.4.22:寒暑假輔導</a><a class="lv2" href="#升級到-v1421三角調課指定老師">升級到 v1.4.21:三角調課指定老師</a><a class="lv2" href="#升級到-v1420調代課處置的資料表新增三角調課欄位">升級到 v1.4.20:調代課處置的資料表新增三角調課欄位</a><a class="lv2" href="#升級到-v1419新增停課日用的資料表">升級到 v1.4.19:新增停課日用的資料表</a><a class="lv2" href="#升級到-v142-v1418補登修改假別與計費方式未請假的調課批次-pdf登入鎖定資安修正">升級到 v1.4.2 ~ v1.4.18:補登、修改假別與計費方式、未請假的調課、批次 PDF、登入鎖定資安修正</a><a class="lv2" href="#升級到-v141授權改為-agpl-30">升級到 v1.4.1:授權改為 AGPL-3.0</a><a class="lv2" href="#升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</a><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v1420-退回-v1419">從 v1.4.20 退回 v1.4.19</a><a class="lv3" href="#從-v1419-退回-v1418">從 v1.4.19 退回 v1.4.18</a><a class="lv3" href="#從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#升級到-v151寄測試信">升級到 v1.5.1:寄測試信</a><a class="lv2" href="#升級到-v150安全強化">升級到 v1.5.0:安全強化</a><a class="lv2" href="#升級到-v1422寒暑假輔導">升級到 v1.4.22:寒暑假輔導</a><a class="lv2" href="#升級到-v1421三角調課指定老師">升級到 v1.4.21:三角調課指定老師</a><a class="lv2" href="#升級到-v1420調代課處置的資料表新增三角調課欄位">升級到 v1.4.20:調代課處置的資料表新增三角調課欄位</a><a class="lv2" href="#升級到-v1419新增停課日用的資料表">升級到 v1.4.19:新增停課日用的資料表</a><a class="lv2" href="#升級到-v142-v1418補登修改假別與計費方式未請假的調課批次-pdf登入鎖定資安修正">升級到 v1.4.2 ~ v1.4.18:補登、修改假別與計費方式、未請假的調課、批次 PDF、登入鎖定資安修正</a><a class="lv2" href="#升級到-v141授權改為-agpl-30">升級到 v1.4.1:授權改為 AGPL-3.0</a><a class="lv2" href="#升級到-v140新增代導用的資料表">升級到 v1.4.0:新增代導用的資料表</a><a class="lv2" href="#升級到-v130系統會自動先備份">升級到 v1.3.0:系統會自動先備份</a><a class="lv2" href="#一條規則docker-composeyml-要跟著版本走">一條規則:docker-compose.yml 要跟著版本走</a><a class="lv2" href="#方式-a拉取映像部署最常見">方式 A:拉取映像部署(最常見)</a><a class="lv2" href="#方式-b從原始碼建置部署">方式 B:從原始碼建置部署</a><a class="lv2" href="#關於版本釘選">關於版本釘選</a><a class="lv2" href="#退回舊版升級後發現問題">退回舊版(升級後發現問題)</a><a class="lv3" href="#從-v1420-退回-v1419">從 v1.4.20 退回 v1.4.19</a><a class="lv3" href="#從-v1419-退回-v1418">從 v1.4.19 退回 v1.4.18</a><a class="lv3" href="#從-v140-退回-v13x">從 v1.4.0 退回 v1.3.x</a><a class="lv3" href="#從-v130-退回-v12x">從 v1.3.0 退回 v1.2.x</a><a class="lv2" href="#升級檢查清單">升級檢查清單</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -190,12 +190,16 @@
       <blockquote>
       <p><strong>開始前先備份。</strong> 升級本身不會刪資料,但任何重大操作前留一份備份是好習慣。到「系統管理 → 資料備份與還原 → 立即備份」,或見<a href="backup.html">備份指南</a>。</p>
       </blockquote>
+      <h2 id="升級到-v151寄測試信">升級到 v1.5.1:寄測試信</h2>
+      <p>v1.5.1 沒有資料表變更,照下方方式 A 或方式 B 一般升級即可。「系統管理 → 通知信件(SMTP)」多了「寄測試信」,
+      寄不出去時會寫出可能原因。從 v1.4.x 升級的學校建議直接升到 v1.5.1,升級後按一次「寄測試信」確認(見下一節)。
+      要退回 v1.5.0,把 <code>IMAGE_TAG</code> 改回 v1.5.0 再 <code>pull</code>、<code>up -d</code> 即可。</p>
       <h2 id="升級到-v150安全強化">升級到 v1.5.0:安全強化</h2>
       <p>v1.5.0 沒有資料表變更,照下方方式 A 或方式 B 一般升級即可,<strong>不需要手動處理任何事</strong>:</p>
       <ul>
       <li>容器改用一般使用者執行。啟動時會自動把備份資料夾與 HTTPS 憑證資料夾的擁有者改好,舊的備份與憑證照常可用。</li>
       <li>已經設定好的 SMTP 不受影響;但寄信加密時改為驗證郵件伺服器憑證,學校郵件伺服器若使用自簽憑證,
-        寄信會失敗。升級後請到「系統管理」按一次「寄測試信」確認。</li>
+        寄信會失敗。升級後請到「系統管理」按一次「寄測試信」確認(按鈕於 v1.5.1 補上)。</li>
       <li><code>.env</code> 不必改:裡面原有的 <code>DATABASE_URL</code>、資料庫密碼照舊使用。</li>
       </ul>
       <p>要退回 v1.4.22,把 <code>IMAGE_TAG</code> 改回 v1.4.22 再 <code>pull</code>、<code>up -d</code> 即可。</p>

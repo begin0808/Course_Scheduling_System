@@ -223,7 +223,7 @@
     <div class="brand">
       <span class="mark">排課與調代課系統</span>
     </div>
-    <div class="brand"><span class="sub">教學組長操作手冊 · 對應 v1.5.0</span></div>
+    <div class="brand"><span class="sub">教學組長操作手冊 · 對應 v1.5.1</span></div>
     <div class="grp">本手冊章節</div>
     <nav id="toc">
       <a href="#intro"><span class="n">00</span>如何使用本手冊</a>
@@ -265,7 +265,7 @@
           <span class="chip">繁體中文 · 台灣教務用語</span>
           <span class="chip">單校自架 · 資料不出校</span>
           <span class="chip">開源免費(AGPL-3.0)</span>
-          <span class="chip">對應系統 v1.5.0 · 更新於 2026-11-24</span>
+          <span class="chip">對應系統 v1.5.1 · 更新於 2026-11-24</span>
         </div>
       </header>
 
@@ -795,7 +795,8 @@
         <figure class="shot"><img src="manual-img/10-backup.png" alt="系統管理 → 資料備份與還原卡片(含備份清單)" loading="lazy"><figcaption><b>系統管理 → 資料備份與還原</b>卡片(含備份清單)</figcaption></figure>
 
         <h3>Email 通知(SMTP,選填)</h3>
-        <p>填入學校的 SMTP 主機資訊,調代課通知才會寄 Email。<strong>沒設定也沒關係</strong>——系統照常運作,只是僅有站內鈴鐺通知。可按「寄測試信」當場驗證。</p>
+        <p>填入學校的 SMTP 主機資訊,調代課通知才會寄 Email。<strong>沒設定也沒關係</strong>——系統照常運作,只是僅有站內鈴鐺通知。</p>
+        <p>填好按「儲存 SMTP 設定」後,在下方填一個收件人 Email,按「<strong>寄測試信</strong>」當場驗證(v1.5.1)。寄不出去時會寫出可能的原因,例如郵件伺服器使用自簽憑證、帳號或密碼不正確、找不到主機;把畫面上的訊息交給資訊人員就能對症處理。設定改了要先儲存,才能寄測試信。</p>
         <p>建議勾選「使用 TLS」(587 埠),或改用 465 埠(一律加密)。加密時系統會驗證郵件伺服器的憑證(v1.5.0);沒加密又填了帳號密碼時,畫面會提醒帳密會以明文傳送。</p>
 
         <h3>開新學期複製精靈</h3>
@@ -887,7 +888,7 @@
         <p>教師、組長忘記密碼,請系統管理員到 <span class="path"><b>帳號管理</b></span> 重設。<strong>系統管理員</strong>自己忘了密碼(或剛裝好就一直登不進去、被鎖 15 分鐘),請負責架設的人在主機的系統資料夾執行 <code>docker compose exec api python -m app.scripts.reset_admin</code>:畫面會印出一組臨時密碼並解除鎖定,登入後再改成自己的密碼,資料完全不受影響(v1.3.2 起)。<code>.env</code> 的 <code>ADMIN_PASSWORD</code> 只在第一次啟動時使用,事後改它沒有作用。</p>
 
         <h4>Q. 老師收不到 Email 通知?</h4>
-        <p>Email 是選填功能。若「系統管理」沒設定 SMTP,就只有站內鈴鐺通知,這是正常的。要寄 Email 需填學校 SMTP 並可寄測試信驗證。</p>
+        <p>Email 是選填功能。若「系統管理」沒設定 SMTP,就只有站內鈴鐺通知,這是正常的。要寄 Email 需填學校 SMTP,並按「寄測試信」確認寄得出去;寄不出去時畫面會寫出原因。</p>
 
         <h4>Q. 資料會不會不見?</h4>
         <p>資料存在學校自己的主機。系統每天自動備份、保留 30 份。<strong>但請務必做異地備援</strong>(把備份檔下載到別處),主機硬碟壞掉時才救得回。</p>
@@ -905,8 +906,8 @@
         </div>
 
         <div class="foot">
-          <p>排課與調代課系統 · 教學組長操作手冊 · 對應 v1.5.0 · 開源免費(AGPL-3.0)· 單校自架</p>
-          <p>本手冊隨系統版本更新;截圖對應系統 v1.4.7,文字內容已更新至 v1.5.0(最後更新:2026-11-24)。</p>
+          <p>排課與調代課系統 · 教學組長操作手冊 · 對應 v1.5.1 · 開源免費(AGPL-3.0)· 單校自架</p>
+          <p>本手冊隨系統版本更新;截圖對應系統 v1.4.7,文字內容已更新至 v1.5.1(最後更新:2026-11-24)。</p>
         </div>
       </section>
 

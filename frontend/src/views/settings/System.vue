@@ -5,7 +5,7 @@ import {
   useDialog, useMessage,
 } from 'naive-ui'
 import type { UploadCustomRequestOptions } from 'naive-ui'
-import { h, onMounted, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import {
@@ -16,7 +16,7 @@ import {
   demoDataStatus, getSchedulingSettings, getSchoolSettings, loadDemoData,
   saveSchedulingSettings, saveSchoolSettings,
 } from '@/api/assignments'
-import { getSmtp, saveSmtp } from '@/api/notifications'
+import { getSmtp, saveSmtp, testSmtp } from '@/api/notifications'
 import { getPatrolSettings, savePatrolSettings } from '@/api/substitutionLog'
 import {
   RELEASES_URL, UPGRADE_GUIDE_URL, dismissUpgradeNotice, getUpdateStatus, getUpgradeNotice,
@@ -165,6 +165,13 @@ const smtp = ref({
 const configured = ref(false)
 const hasPassword = ref(false)
 const savingSmtp = ref(false)
+// 寄測試信(v1.5.1):用「已儲存」的設定寄,所以畫面上改了還沒儲存時不能按,免得測到舊設定
+const savedSmtp = ref('')
+const smtpKey = () => JSON.stringify({ ...smtp.value, password: '' })
+const smtpDirty = computed(() => smtpKey() !== savedSmtp.value || smtp.value.password !== '')
+const testTo = ref('')
+const testingSmtp = ref(false)
+const testResult = ref<{ ok: boolean, text: string } | null>(null)
 
 const maxOvertime = ref(8)
 const savingScheduling = ref(false)
@@ -208,6 +215,7 @@ onMounted(async () => {
   void loadUpgradeNotice()
   const s = await getSmtp()
   smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender, use_tls: s.use_tls }
+  savedSmtp.value = smtpKey()
   configured.value = s.configured
   hasPassword.value = s.has_password
   maxOvertime.value = (await getSchedulingSettings()).max_overtime
@@ -265,11 +273,28 @@ async function onSaveSmtp() {
     configured.value = s.configured
     hasPassword.value = s.has_password
     smtp.value.password = ''
+    savedSmtp.value = smtpKey()
+    testResult.value = null
     message.success('已儲存 SMTP 設定')
   } catch (e) {
     message.error((e as ApiError).message || '儲存失敗')
   } finally {
     savingSmtp.value = false
+  }
+}
+
+async function onTestSmtp() {
+  // Enter 也會觸發,條件要和按鈕的 disabled 一致
+  if (testingSmtp.value || !configured.value || smtpDirty.value || !testTo.value.trim()) return
+  testingSmtp.value = true
+  testResult.value = null
+  try {
+    const r = await testSmtp(testTo.value.trim())
+    testResult.value = { ok: true, text: `已寄出測試信到 ${r.to},請到信箱確認(也看一下垃圾郵件匣)。` }
+  } catch (e) {
+    testResult.value = { ok: false, text: (e as ApiError).message || '寄送失敗' }
+  } finally {
+    testingSmtp.value = false
   }
 }
 
@@ -429,7 +454,10 @@ async function onResetWizard() {
             data-testid="smtp-host"
           />
           <n-text>連接埠</n-text>
-          <n-input-number v-model:value="smtp.port" :min="1" :max="65535" style="width: 110px" />
+          <n-input-number
+            v-model:value="smtp.port" :min="1" :max="65535" style="width: 110px"
+            data-testid="smtp-port"
+          />
           <n-checkbox v-if="smtp.port !== 465" v-model:checked="smtp.use_tls">使用 TLS(STARTTLS)</n-checkbox>
           <n-text v-else depth="3">465 埠一律加密(SMTPS)</n-text>
         </n-space>
@@ -460,6 +488,29 @@ async function onResetWizard() {
             儲存 SMTP 設定
           </n-button>
         </div>
+        <n-space align="center" :wrap="true">
+          <n-text style="width: 72px">寄測試信</n-text>
+          <n-input
+            v-model:value="testTo" placeholder="收件人 Email" style="width: 260px"
+            data-testid="smtp-test-to" @keyup.enter="onTestSmtp"
+          />
+          <n-button
+            :loading="testingSmtp" :disabled="!configured || smtpDirty || !testTo.trim()"
+            data-testid="smtp-test" @click="onTestSmtp"
+          >
+            寄測試信
+          </n-button>
+          <n-text v-if="!configured" depth="3" style="font-size: 13px">先填主機與寄件人並儲存,才能寄測試信</n-text>
+          <n-text v-else-if="smtpDirty" depth="3" style="font-size: 13px" data-testid="smtp-test-dirty">
+            設定有修改,請先儲存再寄測試信
+          </n-text>
+        </n-space>
+        <n-alert
+          v-if="testResult" :type="testResult.ok ? 'success' : 'error'" :show-icon="true"
+          data-testid="smtp-test-result"
+        >
+          {{ testResult.text }}
+        </n-alert>
       </n-space>
     </n-card>
 
