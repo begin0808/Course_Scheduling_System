@@ -486,8 +486,24 @@ if ($needConfig) {
     # 只在非預設時寫入:留白的話就沿用 docker-compose.yml 裡的 name: scheduling
     if ($project -ne 'scheduling') { $values['COMPOSE_PROJECT_NAME'] = $project }
 
+    # 資料庫密碼(v1.5.0):新安裝自動產生隨機密碼。重新設定既有安裝時必須沿用舊的——
+    # 資料庫第一次啟動就用那組密碼建好了,換掉就連不上(舊 .env 沒寫就是原本的預設值)。
+    $values['POSTGRES_PASSWORD'] = (New-SecretKey)
+    if (Test-Path $envPath) {
+        $old = [System.IO.File]::ReadAllLines($envPath, [System.Text.Encoding]::UTF8)
+        $oldValue = {
+            param([string]$Key)
+            $line = $old | Where-Object { $_ -match "^$Key=" } | Select-Object -Last 1
+            if ($line) { ($line.Substring($Key.Length + 1).Trim('"')).Replace('$$', '$') } else { $null }
+        }
+        $oldPg = & $oldValue 'POSTGRES_PASSWORD'
+        $values['POSTGRES_PASSWORD'] = if ($oldPg) { $oldPg } else { 'scheduler' }
+        $oldUrl = & $oldValue 'DATABASE_URL'
+        if ($oldUrl) { $values['DATABASE_URL'] = $oldUrl }
+    }
+
     Write-EnvFile -Dir $dir -Values $values
-    Write-Ok "已寫入 $envPath(含自動產生的 SECRET_KEY)"
+    Write-Ok "已寫入 $envPath(含自動產生的 SECRET_KEY 與資料庫密碼)"
     if ($project -ne 'scheduling') { Write-Note "此部署的專案名稱為 $project(記在 .env,後續指令會自動沿用)" }
     Write-Note '這個檔案含有密碼,請勿上傳到雲端硬碟或 GitHub。'
 }

@@ -15,24 +15,17 @@
 """
 
 import argparse
-import secrets
 import sys
 from typing import TextIO
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-# 不易看錯的字元:去掉 0/O、1/l/I
-_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-_LENGTH = 12
+from app.core.security import temp_password
 
 
 class ResetError(Exception):
     """找不到帳號或不是系統管理員;訊息直接給使用者看。"""
-
-
-def temp_password() -> str:
-    return "".join(secrets.choice(_ALPHABET) for _ in range(_LENGTH))
 
 
 def reset_admin_password(db: Session, username: str, password: str | None = None) -> str:

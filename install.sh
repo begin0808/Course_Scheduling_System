@@ -262,6 +262,8 @@ write_env_() {
   ENV_IMAGE_TAG="$6" \
   ENV_HTTPS_PORT="$7" \
   ENV_COMPOSE_PROJECT_NAME="$8" \
+  ENV_POSTGRES_PASSWORD="$9" \
+  ENV_DATABASE_URL="${10}" \
   awk '
     function emit(k, v) {
       # docker compose 會對 .env 的值做變數展開,值裡的 $ 必須寫成 $$。
@@ -273,7 +275,8 @@ write_env_() {
     }
     BEGIN {
       n = split("ADMIN_USERNAME ADMIN_PASSWORD SCHOOL_NAME TZ SECRET_KEY " \
-                "HTTP_PORT HTTPS_PORT IMAGE_TAG COMPOSE_PROJECT_NAME", wanted, " ")
+                "HTTP_PORT HTTPS_PORT IMAGE_TAG COMPOSE_PROJECT_NAME " \
+                "POSTGRES_PASSWORD DATABASE_URL", wanted, " ")
     }
     /^[A-Z_][A-Z0-9_]*=/ {
       key = substr($0, 1, index($0, "=") - 1)
@@ -355,9 +358,23 @@ if [ "$NEED_CONFIG" = "1" ]; then
   WRITE_PROJECT=""
   [ "$PROJECT" = "scheduling" ] || WRITE_PROJECT="$PROJECT"
 
+  # 資料庫密碼(v1.5.0):新安裝自動產生隨機密碼。重新設定既有安裝時必須沿用舊的——
+  # 資料庫第一次啟動就用那組密碼建好了,換掉就連不上(舊 .env 沒寫就是原本的預設值)。
+  DB_PASSWORD="$(gen_secret_)"
+  OLD_DATABASE_URL=""
+  if [ -f "${INSTALL_PATH}/.env" ]; then
+    old_value_() {
+      sed -n "s/^$1=//p" "${INSTALL_PATH}/.env" | tail -1 | sed 's/^"//; s/"$//; s/\$\$/$/g'
+    }
+    DB_PASSWORD="$(old_value_ POSTGRES_PASSWORD)"
+    [ -n "$DB_PASSWORD" ] || DB_PASSWORD=scheduler
+    OLD_DATABASE_URL="$(old_value_ DATABASE_URL)"
+  fi
+
   write_env_ "$ADMIN_PASSWORD" "$SCHOOL_NAME" "$TIMEZONE" "$(gen_secret_)" \
-             "$PORT" "$IMAGE_TAG" "$HTTPS_PORT" "$WRITE_PROJECT"
-  ok_ "已寫入 ${INSTALL_PATH}/.env(含自動產生的 SECRET_KEY,權限 600)"
+             "$PORT" "$IMAGE_TAG" "$HTTPS_PORT" "$WRITE_PROJECT" \
+             "$DB_PASSWORD" "$OLD_DATABASE_URL"
+  ok_ "已寫入 ${INSTALL_PATH}/.env(含自動產生的 SECRET_KEY 與資料庫密碼,權限 600)"
   [ -z "$WRITE_PROJECT" ] || note_ "此部署的專案名稱為 ${PROJECT}(記在 .env,後續指令會自動沿用)"
   note_ '這個檔案含有密碼,請勿上傳到雲端硬碟或 GitHub。'
 fi

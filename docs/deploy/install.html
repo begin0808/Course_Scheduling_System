@@ -172,7 +172,7 @@
 <a class="doc" href="../roadmap.html">路線圖<span class="dev">開發用</span></a>
 <a class="doc" href="../tasks.html">開發任務卡<span class="dev">開發用</span></a>
 </nav>
-<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一鍵安裝推薦">一鍵安裝(推薦)</a><a class="lv3" href="#步驟-a先裝好-docker">步驟 A:先裝好 Docker</a><a class="lv3" href="#步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</a><a class="lv3" href="#腳本會做什麼">腳本會做什麼</a><a class="lv3" href="#常用選項">常用選項</a><a class="lv3" href="#想在同一台主機再裝一套測試環境">想在同一台主機再裝一套(測試環境)</a><a class="lv2" href="#手動安裝">手動安裝</a><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env至少改兩項">步驟 2:修改 .env(至少改兩項)</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv3" href="#想先試看看再決定載入示範資料">想先試看看再決定?載入示範資料</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
+<div class="grp">本頁目錄</div><div class="toc"><a class="lv2" href="#一鍵安裝推薦">一鍵安裝(推薦)</a><a class="lv3" href="#步驟-a先裝好-docker">步驟 A:先裝好 Docker</a><a class="lv3" href="#步驟-b下載腳本看過再執行">步驟 B:下載腳本,看過再執行</a><a class="lv3" href="#腳本會做什麼">腳本會做什麼</a><a class="lv3" href="#常用選項">常用選項</a><a class="lv3" href="#想在同一台主機再裝一套測試環境">想在同一台主機再裝一套(測試環境)</a><a class="lv2" href="#手動安裝">手動安裝</a><a class="lv2" href="#步驟-0先裝好-docker">步驟 0:先裝好 Docker</a><a class="lv3" href="#windows">Windows</a><a class="lv3" href="#linuxubuntu-debian校內伺服器常見">Linux(Ubuntu / Debian,校內伺服器常見)</a><a class="lv3" href="#nassynology-qnap">NAS(Synology / QNAP)</a><a class="lv2" href="#步驟-1取得設定檔">步驟 1:取得設定檔</a><a class="lv3" href="#方式-a拉取官方預建映像推薦">方式 A:拉取官方預建映像(推薦)</a><a class="lv3" href="#方式-b從原始碼建置">方式 B:從原始碼建置</a><a class="lv2" href="#步驟-2修改-env">步驟 2:修改 .env</a><a class="lv2" href="#步驟-3啟動">步驟 3:啟動</a><a class="lv3" href="#方式-a拉取映像">方式 A(拉取映像)</a><a class="lv3" href="#方式-b從原始碼建置_1">方式 B(從原始碼建置)</a><a class="lv2" href="#驗證安裝成功">驗證安裝成功</a><a class="lv3" href="#想先試看看再決定載入示範資料">想先試看看再決定?載入示範資料</a><a class="lv2" href="#硬體最低需求">硬體最低需求</a><a class="lv2" href="#埠號被占用怎麼辦">埠號被占用怎麼辦?</a></div>
     <button class="theme-btn" id="themeBtn">◐ 切換深色 / 淺色</button>
   </aside>
   <main>
@@ -322,13 +322,14 @@
       cp .env.example .env
       </code></pre>
       <hr />
-      <h2 id="步驟-2修改-env至少改兩項">步驟 2:修改 <code>.env</code>(至少改兩項)</h2>
-      <p>用文字編輯器打開 <code>.env</code>,<strong>最少</strong>改這幾項:</p>
-      <pre><code class="language-ini">ADMIN_PASSWORD=改成你的管理員密碼      # 首次登入後系統會再要求你改一次
+      <h2 id="步驟-2修改-env">步驟 2:修改 <code>.env</code></h2>
+      <p>用文字編輯器打開 <code>.env</code>,<strong>最少</strong>設定這幾項:</p>
+      <pre><code class="language-ini">ADMIN_PASSWORD=改成你的管理員密碼      # 把這行前面的 # 拿掉;首次登入後系統會再要求你改一次
       SCHOOL_NAME=○○國民中學                # 顯示在介面與匯出的課表上
       SECRET_KEY=改成一長串隨機字元          # 見下方產生方式,務必更換
+      POSTGRES_PASSWORD=改成一長串隨機字元   # 資料庫密碼,產生方式同 SECRET_KEY(要另外產生一組)
       </code></pre>
-      <p><strong>產生隨機 <code>SECRET_KEY</code></strong>(session 簽章金鑰,關係到登入安全,一定要換掉預設值):</p>
+      <p><strong>產生隨機 <code>SECRET_KEY</code>、<code>POSTGRES_PASSWORD</code></strong>(兩項各產生一組,不要用同一組):</p>
       <pre><code class="language-bash">openssl rand -hex 32        # Linux / macOS / Git Bash
       </code></pre>
       <p>Windows 沒有內建 <code>openssl</code>(它是隨 Git for Windows 一起裝的),在 PowerShell 改用:</p>
@@ -336,14 +337,14 @@
       [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
       ($b | ForEach-Object { $_.ToString('x2') }) -join ''
       </code></pre>
-      <p>把印出來的那 64 個字元貼到 <code>SECRET_KEY=</code> 後面即可。</p>
+      <p>把印出來的那 64 個字元貼到 <code>SECRET_KEY=</code> 後面即可;再執行一次,貼到 <code>POSTGRES_PASSWORD=</code> 後面。</p>
       <blockquote>
-      <p>⚠️ <strong>改完 <code>.env</code> 再啟動。</strong> 管理員帳號只在系統<strong>第一次啟動</strong>時,依當時 <code>.env</code> 的 <code>ADMIN_PASSWORD</code> 建立;之後再改 <code>.env</code> 的密碼、重新啟動,都<strong>不會</strong>改到已經建立的帳號。如果先啟動過一次才改,請用預設密碼 <code>changeme</code> 登入,或見下方「登不進去怎麼辦」。</p>
+      <p>⚠️ <strong>改完 <code>.env</code> 再啟動。</strong> 管理員帳號只在系統<strong>第一次啟動</strong>時,依當時 <code>.env</code> 的 <code>ADMIN_PASSWORD</code> 建立;之後再改 <code>.env</code> 的密碼、重新啟動,都<strong>不會</strong>改到已經建立的帳號。如果先啟動過一次才改:沒設 <code>ADMIN_PASSWORD</code> 時系統會自動產生臨時密碼,用 <code>docker compose logs api</code> 查看(v1.4 以前的版本是 <code>changeme</code>),或見下方「登不進去怎麼辦」。<code>POSTGRES_PASSWORD</code> 也一樣只能在第一次啟動前設定,資料庫建好後再改,系統會連不上資料庫。</p>
       <p><strong>密碼請只用英文字母與數字。</strong> docker compose 會把 <code>.env</code> 值裡的 <code>$</code> 當成變數展開(<code>my$ecret123</code> 實際變成 <code>my</code>),<code>#</code> 前面有空白會被當成註解切掉,而且都沒有任何錯誤訊息。第一次登入時系統會要求你改密碼,那時就可以用含符號的密碼了。(用安裝程式 <code>install.sh</code> / <code>install.ps1</code> 安裝的不受影響,它會自動處理。)</p>
       <p>沒改 <code>SECRET_KEY</code> 不會讓系統起不來——程式偵測到仍是範例值時會自動換一把隨機金鑰。
       但那把金鑰只存在記憶體裡,<strong>容器一重啟所有人就被登出</strong>,所以還是設一個固定值為宜。</p>
       </blockquote>
-      <p>其餘設定(資料庫帳密、Redis、時區)維持預設即可。詳細每一項說明見 <code>.env.example</code> 內的註解。</p>
+      <p>其餘設定(資料庫帳號與名稱、Redis、時區)維持預設即可。詳細每一項說明見 <code>.env.example</code> 內的註解。</p>
       <blockquote>
       <p><strong><code>.env</code> 含機密,切勿上傳到 GitHub、雲端硬碟或任何公開處。</strong> 本專案的 <code>.gitignore</code> 已排除它。</p>
       </blockquote>

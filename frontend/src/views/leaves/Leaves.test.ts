@@ -34,7 +34,8 @@ async function mountLeaves(rows: number, extra: unknown[] = []) {
 }
 
 describe('Leaves 清單上限', () => {
-  it('取到上限筆數時提示被截斷', async () => {
+  // 要渲染 1000 張假單,在 jsdom 裡要十秒以上;vitest 4 起逾時(預設 5 秒)會確實中斷,單獨放寬
+  it('取到上限筆數時提示被截斷', { timeout: 60_000 }, async () => {
     const wrapper = await mountLeaves(MAX_LEAVE_ROWS)
     expect(wrapper.find('[data-testid="lv-truncated"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('只顯示最新的 1000 張假單')

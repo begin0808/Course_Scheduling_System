@@ -111,11 +111,12 @@ def smtp_config(db: Session) -> SmtpConfig:
     values = all_settings(db)
     return SmtpConfig(
         host=values.get(SMTP_HOST, ""),
-        port=int(values.get(SMTP_PORT) or 25),
+        # 未設定過時預設 587 + TLS(v1.5.0);已存過的學校照原本的設定
+        port=int(values.get(SMTP_PORT) or 587),
         user=values.get(SMTP_USER, ""),
         password=values.get(SMTP_PASSWORD, ""),
         sender=values.get(SMTP_FROM, ""),
-        use_tls=values.get(SMTP_TLS, "") == "1",
+        use_tls=values.get(SMTP_TLS, "1") == "1",
     )
 
 

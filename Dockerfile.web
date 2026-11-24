@@ -15,5 +15,13 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM caddy:2-alpine
+# 不以 root 執行(v1.5.0):建 caddy 使用者,進入點先修好 volume 權限再用 su-exec 降權
+RUN apk add --no-cache su-exec \
+    && addgroup -S -g 10001 caddy \
+    && adduser -S -D -H -u 10001 -G caddy -h /data caddy
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
+COPY web-entrypoint.sh /usr/local/bin/web-entrypoint.sh
+RUN chmod 755 /usr/local/bin/web-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/web-entrypoint.sh"]
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

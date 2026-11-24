@@ -160,7 +160,7 @@ async function onUploadRestore({ file, onFinish, onError }: UploadCustomRequestO
 }
 
 const smtp = ref({
-  host: '', port: 25, user: '', password: '', sender: '', use_tls: false,
+  host: '', port: 587, user: '', password: '', sender: '', use_tls: true,
 })
 const configured = ref(false)
 const hasPassword = ref(false)
@@ -430,7 +430,8 @@ async function onResetWizard() {
           />
           <n-text>連接埠</n-text>
           <n-input-number v-model:value="smtp.port" :min="1" :max="65535" style="width: 110px" />
-          <n-checkbox v-model:checked="smtp.use_tls">使用 TLS</n-checkbox>
+          <n-checkbox v-if="smtp.port !== 465" v-model:checked="smtp.use_tls">使用 TLS(STARTTLS)</n-checkbox>
+          <n-text v-else depth="3">465 埠一律加密(SMTPS)</n-text>
         </n-space>
         <n-space align="center" :wrap="true">
           <n-text style="width: 72px">寄件人</n-text>
@@ -446,6 +447,12 @@ async function onResetWizard() {
             :placeholder="hasPassword ? '(已設定,留空不變更)' : '(選填)'" style="width: 160px"
           />
         </n-space>
+        <n-text
+          v-if="smtp.user && smtp.port !== 465 && !smtp.use_tls" type="warning" style="font-size: 13px"
+          data-testid="smtp-plaintext-warning"
+        >
+          沒有加密:帳號密碼與信件內容會以明文傳送。建議勾選「使用 TLS」(587 埠)或改用 465 埠。
+        </n-text>
         <div>
           <n-button
             type="primary" :loading="savingSmtp" data-testid="smtp-save" @click="onSaveSmtp"

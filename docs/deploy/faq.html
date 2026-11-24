@@ -192,13 +192,14 @@
       看該容器 log 找原因:</p>
       <pre><code class="language-bash">docker compose logs --tail=50 &lt;服務名&gt;   # 例如 api / worker / postgres
       </code></pre>
-      <p>常見:<code>.env</code> 的 <code>DATABASE_URL</code> 與 <code>POSTGRES_*</code> 帳密不一致;<code>SECRET_KEY</code> 未設。</p>
+      <p>常見:資料庫建好之後才改 <code>.env</code> 的 <code>POSTGRES_PASSWORD</code>(資料庫仍是第一次啟動時的密碼,要改回原本那組);
+      v1.4 以前安裝的 <code>.env</code> 若有 <code>DATABASE_URL</code>,它的帳密要與 <code>POSTGRES_*</code> 一致。</p>
       <p><strong>Q:80 埠被占用,啟動失敗(port is already allocated)。</strong>
       改 <code>.env</code> 的 <code>HTTP_PORT</code>(例如 <code>8080</code>)再 <code>docker compose up -d</code>,改用 <code>http://&lt;主機IP&gt;:8080</code>。</p>
       <p><strong>Q:裝好後第一次登入就一直「帳號或密碼錯誤」,接著被鎖 15 分鐘。</strong>
       會鎖定代表管理員帳號已經建好,只是資料庫裡的密碼和你輸入的不同;跟網路、IP、手機熱點或在國外都無關(用 <code>localhost</code> 登入時,連線根本不出這台電腦)。常見原因:</p>
       <ul>
-      <li><strong>先啟動過一次才改 <code>.env</code> 的密碼。</strong> 管理員帳號只在第一次啟動時依 <code>.env</code> 建立,之後改 <code>.env</code> 不會生效。這時的密碼是當時 <code>.env</code> 的值,通常是預設的 <code>changeme</code>。</li>
+      <li><strong>先啟動過一次才改 <code>.env</code> 的密碼。</strong> 管理員帳號只在第一次啟動時依 <code>.env</code> 建立,之後改 <code>.env</code> 不會生效。這時的密碼是當時 <code>.env</code> 的值;當時沒設 <code>ADMIN_PASSWORD</code> 的話,系統會自動產生臨時密碼,用 <code>docker compose logs api</code> 查看(v1.4 以前的版本是 <code>changeme</code>)。</li>
       <li><strong>密碼裡有 <code>$</code> 或 <code>#</code>。</strong> docker compose 會把 <code>$</code> 當成變數截掉,<code>#</code> 前有空白會被當成註解。</li>
       </ul>
       <p>另外,鎖定是鎖<strong>帳號</strong>,不是鎖網路:被鎖的 15 分鐘內,換網路、換 IP、甚至密碼打對都進不去。</p>

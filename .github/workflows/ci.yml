@@ -85,6 +85,25 @@ jobs:
       - name: Pytest(單元測試)
         run: python -m pytest -q
 
+  # 第三方套件弱點檢查(v1.5.0):正式映像裝的 Python 相依(含匯出 PDF 用的 export)
+  # 有已知弱點就擋下。數發部的第三方元件掃描只涵蓋前端,後端由這裡把關。
+  backend-audit:
+    name: Python 套件弱點檢查(pip-audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安裝正式映像的相依
+        # 先升級 pip:基底映像內建的 pip 版本較舊(正式映像建置時一樣會先升級)
+        run: python -m pip install --upgrade pip && pip install -e ".[export]" pip-audit
+      - name: pip-audit
+        run: pip-audit --skip-editable --desc on --progress-spinner off
+
   frontend:
     name: 前端 lint / build / test
     runs-on: ubuntu-latest
@@ -106,6 +125,9 @@ jobs:
         run: npm run build
       - name: Vitest(單元測試)
         run: npm run test
+      # 第三方套件弱點檢查(v1.5.0):中風險以上就擋下(含建置與測試用的開發相依)
+      - name: npm 套件弱點檢查(npm audit)
+        run: npm audit --audit-level=moderate
 
   migrations:
     name: 資料庫遷移驗證(PostgreSQL)
@@ -118,7 +140,8 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: scheduler
-          POSTGRES_PASSWORD: scheduler
+          # 測試用的臨時資料庫,密碼每次執行都不同(不寫死在檔案裡)
+          POSTGRES_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
           POSTGRES_DB: scheduler
         ports:
           - 5432:5432
@@ -137,7 +160,8 @@ jobs:
         run: pip install -e ".[dev]"
       - name: 對全新 PostgreSQL 執行 alembic upgrade head
         env:
-          DATABASE_URL: postgresql+psycopg://scheduler:scheduler@localhost:5432/scheduler
+          POSTGRES_HOST: localhost
+          POSTGRES_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
         run: alembic upgrade head
 
   e2e:
@@ -179,18 +203,18 @@ jobs:
           cache-to: type=gha,scope=web,mode=max
       - name: 準備 .env 並啟動全棧
         run: |
-          cat > .env <<'EOF'
+          # 密碼與金鑰每次執行隨機產生;不設 DATABASE_URL,走「由 POSTGRES_* 組連線」的路徑(v1.5.0)
+          cat > .env <<EOF
           ADMIN_USERNAME=admin
-          ADMIN_PASSWORD=ci-admin-password
+          ADMIN_PASSWORD=$(openssl rand -hex 16)
           SCHOOL_NAME=CI 測試學校
           TZ=Asia/Taipei
-          SECRET_KEY=ci-e2e-not-a-secret-0123456789abcdef
+          SECRET_KEY=$(openssl rand -hex 32)
           HTTP_PORT=80
           IMAGE_TAG=ci
           POSTGRES_USER=scheduler
-          POSTGRES_PASSWORD=scheduler
+          POSTGRES_PASSWORD=$(openssl rand -hex 16)
           POSTGRES_DB=scheduler
-          DATABASE_URL=postgresql+psycopg://scheduler:scheduler@postgres:5432/scheduler
           REDIS_URL=redis://redis:6379/0
           EOF
           docker compose up -d --no-build --wait --wait-timeout 180
@@ -228,7 +252,7 @@ jobs:
     name: 建置並發布映像
     runs-on: ubuntu-latest
     # e2e 為前置:E2E 紅燈時不得發布映像
-    needs: [backend, frontend, migrations, e2e]
+    needs: [backend, backend-audit, frontend, migrations, e2e]
     # main push:僅 amd64(快速);版本標籤 v*:amd64+arm64 雙架構(正式發布)
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
