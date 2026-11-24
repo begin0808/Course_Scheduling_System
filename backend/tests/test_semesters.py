@@ -153,3 +153,22 @@ def test_replace_periods_rejects_duplicate_cell(env):
         {"weekday": 1, "period_no": 1, "name": "重複", "type": "regular"},
     ]
     assert client.put(f"/api/period-tables/{table['id']}/periods", json=dup).status_code == 400
+
+
+def test_period_table_periods_are_sorted_by_weekday_and_period(env):
+    """節次一律依星期、節次排序回傳(v1.5.0):資料庫回傳順序不保證,CI 曾回傳成第二節排第一個。"""
+    from app.models.period import Period, PeriodTable
+
+    client, db = env
+    login(client, db)
+    sid = client.post("/api/semesters", json={"academic_year": 115, "term": 1}).json()["id"]
+    table = PeriodTable(semester_id=sid, name="亂序", num_weekdays=5, is_default=True)
+    db.add(table)
+    db.flush()
+    for wd, no in [(2, 3), (1, 2), (2, 1), (1, 3), (1, 1)]:
+        db.add(Period(period_table_id=table.id, weekday=wd, period_no=no, name=f"{wd}-{no}",
+                      type="regular"))
+    db.commit()
+    periods = client.get(f"/api/semesters/{sid}").json()["period_tables"][0]["periods"]
+    assert [(p["weekday"], p["period_no"]) for p in periods] == [
+        (1, 1), (1, 2), (1, 3), (2, 1), (2, 3)]

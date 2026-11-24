@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { iso } from './dates'
 import { deleteSemesterByYearTerm, login } from './helpers'
 
 const YEAR = 120 // 使用不與既有資料衝突的學年度
@@ -29,11 +30,14 @@ test('設定精靈:五步驟建立學期並於儀表板顯示摘要', async ({ p
   await page.getByTestId('wizard-next').click()
   await expect(page.getByText('請填學期起訖日期(請假與調代課需要)')).toBeVisible()
 
+  // 從今天開始:儀表板預設選「今天所在、最新開始」的學期(v1.4.22),
+  // 測試資料庫裡其他測試建的學期也涵蓋今天,不從今天開始就不一定選到這一個
+  const today = new Date()
   const startInput = page.getByTestId('wizard-start').locator('input')
-  await startInput.fill('2026-08-30')
+  await startInput.fill(iso(today))
   await startInput.press('Enter')
   const endInput = page.getByTestId('wizard-end').locator('input')
-  await endInput.fill('2027-01-20')
+  await endInput.fill(iso(new Date(today.getFullYear(), today.getMonth() + 5, today.getDate())))
   await endInput.press('Enter')
   await page.screenshot({ path: `${SHOTS}/wizard-2-year.png` })
   await page.getByTestId('wizard-next').click()

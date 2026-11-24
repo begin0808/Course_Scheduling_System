@@ -45,8 +45,11 @@ class PeriodTable(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
 
     semester: Mapped["Semester"] = relationship(back_populates="period_tables")
+    # 一律依星期、節次排序(v1.5.0):沒指定時資料庫回傳順序不保證,
+    # 節次被修改過之後可能變成「第二節、第三節……第一節」
     periods: Mapped[list["Period"]] = relationship(
-        back_populates="period_table", cascade="all, delete-orphan", lazy="selectin"
+        back_populates="period_table", cascade="all, delete-orphan", lazy="selectin",
+        order_by="(Period.weekday, Period.period_no)",
     )
 
 
