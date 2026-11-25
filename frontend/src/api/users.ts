@@ -20,6 +20,8 @@ export interface UserAccount {
   is_active: boolean
   must_change_password: boolean
   teacher_names: string[]
+  /** 密碼留空時系統產生的初始密碼,只在新增/重設這次回應出現(v1.6.0) */
+  initial_password?: string | null
 }
 
 export const listUsers = () => apiGet<UserAccount[]>('/users')

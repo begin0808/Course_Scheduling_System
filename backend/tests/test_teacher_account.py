@@ -138,10 +138,11 @@ def test_create_account_for_existing_teacher(sched):
     assert acc["display_name"] == "王老師"
     assert client.get(f"/api/teachers?semester_id={sid}").json()[0]["user_id"] == acc["id"]
 
-    # 新帳號用預設密碼登入得了(密碼未指定時用部署設定的預設值)
+    # 密碼留空 → 系統產生的初始密碼只在這次回應出現,用它登入得了(v1.6.0)
+    assert acc["initial_password"] and len(acc["initial_password"]) == 12
     client.post("/api/auth/logout")
     assert client.post(
-        "/api/auth/login", json={"username": "wang001", "password": "changeme"}
+        "/api/auth/login", json={"username": "wang001", "password": acc["initial_password"]}
     ).status_code == 200
 
 
@@ -332,9 +333,10 @@ def test_import_binds_account(sched):
     assert wang["user_id"] is not None
     assert wang["email"] == "wang@a.bc"
     assert wang["phone"] == "0911"
-    # 綁定帳號可用預設密碼登入
+    # 綁定帳號可用匯入結果清單上的初始密碼登入
+    pw = next(a["password"] for a in r.json()["accounts"] if a["username"] == "wang001")
     client.post("/api/auth/logout")
-    login = client.post("/api/auth/login", json={"username": "wang001", "password": "changeme"})
+    login = client.post("/api/auth/login", json={"username": "wang001", "password": pw})
     assert login.status_code == 200
 
 

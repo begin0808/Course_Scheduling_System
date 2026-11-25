@@ -1,7 +1,12 @@
-"""v1.5.0 數發部源碼檢測的修補:寄信加密驗證憑證、程式碼不內建密碼與金鑰、首次啟動臨時密碼。"""
+"""v1.5.0 數發部源碼檢測的修補:寄信加密驗證憑證、程式碼不內建密碼與金鑰、首次啟動臨時密碼。
+
+v1.6.0:寄信一律加密(不再有不加密的選項);測試用密碼改為執行時產生,不寫在程式碼裡。
+"""
 
 import logging
+import secrets
 import ssl
+from urllib.parse import quote
 
 import pytest
 from pydantic import SecretStr
@@ -18,7 +23,7 @@ from app.services import users as users_service
 from app.services.settings import SmtpConfig
 
 
-# ── 寄信:465 走 SMTPS、勾 TLS 走 STARTTLS,兩者都驗證憑證 ──────────────
+# ── 寄信:465 走 SMTPS、其他埠一律 STARTTLS,兩者都驗證憑證 ────────────
 class _FakeSMTP:
     instances: list["_FakeSMTP"] = []
 
@@ -32,10 +37,13 @@ class _FakeSMTP:
         self.started_tls = True
         self.starttls_context = context
 
+    def close(self):
+        pass
 
-def _cfg(port: int, use_tls: bool) -> SmtpConfig:
-    return SmtpConfig(host="smtp.example.edu.tw", port=port, user="u", password="p",
-                      sender="noreply@example.edu.tw", use_tls=use_tls)
+
+def _cfg(port: int) -> SmtpConfig:
+    return SmtpConfig(host="smtp.example.edu.tw", port=port, user="u",
+                      password=secrets.token_urlsafe(8), sender="noreply@example.edu.tw")
 
 
 def _verifies(ctx: ssl.SSLContext | None) -> bool:
@@ -47,40 +55,66 @@ def test_smtps_on_465_verifies_certificate(monkeypatch):
     monkeypatch.setattr(email_service.smtplib, "SMTP_SSL", _FakeSMTP)
     monkeypatch.setattr(email_service.smtplib, "SMTP",
                         lambda *a, **k: pytest.fail("465 不該走明文 SMTP"))
-    server = email_service._connect(_cfg(465, use_tls=False))
+    server = email_service._connect(_cfg(465))
     assert server.port == 465 and _verifies(server.context)
 
 
-def test_starttls_verifies_certificate(monkeypatch):
+@pytest.mark.parametrize("port", [587, 25, 2525])
+def test_every_other_port_always_uses_starttls(monkeypatch, port):
+    """v1.6.0:不再有「不勾 TLS 就明文寄」的路徑,連 25 埠也一律 STARTTLS 並驗證憑證。"""
     _FakeSMTP.instances.clear()
     monkeypatch.setattr(email_service.smtplib, "SMTP", _FakeSMTP)
-    server = email_service._connect(_cfg(587, use_tls=True))
+    server = email_service._connect(_cfg(port))
     assert server.started_tls and _verifies(server.starttls_context)
 
 
-def test_plain_smtp_only_when_tls_unchecked(monkeypatch):
+def test_server_without_starttls_fails_instead_of_sending_plaintext(monkeypatch):
+    class _NoTLS(_FakeSMTP):
+        closed = False
+
+        def starttls(self, context=None):
+            raise email_service.smtplib.SMTPNotSupportedError("STARTTLS extension not supported")
+
+        def close(self):
+            _NoTLS.closed = True
+
+    monkeypatch.setattr(email_service.smtplib, "SMTP", _NoTLS)
+    with pytest.raises(email_service.smtplib.SMTPNotSupportedError):
+        email_service._connect(_cfg(25))
+    assert _NoTLS.closed
+
+
+def test_old_tls_unchecked_setting_is_ignored(db, monkeypatch):
+    """舊版存了 smtp_tls=0 的學校,升級後照樣加密寄信。"""
+    from app.services import settings as app_settings
+    app_settings.set_value(db, "smtp_tls", "0")
+    app_settings.save_smtp(db, host="smtp.example.edu.tw", port=25, user="", password="",
+                           sender="noreply@example.edu.tw")
+    db.commit()
     _FakeSMTP.instances.clear()
     monkeypatch.setattr(email_service.smtplib, "SMTP", _FakeSMTP)
-    server = email_service._connect(_cfg(25, use_tls=False))
-    assert not server.started_tls
+    server = email_service._connect(app_settings.smtp_config(db))
+    assert server.started_tls
 
 
-def test_unconfigured_smtp_defaults_to_587_with_tls(db):
+def test_unconfigured_smtp_defaults_to_587(db):
     from app.services import settings as app_settings
-    cfg = app_settings.smtp_config(db)
-    assert (cfg.port, cfg.use_tls) == (587, True)
+    assert app_settings.smtp_config(db).port == 587
 
 
 # ── 設定:程式碼不內建資料庫密碼、管理員密碼、金鑰 ─────────────────────
 def test_database_url_built_from_postgres_settings():
-    s = Settings(_env_file=None, database_url="", postgres_password=SecretStr("p@ss/word"),
+    # 密碼含 @ 與 / 也要正確編碼;測試用的值每次執行時產生,不寫死在程式碼裡
+    secret = f"{secrets.token_urlsafe(6)}@{secrets.token_urlsafe(6)}/x"
+    s = Settings(_env_file=None, database_url="", postgres_password=SecretStr(secret),
                  postgres_host="db", postgres_user="sch", postgres_db="sdb")
-    assert s.database_url == "postgresql+psycopg://sch:p%40ss%2Fword@db:5432/sdb"
+    assert s.database_url == f"postgresql+psycopg://sch:{quote(secret, safe='')}@db:5432/sdb"
 
 
 def test_existing_database_url_wins():
-    url = "postgresql+psycopg://a:b@old:5432/c"
-    s = Settings(_env_file=None, database_url=url, postgres_password=SecretStr("x"))
+    url = f"postgresql+psycopg://a:{secrets.token_hex(4)}@old:5432/c"
+    s = Settings(_env_file=None, database_url=url,
+                 postgres_password=SecretStr(secrets.token_hex(4)))
     assert s.database_url == url
 
 
@@ -123,9 +157,10 @@ def test_first_boot_without_admin_password_logs_temp_password(boot_db, monkeypat
 
 
 def test_first_boot_with_admin_password_uses_it(boot_db, monkeypatch, caplog):
-    monkeypatch.setattr(users_service.settings, "admin_password", SecretStr("school-pass-123"))
+    chosen = secrets.token_urlsafe(10)
+    monkeypatch.setattr(users_service.settings, "admin_password", SecretStr(chosen))
     with caplog.at_level(logging.WARNING, logger="app.users"):
         users_service.ensure_admin()
     assert not any("臨時密碼" in r.getMessage() for r in caplog.records)
     with boot_db() as db:
-        assert verify_password("school-pass-123", db.scalar(select(User)).password_hash)
+        assert verify_password(chosen, db.scalar(select(User)).password_hash)

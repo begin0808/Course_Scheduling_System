@@ -193,7 +193,7 @@ def test_smtp_settings_roundtrip_hides_password(env):
 
     r = client.put("/api/settings/smtp", json={
         "host": "mailhog", "port": 1025, "user": "", "password": "secret",
-        "sender": "noreply@school.edu.tw", "use_tls": False})
+        "sender": "noreply@school.edu.tw"})
     assert r.status_code == 200
     out = r.json()
     assert out["configured"] is True
@@ -203,7 +203,7 @@ def test_smtp_settings_roundtrip_hides_password(env):
     # 再存一次、密碼留空 = 不變更
     client.put("/api/settings/smtp", json={
         "host": "mailhog", "port": 1025, "user": "", "password": "",
-        "sender": "noreply@school.edu.tw", "use_tls": False})
+        "sender": "noreply@school.edu.tw"})
     assert app_settings.smtp_config(db).password == "secret"
 
 

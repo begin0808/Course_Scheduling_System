@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_roles
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import hash_password
+from app.core.security import hash_password, initial_password
 from app.models.basedata import Teacher
 from app.models.user import Role, User, UserRole
 
@@ -41,12 +41,14 @@ class UserOut(BaseModel):
     is_active: bool
     must_change_password: bool
     teacher_names: list[str] = []  # 綁定的教師資料(不同學期可能各一筆,姓名相同只列一次)
+    # 密碼留空時系統產生的初始密碼:只在新增/重設的這次回應出現一次(v1.6.0)
+    initial_password: str | None = None
 
 
 class UserCreateIn(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     display_name: str = Field(default="", max_length=64)
-    password: str = Field(default="", max_length=128)  # 空 = 使用預設密碼
+    password: str = Field(default="", max_length=128)  # 空 = 系統產生隨機初始密碼(v1.6.0)
     roles: list[str] = Field(min_length=1)
 
 
@@ -96,12 +98,13 @@ def _check_roles(roles: list[str]) -> set[str]:
     return set(roles)
 
 
-def _password(raw: str) -> str:
-    password = raw or settings.default_import_password
+def _password(raw: str) -> tuple[str, str | None]:
+    """(要設定的密碼, 系統產生的密碼或 None);留空就為這個帳號產生隨機密碼(v1.6.0)。"""
+    password, generated = initial_password(raw)
     if len(password) < settings.min_password_length:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, f"密碼至少需 {settings.min_password_length} 個字元")
-    return password
+    return password, generated
 
 
 def _active_admins(db: Session, exclude: int | None = None) -> int:
@@ -130,15 +133,18 @@ def create_user(body: UserCreateIn, db: Session = Depends(get_db), _: User = Dep
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "請輸入登入帳號")
     if db.scalar(select(User.id).where(User.username == username)) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"登入帳號「{username}」已存在")
+    password, generated = _password(body.password)
     user = User(
-        username=username, password_hash=hash_password(_password(body.password)),
+        username=username, password_hash=hash_password(password),
         display_name=body.display_name.strip() or username, must_change_password=True,
         roles=[UserRole(role=r) for r in sorted(roles)],
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return _out(db, user)
+    out = _out(db, user)
+    out.initial_password = generated
+    return out
 
 
 @router.put("/users/{user_id}/roles", response_model=UserOut)
@@ -187,13 +193,16 @@ def reset_password(
     user = _get(db, user_id)
     if user.id == me.id:
         raise HTTPException(status.HTTP_409_CONFLICT, "自己的密碼請用右上角的「修改密碼」")
-    user.password_hash = hash_password(_password(body.password))
+    password, generated = _password(body.password)
+    user.password_hash = hash_password(password)
     user.must_change_password = True
     user.failed_login_attempts = 0
     user.locked_until = None
     db.commit()
     db.refresh(user)
-    return _out(db, user)
+    out = _out(db, user)
+    out.initial_password = generated
+    return out
 
 
 @router.post("/users/{user_id}/active", response_model=UserOut)

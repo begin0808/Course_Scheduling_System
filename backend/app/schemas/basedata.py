@@ -91,11 +91,11 @@ class TeacherAccountIn(BaseModel):
     """為既有教師補開登入帳號(匯入時沒勾、或後來才需要用系統的老師)。"""
 
     username: str = Field(min_length=3, max_length=64)
-    password: str = Field(default="", max_length=128)  # 空=用部署設定的預設密碼
+    password: str = Field(default="", max_length=128)  # 空=系統產生隨機初始密碼(v1.6.0)
 
 
 class ResetPasswordIn(BaseModel):
-    password: str = Field(default="", max_length=128)  # 空=用部署設定的預設密碼
+    password: str = Field(default="", max_length=128)  # 空=系統產生隨機臨時密碼(v1.6.0)
 
 
 class TeacherAccountOut(BaseModel):
@@ -107,6 +107,8 @@ class TeacherAccountOut(BaseModel):
     display_name: str
     must_change_password: bool
     is_active: bool = True  # 停用後無法登入,帳號與歷史資料仍保留
+    # 密碼留空時系統產生的初始密碼:只在建立/重設的這次回應出現一次,之後查不到(v1.6.0)
+    initial_password: str | None = None
 
 
 class AccountActiveIn(BaseModel):

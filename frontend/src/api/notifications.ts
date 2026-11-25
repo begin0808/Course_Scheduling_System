@@ -34,7 +34,6 @@ export interface SmtpSettings {
   port: number
   user: string
   sender: string
-  use_tls: boolean
   configured: boolean
   has_password: boolean
 }

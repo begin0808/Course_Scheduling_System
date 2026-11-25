@@ -47,7 +47,7 @@ test('寄測試信:設定改了要先儲存;寄送失敗時寫出原因', async 
     await page.request.put('/api/settings/smtp', {
       data: {
         host: original.host, port: original.port, user: original.user, password: '',
-        sender: original.sender, use_tls: original.use_tls,
+        sender: original.sender,
       },
     })
   }

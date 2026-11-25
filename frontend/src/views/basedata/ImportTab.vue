@@ -7,6 +7,7 @@ import type { UploadFileInfo } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { ENTITY_LABELS, downloadTemplate, uploadImport } from '@/api/imports'
 import type { ImportEntity, ImportResult } from '@/api/imports'
+import InitialPasswords from '@/components/InitialPasswords.vue'
 
 const props = defineProps<{ semesterId: number }>()
 const emit = defineEmits<{ imported: [] }>()
@@ -19,6 +20,8 @@ const updateExisting = ref(false)
 const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
 const result = ref<ImportResult | null>(null)
+// 匯入時建立的教師帳號與系統產生的初始密碼(v1.6.0):每位老師不同,只顯示這一次
+const accountsShow = ref(false)
 
 const isTeacher = computed(() => entity.value === 'teachers')
 
@@ -49,6 +52,7 @@ async function onUpload() {
       isTeacher.value && updateExisting.value,
     )
     result.value = r
+    if (r.accounts?.length) accountsShow.value = true
     if (r.errors.length === 0) {
       message.success(r.updated
         ? `成功新增 ${r.imported} 筆、更新 ${r.updated} 筆`
@@ -89,7 +93,7 @@ async function onUpload() {
     <n-space vertical>
       <n-text strong>③ 上傳填好的檔案</n-text>
       <n-checkbox v-if="isTeacher" v-model:checked="createAccounts">
-        同時建立教師登入帳號(預設密碼,首次登入需更改)
+        同時建立教師登入帳號(每位老師各自產生初始密碼,匯入後列出清單;首次登入需更改)
       </n-checkbox>
       <n-checkbox v-if="isTeacher" v-model:checked="updateExisting" data-testid="import-update">
         既有教師改為更新資料(以姓名＋身分末四碼比對)
@@ -111,7 +115,16 @@ async function onUpload() {
         新增 {{ result.imported }} 筆、更新 {{ result.updated }} 筆。
       </template>
       <template v-else>成功匯入 {{ result.imported }} 筆資料。</template>
+      <template v-if="result.accounts?.length">
+        建立了 {{ result.accounts.length }} 個登入帳號,
+        <a href="#" data-testid="import-accounts-open" @click.prevent="accountsShow = true">查看初始密碼清單</a>
+        (離開這一頁後就查不到了)。
+      </template>
     </n-alert>
+    <initial-passwords
+      v-if="result?.accounts?.length" v-model:show="accountsShow" :accounts="result.accounts"
+      title="教師帳號初始密碼(只顯示這一次)"
+    />
     <n-alert v-if="result && result.errors.length > 0" type="error" title="匯入失敗(資料庫未寫入)">
       <n-list>
         <n-list-item v-for="(err, i) in result.errors" :key="i">

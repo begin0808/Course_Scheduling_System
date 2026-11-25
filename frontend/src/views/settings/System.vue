@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  NAlert, NButton, NCard, NCheckbox, NInput, NInputNumber, NPopconfirm, NSpace, NTag, NText,
+  NAlert, NButton, NCard, NInput, NInputNumber, NPopconfirm, NSpace, NTag, NText,
   NUpload,
   useDialog, useMessage,
 } from 'naive-ui'
@@ -160,7 +160,7 @@ async function onUploadRestore({ file, onFinish, onError }: UploadCustomRequestO
 }
 
 const smtp = ref({
-  host: '', port: 587, user: '', password: '', sender: '', use_tls: true,
+  host: '', port: 587, user: '', password: '', sender: '',
 })
 const configured = ref(false)
 const hasPassword = ref(false)
@@ -214,7 +214,7 @@ onMounted(async () => {
   void loadUpdate()
   void loadUpgradeNotice()
   const s = await getSmtp()
-  smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender, use_tls: s.use_tls }
+  smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender }
   savedSmtp.value = smtpKey()
   configured.value = s.configured
   hasPassword.value = s.has_password
@@ -458,8 +458,9 @@ async function onResetWizard() {
             v-model:value="smtp.port" :min="1" :max="65535" style="width: 110px"
             data-testid="smtp-port"
           />
-          <n-checkbox v-if="smtp.port !== 465" v-model:checked="smtp.use_tls">使用 TLS(STARTTLS)</n-checkbox>
-          <n-text v-else depth="3">465 埠一律加密(SMTPS)</n-text>
+          <n-text depth="3" data-testid="smtp-encryption">
+            {{ smtp.port === 465 ? '465 埠:SMTPS 加密' : 'STARTTLS 加密' }}(一律加密並驗證伺服器憑證)
+          </n-text>
         </n-space>
         <n-space align="center" :wrap="true">
           <n-text style="width: 72px">寄件人</n-text>
@@ -475,12 +476,6 @@ async function onResetWizard() {
             :placeholder="hasPassword ? '(已設定,留空不變更)' : '(選填)'" style="width: 160px"
           />
         </n-space>
-        <n-text
-          v-if="smtp.user && smtp.port !== 465 && !smtp.use_tls" type="warning" style="font-size: 13px"
-          data-testid="smtp-plaintext-warning"
-        >
-          沒有加密:帳號密碼與信件內容會以明文傳送。建議勾選「使用 TLS」(587 埠)或改用 465 埠。
-        </n-text>
         <div>
           <n-button
             type="primary" :loading="savingSmtp" data-testid="smtp-save" @click="onSaveSmtp"

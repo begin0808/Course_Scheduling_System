@@ -135,21 +135,6 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: scheduler
-          # 測試用的臨時資料庫,密碼每次執行都不同(不寫死在檔案裡)
-          POSTGRES_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
-          POSTGRES_DB: scheduler
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U scheduler"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -158,11 +143,24 @@ jobs:
           cache: pip
       - name: 安裝相依
         run: pip install -e ".[dev]"
+      # 測試用的臨時資料庫:密碼在執行時才產生(v1.6.0,不寫在 workflow 檔裡)。
+      # 以 TCP 檢查就緒:初始化期間的暫時伺服器只聽 unix socket,TCP 通了才是正式啟動。
+      - name: 啟動臨時 PostgreSQL
+        run: |
+          db_secret=$(openssl rand -hex 16)
+          echo "::add-mask::$db_secret"
+          echo "DB_SECRET=$db_secret" >> "$GITHUB_ENV"
+          docker run -d --name ci-postgres -p 5432:5432 \
+            -e POSTGRES_USER=scheduler -e POSTGRES_DB=scheduler -e POSTGRES_PASSWORD="$db_secret" \
+            postgres:16-alpine
+          for i in $(seq 1 60); do
+            docker exec ci-postgres pg_isready -h 127.0.0.1 -U scheduler && exit 0
+            sleep 2
+          done
+          docker logs ci-postgres
+          exit 1
       - name: 對全新 PostgreSQL 執行 alembic upgrade head
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
-        run: alembic upgrade head
+        run: POSTGRES_HOST=localhost POSTGRES_PASSWORD="$DB_SECRET" alembic upgrade head
 
   e2e:
     name: E2E 驗收(Playwright 對 Docker 全棧)

@@ -71,3 +71,15 @@ _TEMP_LENGTH = 12
 
 def temp_password() -> str:
     return "".join(secrets.choice(_TEMP_ALPHABET) for _ in range(_TEMP_LENGTH))
+
+
+def initial_password(typed: str) -> tuple[str, str | None]:
+    """建立或重設帳號時要用的密碼(v1.6.0)。
+
+    組長有輸入就用輸入的(長度由呼叫端檢查);留空則為這個帳號產生隨機臨時密碼。
+    回傳 (密碼, 系統產生的密碼或 None)——產生的密碼只在這次回應交給組長,資料庫只存雜湊。
+    """
+    if typed:
+        return typed, None
+    generated = temp_password()
+    return generated, generated

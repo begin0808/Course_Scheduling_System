@@ -60,7 +60,7 @@ def test_import_subjects_ok(scheduler_env):
     rows = [["數學", "數學領域", "普通教室", 1], ["物理", "自然", "專科教室", 2]]
     r = upload(client, "subjects", sid, rows, ncols=4)
     assert r.status_code == 200
-    assert r.json() == {"imported": 2, "updated": 0, "errors": []}
+    assert r.json() == {"imported": 2, "updated": 0, "errors": [], "accounts": []}
     assert len(client.get(f"/api/subjects?semester_id={sid}").json()) == 2
 
 
@@ -90,9 +90,14 @@ def test_import_teachers_with_accounts(scheduler_env):
     teachers = client.get(f"/api/teachers?semester_id={sid}").json()
     wang = next(t for t in teachers if t["name"] == "王小明")
     assert {s["name"] for s in wang["subjects"]} == {"數學", "物理"}
-    # 帳號已建立,可用預設密碼登入(首登需改密)
+    # 帳號已建立,每位老師各有一組系統產生的初始密碼(v1.6.0),可登入但首登需改密
+    accounts = {a["username"]: a for a in r.json()["accounts"]}
+    assert set(accounts) == {"wang001", "lee001"}
+    assert accounts["wang001"]["name"] == "王小明"
+    assert accounts["wang001"]["password"] != accounts["lee001"]["password"]
     client.post("/api/auth/logout")
-    login = client.post("/api/auth/login", json={"username": "wang001", "password": "changeme"})
+    login = client.post("/api/auth/login", json={
+        "username": "wang001", "password": accounts["wang001"]["password"]})
     assert login.status_code == 200
     assert login.json()["must_change_password"] is True
 
@@ -135,7 +140,8 @@ def test_import_teachers_updates_existing_when_opted_in(scheduler_env):
         _teacher_row("李小華", "5678", "數學", 18),  # 新人照舊新增
     ]
     body = upload(client, "teachers", sid, rows, ncols=11, update_existing=True).json()
-    assert body == {"imported": 1, "updated": 1, "errors": []}
+    assert {k: body[k] for k in ("imported", "updated", "errors")} == {
+        "imported": 1, "updated": 1, "errors": []}
 
     teachers = client.get(f"/api/teachers?semester_id={sid}").json()
     assert len(teachers) == 2
@@ -195,7 +201,8 @@ def test_import_teachers_update_does_not_touch_login_account(scheduler_env):
     ]
     body = upload(client, "teachers", sid, rows, ncols=11,
                   create_accounts=True, update_existing=True).json()
-    assert body == {"imported": 1, "updated": 1, "errors": []}
+    assert {k: body[k] for k in ("imported", "updated", "errors")} == {
+        "imported": 1, "updated": 1, "errors": []}
     teachers = client.get(f"/api/teachers?semester_id={sid}").json()
     wang = next(t for t in teachers if t["name"] == "王小明")
     chen = next(t for t in teachers if t["name"] == "陳小美")
