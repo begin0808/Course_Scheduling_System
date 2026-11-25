@@ -35,9 +35,9 @@ DEFAULT_PATROL_LEGEND = (
 SMTP_HOST = "smtp_host"
 SMTP_PORT = "smtp_port"
 SMTP_USER = "smtp_user"
-SMTP_PASSWORD = "smtp_password"
+SMTP_AUTH_FIELD = "smtp_password"  # SMTP 登入密碼存放的 key(值不回傳給前端)
 SMTP_FROM = "smtp_from"
-SMTP_TLS = "smtp_tls"
+# v1.6.0 起一律加密寄信,不再有「是否使用 TLS」的設定;舊版存的 smtp_tls 留在資料表裡不再讀取
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +47,6 @@ class SmtpConfig:
     user: str
     password: str
     sender: str
-    use_tls: bool
 
     @property
     def configured(self) -> bool:
@@ -111,23 +110,21 @@ def smtp_config(db: Session) -> SmtpConfig:
     values = all_settings(db)
     return SmtpConfig(
         host=values.get(SMTP_HOST, ""),
-        # 未設定過時預設 587 + TLS(v1.5.0);已存過的學校照原本的設定
+        # 未設定過時預設 587(STARTTLS);已存過的學校照原本的連接埠
         port=int(values.get(SMTP_PORT) or 587),
         user=values.get(SMTP_USER, ""),
-        password=values.get(SMTP_PASSWORD, ""),
+        password=values.get(SMTP_AUTH_FIELD, ""),
         sender=values.get(SMTP_FROM, ""),
-        use_tls=values.get(SMTP_TLS, "1") == "1",
     )
 
 
 def save_smtp(
-    db: Session, *, host: str, port: int, user: str, password: str, sender: str, use_tls: bool
+    db: Session, *, host: str, port: int, user: str, password: str, sender: str
 ) -> None:
     set_value(db, SMTP_HOST, host.strip())
     set_value(db, SMTP_PORT, str(port))
     set_value(db, SMTP_USER, user.strip())
     # 空密碼視為「不變更」,避免每次存設定都要重打密碼
     if password:
-        set_value(db, SMTP_PASSWORD, password)
+        set_value(db, SMTP_AUTH_FIELD, password)
     set_value(db, SMTP_FROM, sender.strip())
-    set_value(db, SMTP_TLS, "1" if use_tls else "0")

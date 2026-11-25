@@ -6,6 +6,8 @@ export interface ImportResult {
   imported: number
   updated: number // 更新既有教師的筆數
   errors: string[]
+  /** 匯入教師時建立的帳號與系統產生的初始密碼(只在這次回應出現,v1.6.0) */
+  accounts: { name: string, username: string, password: string }[]
 }
 
 export const ENTITY_LABELS: Record<ImportEntity, string> = {

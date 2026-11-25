@@ -115,6 +115,8 @@ export interface TeacherAccount {
   display_name: string
   must_change_password: boolean
   is_active: boolean // 停用後無法登入,帳號與歷史資料仍保留
+  /** 密碼留空時系統產生的初始密碼,只在建立/重設這次回應出現(v1.6.0) */
+  initial_password?: string | null
 }
 
 /** 刪除教師會連帶失去的東西(刪除前先讓使用者看清楚) */

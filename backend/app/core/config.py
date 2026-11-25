@@ -70,8 +70,8 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
     # 新密碼最短長度
     min_password_length: int = 8
-    # 匯入教師並建立帳號時的預設密碼(首次登入強制更改)
-    default_import_password: str = "changeme"
+    # v1.6.0 起沒有「系統預設密碼」:建立或重設帳號時密碼留空,一律為每個帳號產生不同的隨機
+    # 初始密碼(core.security.initial_password),先前公開的預設密碼人人都知道,等於沒有密碼。
 
     # CORS(開發模式前端 dev server 來源)
     cors_origins: list[str] = ["http://localhost", "http://localhost:5173"]

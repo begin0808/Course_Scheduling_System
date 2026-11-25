@@ -13,9 +13,19 @@ import type {
   BindableAccount, Subject, Teacher, TeacherAccount, TeacherDeleteImpact,
 } from '@/api/basedata'
 import TeacherTimeRules from './TeacherTimeRules.vue'
+import InitialPasswords from '@/components/InitialPasswords.vue'
+import type { InitialAccount } from '@/components/InitialPasswords.vue'
 
 const props = defineProps<{ semesterId: number }>()
 const message = useMessage()
+// 系統產生的初始密碼(v1.6.0):只顯示一次
+const generated = ref<InitialAccount[]>([])
+const generatedShow = ref(false)
+function showGenerated(acc: TeacherAccount) {
+  if (!acc.initial_password) return
+  generated.value = [{ name: acc.display_name, username: acc.username, password: acc.initial_password }]
+  generatedShow.value = true
+}
 
 const items = ref<Teacher[]>([])
 const subjects = ref<Subject[]>([])
@@ -95,8 +105,9 @@ async function onCreateAccount() {
     newUsername.value = ''
     message.success(newPassword.value
       ? `已建立帳號 ${acc.username},密碼為你剛才輸入的值;老師首次登入須自行修改`
-      : `已建立帳號 ${acc.username},使用系統預設密碼;老師首次登入須自行修改`)
+      : `已建立帳號 ${acc.username};老師首次登入須自行修改密碼`)
     newPassword.value = ''
+    showGenerated(acc)
   } catch (e) {
     message.error((e as ApiError).detail || '建立帳號失敗')
     return
@@ -112,11 +123,12 @@ async function onResetPassword() {
   if (editingId.value === null) return
   accountBusy.value = true
   try {
-    await resetTeacherPassword(editingId.value, newPassword.value || undefined)
+    const acc = await resetTeacherPassword(editingId.value, newPassword.value || undefined)
     message.success(newPassword.value
       ? '密碼已重設為你剛才輸入的值;老師下次登入須自行修改'
-      : '密碼已重設為系統預設密碼;老師下次登入須自行修改')
+      : '密碼已重設;老師下次登入須自行修改')
     newPassword.value = ''
+    showGenerated(acc)
   } catch (e) {
     message.error((e as ApiError).detail || '重設密碼失敗')
   } finally {
@@ -363,7 +375,7 @@ function openRules(t: Teacher) {
               <n-input
                 key="reset-password"
                 v-model:value="newPassword" type="password" show-password-on="click"
-                placeholder="新密碼(留空=系統預設密碼)" style="width: 230px"
+                placeholder="新密碼(留空=系統自動產生)" style="width: 230px"
                 data-testid="teacher-reset-password"
               />
               <n-popconfirm @positive-click="onResetPassword">
@@ -387,7 +399,7 @@ function openRules(t: Teacher) {
               <n-input
                 key="new-password"
                 v-model:value="newPassword" type="password" show-password-on="click"
-                placeholder="預設密碼(留空=系統預設)" style="width: 210px"
+                placeholder="初始密碼(留空=系統自動產生)" style="width: 230px"
                 data-testid="teacher-new-password"
               />
               <n-button
@@ -417,6 +429,7 @@ function openRules(t: Teacher) {
         @saved="rulesShow = false"
       />
     </n-modal>
+    <initial-passwords v-model:show="generatedShow" :accounts="generated" title="初始密碼(只顯示這一次)" />
   </n-space>
 </template>
 

@@ -20,6 +20,9 @@ async function selectSemester(page: Page, year: number) {
 }
 
 /** 建立/取得綁定 e2e_teacher 帳號的教師「陳老師」。回傳 teacherId。 */
+// 匯入時系統為陳老師產生的初始密碼(v1.6.0 起每個帳號不同,只在匯入回應出現一次)
+let initialPassword = ''
+
 async function bindTeacher(page: Page, sid: number): Promise<number> {
   const file = fileURLToPath(new URL('./fixtures/teachers_with_account.xlsx', import.meta.url))
   const imp = await (await page.request.post(
@@ -27,6 +30,7 @@ async function bindTeacher(page: Page, sid: number): Promise<number> {
     { multipart: { file: { name: 't.xlsx', mimeType: XLSX, buffer: readFileSync(file) } } },
   )).json()
   if (imp.imported === 1) {
+    initialPassword = imp.accounts?.[0]?.password ?? ''
     const list = await get(page, `/api/teachers?semester_id=${sid}`)
     return list.find((x: { name: string }) => x.name === '陳老師').id
   }
@@ -39,14 +43,17 @@ async function bindTeacher(page: Page, sid: number): Promise<number> {
 }
 
 async function ensureTeacherPassword(page: Page) {
+  // 帳號剛由匯入建立 → 用初始密碼首次登入並改成固定密碼;已改過(重跑)則略過。最後一律登出
   await page.request.post('/api/auth/logout')
-  const first = await page.request.post('/api/auth/login',
-    { data: { username: TEACHER_USER, password: 'changeme' } })
-  if (first.ok()) {
-    await page.request.post('/api/auth/change-password',
-      { data: { old_password: 'changeme', new_password: TEACHER_PASS } })
+  if (initialPassword) {
+    const first = await page.request.post('/api/auth/login',
+      { data: { username: TEACHER_USER, password: initialPassword } })
+    if (first.ok()) {
+      await page.request.post('/api/auth/change-password',
+        { data: { old_password: initialPassword, new_password: TEACHER_PASS } })
+    }
+    await page.request.post('/api/auth/logout')
   }
-  await page.request.post('/api/auth/logout')
 }
 
 /**

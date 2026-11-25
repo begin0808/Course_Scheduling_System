@@ -22,7 +22,10 @@ docker compose -f docker-compose.dev.yml up
 - 前端(熱重載):<http://localhost:5173>
 - API 互動文件:<http://localhost:8000/api/docs>
 
-前後端原始碼掛載進容器,存檔即時生效。含 `mailhog`(攔截外送信,Web UI <http://localhost:8025>)須以 `--profile dev` 啟動。
+前後端原始碼掛載進容器,存檔即時生效。
+
+寄信一律加密(STARTTLS 或 465 埠 SMTPS)並驗證伺服器憑證(v1.6.0),不支援加密的假 SMTP(例如 MailHog)接不上;
+要測 Email 請用真正的郵件帳號(例如學校信箱或 Gmail 應用程式密碼),在「系統管理」按「寄測試信」。
 
 ### 各自本機測試
 

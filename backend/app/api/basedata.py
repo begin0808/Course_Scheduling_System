@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_roles
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import hash_password
+from app.core.security import hash_password, initial_password
 from app.models.assignment import AssignmentTeacher
 from app.models.basedata import (
     ClassUnit,
@@ -199,6 +199,13 @@ def list_bindable_accounts(
     ).all()
 
 
+def _account_out(user: User, generated: str | None) -> TeacherAccountOut:
+    """帳號狀態;系統產生的初始密碼只在建立/重設這次附上(v1.6.0)。"""
+    out = TeacherAccountOut.model_validate(user)
+    out.initial_password = generated
+    return out
+
+
 def _teacher_account(db: Session, teacher_id: int) -> tuple[Teacher, User]:
     """取出教師與其綁定帳號;只允許動「純教師角色」的帳號。
 
@@ -229,7 +236,7 @@ def create_teacher_account(
     body: TeacherAccountIn,
     db: Session = Depends(get_db),
     _: object = Depends(editor),
-) -> User:
+) -> TeacherAccountOut:
     """為既有教師補開登入帳號並綁定。
 
     先前只有「Excel 匯入教師時勾選建立帳號」這一條路,匯入後才需要帳號的老師補不了
@@ -243,7 +250,7 @@ def create_teacher_account(
     username = body.username.strip()
     if db.scalar(select(User.id).where(User.username == username)) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"登入帳號「{username}」已存在")
-    password = body.password or settings.default_import_password
+    password, generated = initial_password(body.password)
     if len(password) < settings.min_password_length:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -261,7 +268,7 @@ def create_teacher_account(
     teacher.user_id = user.id
     db.commit()
     db.refresh(user)
-    return user
+    return _account_out(user, generated)
 
 
 @router.post("/teachers/{teacher_id}/account/reset-password", response_model=TeacherAccountOut)
@@ -270,13 +277,13 @@ def reset_teacher_password(
     body: ResetPasswordIn,
     db: Session = Depends(get_db),
     _: object = Depends(editor),
-) -> User:
+) -> TeacherAccountOut:
     """重設教師帳號的密碼;重設後對方下次登入必須自行改密碼。
 
     密碼指紋變了,該帳號既有的登入狀態會立即失效。
     """
     _, user = _teacher_account(db, teacher_id)
-    password = body.password or settings.default_import_password
+    password, generated = initial_password(body.password)
     if len(password) < settings.min_password_length:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -288,7 +295,7 @@ def reset_teacher_password(
     user.locked_until = None
     db.commit()
     db.refresh(user)
-    return user
+    return _account_out(user, generated)
 
 
 @router.get("/teachers/{teacher_id}/account", response_model=TeacherAccountOut | None)

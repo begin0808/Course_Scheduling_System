@@ -1,5 +1,9 @@
-"""v1.5.1 寄測試信:用已儲存的設定寄出,失敗時寫出可能原因(自簽憑證、帳密錯誤、找不到主機…)。"""
+"""v1.5.1 寄測試信:用已儲存的設定寄出,失敗時寫出可能原因(自簽憑證、帳密錯誤、找不到主機…)。
 
+v1.6.0:一律加密,設定不再有 use_tls;測試用的 SMTP 密碼執行時產生。
+"""
+
+import secrets
 import smtplib
 import socket
 import ssl
@@ -12,8 +16,8 @@ from app.services.settings import SmtpConfig
 from tests.conftest import make_user
 
 PW = "password123"
-CFG = SmtpConfig(host="smtp.example.edu.tw", port=587, user="u", password="p",
-                 sender="noreply@example.edu.tw", use_tls=True)
+CFG = SmtpConfig(host="smtp.example.edu.tw", port=587, user="u",
+                 password=secrets.token_urlsafe(8), sender="noreply@example.edu.tw")
 
 
 @pytest.fixture
@@ -26,8 +30,8 @@ def admin(env):
 
 def _save(client, host="smtp.example.edu.tw"):
     r = client.put("/api/settings/smtp", json={
-        "host": host, "port": 587, "user": "u", "password": "p",
-        "sender": "noreply@example.edu.tw", "use_tls": True})
+        "host": host, "port": 587, "user": "u", "password": CFG.password,
+        "sender": "noreply@example.edu.tw"})
     assert r.status_code == 200
 
 
@@ -78,7 +82,7 @@ def test_requires_admin(env):
     (smtplib.SMTPNotSupportedError("STARTTLS extension not supported."), "不支援 STARTTLS"),
     (smtplib.SMTPServerDisconnected("Connection unexpectedly closed"), "中斷了連線"),
     (ssl.SSLCertVerificationError(1, "certificate verify failed"), "自簽憑證"),
-    (ssl.SSLError(1, "[SSL: WRONG_VERSION_NUMBER] wrong version"), "連接埠與加密方式可能不符"),
+    (ssl.SSLError(1, "[SSL: WRONG_VERSION_NUMBER] wrong version"), "連接埠可能不對"),
     (socket.gaierror(-2, "Name or service not known"), "找不到郵件主機「smtp.example.edu.tw」"),
     (TimeoutError("timed out"), "smtp.example.edu.tw:587 逾時"),
     (ConnectionRefusedError(111, "Connection refused"), "smtp.example.edu.tw:587 拒絕連線"),

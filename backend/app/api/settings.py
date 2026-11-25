@@ -39,7 +39,7 @@ def _smtp_out(db: Session) -> SmtpSettingsOut:
     cfg = app_settings.smtp_config(db)
     return SmtpSettingsOut(
         host=cfg.host, port=cfg.port, user=cfg.user, sender=cfg.sender,
-        use_tls=cfg.use_tls, configured=cfg.configured, has_password=bool(cfg.password),
+        configured=cfg.configured, has_password=bool(cfg.password),
     )
 
 
@@ -55,7 +55,7 @@ def put_smtp(
 ):
     app_settings.save_smtp(
         db, host=body.host, port=body.port, user=body.user, password=body.password,
-        sender=body.sender, use_tls=body.use_tls,
+        sender=body.sender,
     )
     db.add(AuditLog(
         user_id=user.id, username=user.username, action="update_smtp",

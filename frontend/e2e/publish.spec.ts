@@ -117,6 +117,8 @@ test.describe('教師端(手機)', () => {
     )).json()
 
     let teacherId: number
+    // 匯入時系統為陳老師產生的初始密碼(v1.6.0 起每個帳號不同,只在匯入回應出現一次)
+    const initialPassword: string = imp.accounts?.[0]?.password ?? ''
     if (imp.imported === 1) {
       const list = await get(page, `/api/teachers?semester_id=${sid}`)
       teacherId = list.find((x: { name: string }) => x.name === '陳老師').id
@@ -147,15 +149,17 @@ test.describe('教師端(手機)', () => {
 
     // 首登需改密碼 → 以 API 一次設定為固定密碼(非本卡驗收重點);已改過則忽略
     await page.request.post('/api/auth/logout')
-    const first = await page.request.post('/api/auth/login', {
-      data: { username: TEACHER_USER, password: 'changeme' },
-    })
-    if (first.ok()) {
-      await page.request.post('/api/auth/change-password', {
-        data: { old_password: 'changeme', new_password: TEACHER_PASS },
+    if (initialPassword) {
+      const first = await page.request.post('/api/auth/login', {
+        data: { username: TEACHER_USER, password: initialPassword },
       })
+      if (first.ok()) {
+        await page.request.post('/api/auth/change-password', {
+          data: { old_password: initialPassword, new_password: TEACHER_PASS },
+        })
+      }
+      await page.request.post('/api/auth/logout')
     }
-    await page.request.post('/api/auth/logout')
 
     // ── 以教師身分登入(手機尺寸)──
     await login(page, TEACHER_USER, TEACHER_PASS)

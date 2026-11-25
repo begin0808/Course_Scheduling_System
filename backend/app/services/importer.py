@@ -13,8 +13,7 @@ from openpyxl.styles import Font
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.core.security import hash_password
+from app.core.security import hash_password, temp_password
 from app.core.validators import is_valid_email
 from app.models.assignment import AssignmentTeacher, BlockRule, CourseAssignment
 from app.models.basedata import (
@@ -107,6 +106,9 @@ class ImportResult:
     imported: int = 0
     updated: int = 0          # 更新既有資料的筆數(目前只有教師匯入會用到)
     errors: list[str] = field(default_factory=list)
+    # 匯入教師時建立的帳號:[{name, username, password}]。密碼是系統為每位老師產生的
+    # 初始密碼,只在這次回應交給組長發給老師(資料庫只存雜湊),v1.6.0
+    accounts: list[dict[str, str]] = field(default_factory=list)
 
 
 def build_template(entity: str) -> bytes:
@@ -378,13 +380,16 @@ def _import_teachers(
         db.add(teacher)
         if username:
             # 綁定新建帳號:teacher.user 賦值於 flush 時寫入 teachers.user_id
+            password = temp_password()
             teacher.user = User(
                 username=username,
-                password_hash=hash_password(settings.default_import_password),
+                password_hash=hash_password(password),
                 display_name=teacher.name,
                 must_change_password=True,
                 roles=[UserRole(role=Role.teacher.value)],
             )
+            result.accounts.append(
+                {"name": teacher.name, "username": username, "password": password})
     for teacher, fields, new_subjects in updates:
         for attr, value in fields.items():
             setattr(teacher, attr, value)

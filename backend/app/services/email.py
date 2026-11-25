@@ -4,8 +4,9 @@
 SMTP 未設定時 `send` 直接回 False——站內通知已經送達,Email 只是加分,不該讓整個
 調代課流程因為沒設信箱而失敗。
 
-傳輸安全(v1.5.0,數發部源碼檢測):465 埠走 SMTPS(一連線就加密),勾 TLS 時走 STARTTLS;
-兩者都**驗證伺服器憑證**(先前 starttls() 沒帶 context,不驗證憑證,等於可被中間人攔截)。
+傳輸安全(數發部源碼檢測):465 埠走 SMTPS(一連線就加密),其他埠一律 STARTTLS;
+兩者都**驗證伺服器憑證**(v1.5.0;先前 starttls() 沒帶 context,不驗證憑證,等於可被中間人攔截)。
+v1.6.0 起**不再提供不加密寄信**:先前不勾 TLS 時帳密與信件內容以明文傳送。
 
 寄測試信(v1.5.1):`describe_error` 把常見的 SMTP 錯誤翻成組長看得懂的說明,原始訊息附在後面。
 """
@@ -45,13 +46,19 @@ SMTPS_PORT = 465
 
 
 def _connect(cfg: app_settings.SmtpConfig) -> smtplib.SMTP:
-    """連上 SMTP 伺服器;465 埠或勾 TLS 時加密並驗證憑證。"""
+    """連上 SMTP 伺服器並加密(465 埠 SMTPS,其他埠 STARTTLS),一律驗證伺服器憑證。
+
+    伺服器不支援 STARTTLS 時 starttls() 擲 SMTPNotSupportedError,不會退回明文。
+    """
     context = ssl.create_default_context()
     if cfg.port == SMTPS_PORT:
         return smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=15, context=context)
     server = smtplib.SMTP(cfg.host, cfg.port, timeout=15)
-    if cfg.use_tls:
+    try:
         server.starttls(context=context)
+    except Exception:
+        server.close()
+        raise
     return server
 
 
@@ -68,15 +75,16 @@ def describe_error(exc: BaseException, cfg: app_settings.SmtpConfig) -> str:
     elif isinstance(exc, smtplib.SMTPRecipientsRefused):
         hint = "郵件伺服器拒收這個收件人:請確認收件人 Email"
     elif isinstance(exc, smtplib.SMTPNotSupportedError):
-        hint = "郵件伺服器不支援 STARTTLS 加密:若伺服器提供 465 埠,請改用 465 埠"
+        hint = ("郵件伺服器不支援 STARTTLS 加密,系統不以明文寄信:若伺服器提供 465 埠請改用 465 埠,"
+                "或改用支援加密的郵件伺服器")
     elif isinstance(exc, smtplib.SMTPServerDisconnected):
         hint = (f"郵件伺服器 {where} 中斷了連線:"
-                "請確認連接埠與加密方式(587 埠勾「使用 TLS」、465 埠是 SMTPS)")
+                "請確認連接埠(一般是 587 埠 STARTTLS,或 465 埠 SMTPS)")
     elif isinstance(exc, ssl.SSLCertVerificationError):
         hint = ("郵件伺服器的憑證驗證失敗,可能是自簽憑證、憑證過期,或主機名稱和憑證不符:"
                 "請改用有正式憑證的郵件伺服器,或請資訊人員協助")
     elif isinstance(exc, ssl.SSLError):
-        hint = "加密連線失敗:連接埠與加密方式可能不符(587 埠勾「使用 TLS」、465 埠是 SMTPS)"
+        hint = "加密連線失敗:連接埠可能不對(一般是 587 埠 STARTTLS,或 465 埠 SMTPS)"
     elif isinstance(exc, socket.gaierror):
         hint = f"找不到郵件主機「{cfg.host}」:請確認主機名稱"
     elif isinstance(exc, TimeoutError):

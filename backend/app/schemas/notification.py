@@ -46,7 +46,7 @@ class SmtpSettingsIn(BaseModel):
     user: str = Field(default="", max_length=200)
     password: str = Field(default="", max_length=200)  # 空=不變更
     sender: str = Field(default="", max_length=200)
-    use_tls: bool = False
+    # v1.6.0 起一律加密,舊版前端送來的 use_tls 直接忽略(pydantic 預設忽略多餘欄位)
 
 
 class SmtpSettingsOut(BaseModel):
@@ -54,6 +54,5 @@ class SmtpSettingsOut(BaseModel):
     port: int
     user: str
     sender: str
-    use_tls: bool
     configured: bool
     has_password: bool  # 是否已存過密碼(不回傳明文)

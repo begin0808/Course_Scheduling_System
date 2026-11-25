@@ -12,10 +12,20 @@ import {
   setUserRoles,
 } from '@/api/users'
 import type { ManagedRole, UserAccount } from '@/api/users'
+import InitialPasswords from '@/components/InitialPasswords.vue'
+import type { InitialAccount } from '@/components/InitialPasswords.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const message = useMessage()
 const auth = useAuthStore()
+// 系統產生的初始密碼(v1.6.0):只顯示一次
+const generated = ref<InitialAccount[]>([])
+const generatedShow = ref(false)
+function showGenerated(u: UserAccount) {
+  if (!u.initial_password) return
+  generated.value = [{ name: u.display_name, username: u.username, password: u.initial_password }]
+  generatedShow.value = true
+}
 
 const users = ref<UserAccount[]>([])
 const scope = ref<'staff' | 'all'>('staff')
@@ -55,6 +65,7 @@ async function onCreate() {
     const u = await createUser(form.value)
     createShow.value = false
     message.success(`已建立「${u.display_name}」的帳號,對方第一次登入時要自行改密碼`)
+    showGenerated(u)
     await reload()
   } catch (e) {
     message.error(errorText(e, '建立失敗'))
@@ -98,9 +109,10 @@ function openPassword(u: UserAccount) {
 async function onResetPassword() {
   if (!target.value) return
   try {
-    await resetUserPassword(target.value.id, newPassword.value)
+    const u = await resetUserPassword(target.value.id, newPassword.value)
     pwShow.value = false
     message.success('已重設密碼,對方下次登入時要自行改密碼')
+    showGenerated(u)
     await reload()
   } catch (e) {
     message.error(errorText(e, '重設失敗'))
@@ -212,7 +224,7 @@ async function onToggleActive(u: UserAccount) {
         <n-text>初始密碼</n-text>
         <n-input
           v-model:value="form.password" type="password" show-password-on="click"
-          placeholder="留空使用系統預設密碼(與匯入教師相同)" data-testid="acc-new-password"
+          placeholder="留空由系統自動產生(建立後顯示一次)" data-testid="acc-new-password"
         />
         <n-text>身分</n-text>
         <n-checkbox-group v-model:value="form.roles" data-testid="acc-new-roles">
@@ -251,7 +263,7 @@ async function onToggleActive(u: UserAccount) {
       <n-space vertical>
         <n-input
           v-model:value="newPassword" type="password" show-password-on="click"
-          placeholder="留空使用系統預設密碼" data-testid="acc-pw-input"
+          placeholder="留空由系統自動產生(重設後顯示一次)" data-testid="acc-pw-input"
         />
         <n-text depth="3" style="font-size: 12px">
           重設後對方目前的登入會立即失效,下次登入時要自行設定新密碼。
@@ -259,6 +271,7 @@ async function onToggleActive(u: UserAccount) {
         <n-button type="primary" data-testid="acc-pw-save" @click="onResetPassword">重設</n-button>
       </n-space>
     </n-modal>
+    <initial-passwords v-model:show="generatedShow" :accounts="generated" title="初始密碼(只顯示這一次)" />
   </div>
 </template>
 
