@@ -30,7 +30,11 @@ class PreflightOut(BaseModel):
 
 # ── 軟約束設定與達成度(M3-3)────────────
 class ConstraintConfigIn(BaseModel):
-    """權重 0 = 關閉該項軟約束。設定 UI 於 v2 才做,先以 API 調整。"""
+    """權重 0 = 關閉該項軟約束。
+
+    同班同科目每日上限(daily_subject_cap)自 v1.6.1 可在「自動排課」頁的排課規則調整;
+    其餘參數與權重仍以 API 調整。
+    """
 
     daily_subject_cap: int = Field(default=2, ge=1, le=8)
     teacher_daily_max: int = Field(default=6, ge=1, le=12)

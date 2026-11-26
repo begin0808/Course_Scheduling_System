@@ -779,6 +779,7 @@ def test_daily_cap_follows_the_semester_config(env):
     blocked = place(day1[2])
     assert blocked.status_code == 409
     assert "每日上限 2 節" in str(blocked.json()["detail"])
+    assert "自動排課" in str(blocked.json()["detail"])  # v1.6.1:指出上限在哪裡調整
 
     # 學期設定改為 3 → 同一格立刻放得下,訊息裡的數字也跟著變
     client.put(f"/api/solver/config?semester_id={sid}", json={

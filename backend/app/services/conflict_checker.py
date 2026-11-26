@@ -342,7 +342,7 @@ class _Checker:
                         conflicts.append(Conflict(
                             "H10",
                             f"班級 {c.name} {_wd(wd)} 已排「{a.subject.name}」{existing} 節,"
-                            f"達每日上限 {self.cap} 節",
+                            f"達每日上限 {self.cap} 節(可在「自動排課」頁的排課規則調整)",
                         ))
 
             # 累積批次教師/場地佔用(同群組其他門課據此互檢)
