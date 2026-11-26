@@ -223,7 +223,7 @@
     <div class="brand">
       <span class="mark">排課與調代課系統</span>
     </div>
-    <div class="brand"><span class="sub">教學組長操作手冊 · 對應 v1.6.1</span></div>
+    <div class="brand"><span class="sub">教學組長操作手冊 · 對應 v1.7.0</span></div>
     <div class="grp">本手冊章節</div>
     <nav id="toc">
       <a href="#intro"><span class="n">00</span>如何使用本手冊</a>
@@ -265,7 +265,7 @@
           <span class="chip">繁體中文 · 台灣教務用語</span>
           <span class="chip">單校自架 · 資料不出校</span>
           <span class="chip">開源免費(AGPL-3.0)</span>
-          <span class="chip">對應系統 v1.6.1 · 更新於 2026-11-26</span>
+          <span class="chip">對應系統 v1.7.0 · 更新於 2026-11-27</span>
         </div>
       </header>
 
@@ -760,7 +760,7 @@
 
         <h3>系統版本與新版本提醒</h3>
         <p>頁面最上方的<strong>系統版本</strong>卡片會顯示<strong>目前版本</strong>與 GitHub 上的<strong>最新正式版</strong>。有新版本時,卡片會提示並附上「這一版更新了什麼」與「升級指南」的連結,右上角也會出現「有新版本」的標籤(只有系統管理員看得到)。左側選單最下方則隨時顯示目前版本,回報問題時很方便。</p>
-        <div class="cal note"><div class="lab">📌 只提醒,不會自動升級</div><p>升級一定由學校自己決定:先「立即備份」,再照升級指南修改 <code>.env</code> 的 <code>IMAGE_TAG</code>、執行 <code>docker compose pull</code> 與 <code>docker compose up -d</code>。系統每天最多查一次 GitHub 公開的版本資訊,不會傳出學校資料;主機不能連外時只會顯示「無法連線」,不影響任何功能。不想讓主機連外,可在 <code>.env</code> 設 <code>UPDATE_CHECK_ENABLED=false</code> 關閉。</p></div>
+        <div class="cal note"><div class="lab">📌 只提醒,不會自動升級</div><p>升級一定由學校自己決定:先「立即備份」,再照升級指南修改 <code>.env</code> 的 <code>IMAGE_TAG</code>、執行 <code>docker compose pull</code> 與 <code>docker compose up -d</code>。還在 v1.4.x 以前的學校,要升到 v1.7.0 以後請<strong>先升 v1.6.1、再升新版</strong>(直接跳升時系統會停在啟動階段並寫出說明,資料不受影響)。系統每天最多查一次 GitHub 公開的版本資訊,不會傳出學校資料;主機不能連外時只會顯示「無法連線」,不影響任何功能。不想讓主機連外,可在 <code>.env</code> 設 <code>UPDATE_CHECK_ENABLED=false</code> 關閉。</p></div>
 
         <h3>帳號管理(v1.3.1)</h3>
         <p><span class="path"><b>帳號管理</b></span>(左側選單,只有系統管理員看得到)——教學組長、教務主任的帳號與角色在這裡設定。</p>
@@ -893,7 +893,7 @@
         <p>「行政職稱」只用在減課與顯示,不會改變登入權限。請系統管理員到 <span class="path"><b>帳號管理</b></span>:組長本身是教師的話,切到「全部帳號」找到他的帳號,按「設定身分」勾選「教學組長」;要另外開帳號就按「新增帳號」(見第 10 章)。v1.3.0 以前沒有這個畫面,請先用安裝時的系統管理員帳號操作,或升級到 v1.3.1。</p>
 
         <h4>Q. 忘記密碼了?</h4>
-        <p>教師、組長忘記密碼,請系統管理員到 <span class="path"><b>帳號管理</b></span> 重設。<strong>系統管理員</strong>自己忘了密碼(或剛裝好就一直登不進去、被鎖 15 分鐘),請負責架設的人在主機的系統資料夾執行 <code>docker compose exec api python -m app.scripts.reset_admin</code>:畫面會印出一組臨時密碼並解除鎖定,登入後再改成自己的密碼,資料完全不受影響(v1.3.2 起)。<code>.env</code> 的 <code>ADMIN_PASSWORD</code> 只在第一次啟動時使用,事後改它沒有作用。</p>
+        <p>教師、組長忘記密碼,請系統管理員到 <span class="path"><b>帳號管理</b></span> 重設。<strong>系統管理員</strong>自己忘了密碼(或剛裝好就一直登不進去、被鎖 15 分鐘),請負責架設的人在主機的系統資料夾執行 <code>docker compose exec api python -m app.scripts.reset_admin</code>:依畫面提示輸入新密碼兩次(輸入時不會顯示),同時解除鎖定,再用新密碼登入,資料完全不受影響(v1.7.0 起;舊版是在畫面上印出臨時密碼)。<code>.env</code> 的 <code>ADMIN_PASSWORD</code> 只在第一次啟動時使用,事後改它沒有作用。</p>
 
         <h4>Q. 老師收不到 Email 通知?</h4>
         <p>Email 是選填功能。若「系統管理」沒設定 SMTP,就只有站內鈴鐺通知,這是正常的。要寄 Email 需填學校 SMTP,並按「寄測試信」確認寄得出去;寄不出去時畫面會寫出原因。</p>
@@ -914,8 +914,8 @@
         </div>
 
         <div class="foot">
-          <p>排課與調代課系統 · 教學組長操作手冊 · 對應 v1.6.1 · 開源免費(AGPL-3.0)· 單校自架</p>
-          <p>本手冊隨系統版本更新;截圖對應系統 v1.4.7,文字內容已更新至 v1.6.1(最後更新:2026-11-26)。</p>
+          <p>排課與調代課系統 · 教學組長操作手冊 · 對應 v1.7.0 · 開源免費(AGPL-3.0)· 單校自架</p>
+          <p>本手冊隨系統版本更新;截圖對應系統 v1.4.7,文字內容已更新至 v1.7.0(最後更新:2026-11-27)。</p>
         </div>
       </section>
 

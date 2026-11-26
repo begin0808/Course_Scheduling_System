@@ -53,9 +53,12 @@ const isMe = (u: UserAccount) => u.username === auth.user?.username
 
 // ── 新增帳號 ──
 const createShow = ref(false)
-const form = ref({ username: '', display_name: '', password: '', roles: ['scheduler'] as ManagedRole[] })
+// 沒填密碼用 null 表示(v1.7.0,數發部源碼檢測「空字串密碼」)
+const form = ref({
+  username: '', display_name: '', password: null as string | null, roles: ['scheduler'] as ManagedRole[],
+})
 function openCreate() {
-  form.value = { username: '', display_name: '', password: '', roles: ['scheduler'] }
+  form.value = { username: '', display_name: '', password: null, roles: ['scheduler'] }
   createShow.value = true
 }
 async function onCreate() {
@@ -100,10 +103,10 @@ async function onSaveRoles() {
 
 // ── 重設密碼 ──
 const pwShow = ref(false)
-const newPassword = ref('')
+const newPassword = ref<string | null>(null)
 function openPassword(u: UserAccount) {
   target.value = u
-  newPassword.value = ''
+  newPassword.value = null
   pwShow.value = true
 }
 async function onResetPassword() {

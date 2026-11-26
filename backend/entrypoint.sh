@@ -6,12 +6,20 @@
 # 兩者同一個映像,只差在守哪條佇列(M6-2)。
 set -e
 
-# 不以 root 執行(v1.5.0):以 root 啟動時,先把備份 volume 的擁有者改成 app
-# (v1.4 以前的備份是 root 寫入的),再降成 app 使用者重新執行本腳本。
-# docker compose exec 進來的維運指令(reset_admin 等)不經過這裡,照常可用。
-if [ "$(id -u)" = "0" ]; then
-    chown -R app:app /backups 2>/dev/null || true
-    exec setpriv --reuid=app --regid=app --init-groups env HOME=/home/app "$0" "$@"
+# 不以 root 執行(v1.7.0 起映像以 USER app 啟動)。v1.5.0~v1.6.x 由這裡以 root 把
+# v1.4 以前 root 寫入的備份 volume 改成 app 所有再降權;現在沒有 root 可用,
+# 所以從 v1.4 以前直接跳升會寫不進備份資料夾——先擋下來,不要在沒有備份的情況下升級資料庫。
+BACKUP_DIR="${BACKUP_DIR:-/backups}"
+if [ -d "$BACKUP_DIR" ] && [ ! -w "$BACKUP_DIR" ]; then
+    cat >&2 <<EOF
+[entrypoint] 備份資料夾 $BACKUP_DIR 無法寫入,系統先不啟動。
+[entrypoint] 這通常是從 v1.4.x 以前的版本直接升級到 v1.7.0 以後造成的。請分兩次升級:
+[entrypoint]   1. 把 .env 的 IMAGE_TAG 改成 v1.6.1,執行 docker compose pull 與 docker compose up -d,
+[entrypoint]      等系統正常啟動(v1.6.1 會自動修正備份資料夾的權限);
+[entrypoint]   2. 再把 IMAGE_TAG 改成要升級的版本,重新 pull 與 up -d。
+[entrypoint] 資料沒有任何變動。詳見升級指南:docs/deploy/upgrade.md
+EOF
+    exit 1
 fi
 
 ROLE="${1:-api}"

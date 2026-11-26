@@ -1,0 +1,9 @@
+{
+  "name": "highlight.js",
+  "version": "0.0.0-types-only",
+  "description": "本專案自帶的替代套件(v1.7.0):naive-ui 只用到 highlight.js 的型別,執行時不會載入。用 npm overrides 換掉真正的 highlight.js,正式網頁與相依清單都不會含它。",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "types": "index.d.ts",
+  "main": "index.js"
+}

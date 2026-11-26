@@ -58,10 +58,11 @@ def ensure_admin() -> None:
         if configured:
             logger.info("已建立初始管理員帳號:%s(首次登入需改密碼)", settings.admin_username)
         else:
-            # 沒設 ADMIN_PASSWORD(v1.5.0 起程式不內建預設密碼):產生臨時密碼寫在啟動紀錄,
-            # 架設的人用 docker compose logs api 查看;登入後強制更改
+            # 沒設 ADMIN_PASSWORD:帳號先以沒人知道的隨機密碼建立。v1.5.0~v1.6.x 會把臨時密碼
+            # 寫在啟動紀錄;v1.7.0 起密碼不再出現在任何輸出(數發部源碼檢測),改請架設的人
+            # 用重設指令自己設定密碼
             logger.warning(
-                "已建立初始管理員帳號:%s,臨時密碼:%s(.env 沒有設定 ADMIN_PASSWORD;"
-                "登入後系統會要求立即改成新密碼)",
-                settings.admin_username, password,
+                "已建立初始管理員帳號:%s,但 .env 沒有設定 ADMIN_PASSWORD。請在系統資料夾執行"
+                " docker compose exec api python -m app.scripts.reset_admin 設定管理員密碼。",
+                settings.admin_username,
             )

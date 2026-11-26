@@ -129,17 +129,18 @@ export interface TeacherDeleteImpact {
   homeroom_classes: number
   account_username: string
 }
-export const createTeacherAccount = (teacherId: number, username: string, password?: string) =>
-  apiPost<TeacherAccount>(`/teachers/${teacherId}/account`, { username, password: password ?? '' })
+// 密碼沒填就不送,由系統產生初始密碼(v1.6.0)
+export const createTeacherAccount = (teacherId: number, username: string, password?: string | null) =>
+  apiPost<TeacherAccount>(`/teachers/${teacherId}/account`, password ? { username, password } : { username })
 export const getTeacherAccount = (teacherId: number) =>
   apiGet<TeacherAccount | null>(`/teachers/${teacherId}/account`)
 export const setTeacherAccountActive = (teacherId: number, isActive: boolean) =>
   apiPost<TeacherAccount>(`/teachers/${teacherId}/account/active`, { is_active: isActive })
 export const getTeacherDeleteImpact = (teacherId: number) =>
   apiGet<TeacherDeleteImpact>(`/teachers/${teacherId}/delete-impact`)
-export const resetTeacherPassword = (teacherId: number, password?: string) =>
+export const resetTeacherPassword = (teacherId: number, password?: string | null) =>
   apiPost<TeacherAccount>(`/teachers/${teacherId}/account/reset-password`,
-    { password: password ?? '' })
+    password ? { password } : {})
 export const getTimeRules = (id: number) => apiGet<TeacherTimeRule[]>(`/teachers/${id}/time-rules`)
 export const replaceTimeRules = (id: number, rules: TeacherTimeRule[]) =>
   request<TeacherTimeRule[]>('PUT', `/teachers/${id}/time-rules`, rules)

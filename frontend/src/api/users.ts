@@ -25,14 +25,15 @@ export interface UserAccount {
 }
 
 export const listUsers = () => apiGet<UserAccount[]>('/users')
-export const createUser = (body: {
-  username: string; display_name: string; password: string; roles: ManagedRole[]
-}) => apiPost<UserAccount>('/users', body)
+// 密碼留空(null)就不送,由系統產生初始密碼(v1.6.0;v1.7.0 起前端不再用空字串代表沒有密碼)
+export const createUser = ({ password, ...rest }: {
+  username: string; display_name: string; password: string | null; roles: ManagedRole[]
+}) => apiPost<UserAccount>('/users', password ? { ...rest, password } : rest)
 export const setUserRoles = (id: number, roles: ManagedRole[]) =>
   apiPut<UserAccount>(`/users/${id}/roles`, { roles })
 export const renameUser = (id: number, displayName: string) =>
   request<UserAccount>('PATCH', `/users/${id}`, { display_name: displayName })
-export const resetUserPassword = (id: number, password: string) =>
-  apiPost<UserAccount>(`/users/${id}/reset-password`, { password })
+export const resetUserPassword = (id: number, password: string | null) =>
+  apiPost<UserAccount>(`/users/${id}/reset-password`, password ? { password } : {})
 export const setUserActive = (id: number, isActive: boolean) =>
   apiPost<UserAccount>(`/users/${id}/active`, { is_active: isActive })

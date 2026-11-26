@@ -159,16 +159,17 @@ async function onUploadRestore({ file, onFinish, onError }: UploadCustomRequestO
   }
 }
 
+// 密碼欄位沒填用 null 表示(v1.7.0,數發部源碼檢測「空字串密碼」);沒填就沿用已存的密碼
 const smtp = ref({
-  host: '', port: 587, user: '', password: '', sender: '',
+  host: '', port: 587, user: '', password: null as string | null, sender: '',
 })
 const configured = ref(false)
 const hasPassword = ref(false)
 const savingSmtp = ref(false)
 // 寄測試信(v1.5.1):用「已儲存」的設定寄,所以畫面上改了還沒儲存時不能按,免得測到舊設定
 const savedSmtp = ref('')
-const smtpKey = () => JSON.stringify({ ...smtp.value, password: '' })
-const smtpDirty = computed(() => smtpKey() !== savedSmtp.value || smtp.value.password !== '')
+const smtpKey = () => JSON.stringify({ ...smtp.value, password: null })
+const smtpDirty = computed(() => smtpKey() !== savedSmtp.value || !!smtp.value.password)
 const testTo = ref('')
 const testingSmtp = ref(false)
 const testResult = ref<{ ok: boolean, text: string } | null>(null)
@@ -214,7 +215,7 @@ onMounted(async () => {
   void loadUpdate()
   void loadUpgradeNotice()
   const s = await getSmtp()
-  smtp.value = { host: s.host, port: s.port, user: s.user, password: '', sender: s.sender }
+  smtp.value = { host: s.host, port: s.port, user: s.user, password: null, sender: s.sender }
   savedSmtp.value = smtpKey()
   configured.value = s.configured
   hasPassword.value = s.has_password
@@ -272,7 +273,7 @@ async function onSaveSmtp() {
     const s = await saveSmtp(smtp.value)
     configured.value = s.configured
     hasPassword.value = s.has_password
-    smtp.value.password = ''
+    smtp.value.password = null
     savedSmtp.value = smtpKey()
     testResult.value = null
     message.success('已儲存 SMTP 設定')
