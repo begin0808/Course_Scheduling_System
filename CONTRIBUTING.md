@@ -63,7 +63,8 @@ cd frontend && npm install && npm run test
 對「執行中的 Docker 全棧」驅動真實瀏覽器。需先 `docker compose up -d`,再建立測試帳號(`e2e_scheduler` / `e2e_teacher` / `e2e_admin` / `e2e_newuser`,並將設定精靈標記完成):
 
 ```bash
-docker compose exec -T api python -m app.scripts.seed_e2e
+# seed 程式放在 backend/tests/(v1.7.0 起不進正式映像),由主機送進 api 容器執行
+docker compose exec -T api python - < backend/tests/seed_e2e.py
 
 cd frontend
 npx playwright install chromium   # 首次

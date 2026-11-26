@@ -27,7 +27,8 @@ OUT_DIR = ROOT / "dist-scan"
 # (樣式, 說明)。樣式以 / 結尾代表整個資料夾;其他用 fnmatch 比對完整路徑。
 EXCLUDES: list[tuple[str, str]] = [
     ("backend/tests/", "後端自動化測試(pytest)。只在開發與 CI 執行;"
-     "backend/.dockerignore 排除 tests/,正式映像不含。測試資料裡的帳號密碼都是假的。"),
+     "backend/.dockerignore 排除 tests/,正式映像不含。測試資料裡的帳號密碼都是假的;"
+     "建立端對端測試帳號的 seed_e2e.py 也在這裡,由開發者從主機送進測試用容器執行。"),
     ("frontend/e2e/", "前端端對端測試(Playwright)與手冊截圖、示範影片的錄製腳本。"
      "只在開發與 CI 執行,不會建置進網頁。"),
     ("frontend/src/**.test.ts", "前端單元測試(Vitest)。vite build 不會打包 *.test.ts。"),

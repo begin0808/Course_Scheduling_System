@@ -9,8 +9,10 @@
   wizard.spec 會自行 reset 再走完整流程,不受影響)
 
 冪等:已存在的帳號不重建、不改密碼。**唯一例外是 e2e_newuser**——見下方說明。
-用法(容器內):
-    docker compose exec -T api python -m app.scripts.seed_e2e
+
+v1.7.0 起放在 tests/(映像建置時排除),正式映像不含這些帳號密碼公開的測試帳號。
+用法(在專案根目錄,由主機把這支程式送進 api 容器執行):
+    docker compose exec -T api python - < backend/tests/seed_e2e.py
 """
 
 from sqlalchemy import select
