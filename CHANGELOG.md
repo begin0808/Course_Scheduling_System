@@ -45,6 +45,10 @@
   排除測試程式、開發工具、文件與 CI 設定,附 `SCAN_EXCLUSIONS.md` 逐項說明排除了什麼、為什麼;
   `--verify` 會用解開的內容實際建置三個映像。壓縮檔附在 GitHub Release。
 
+- **正式映像不再含 E2E 測試帳號的建立程式**:`seed_e2e`(建立帳號密碼公開的測試帳號,含一個系統管理員)
+  從 `app/scripts/` 移到 `backend/tests/`,建置映像時排除;開發與 CI 改用
+  `docker compose exec -T api python - < backend/tests/seed_e2e.py` 從主機送進容器執行。
+
 ### 變更
 - 移除版本庫裡誤加入的空檔案 `jobs.txt`。
 

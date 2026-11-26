@@ -217,7 +217,7 @@ jobs:
           EOF
           docker compose up -d --no-build --wait --wait-timeout 180
       - name: 建立 E2E 帳號與精靈狀態
-        run: docker compose exec -T api python -m app.scripts.seed_e2e
+        run: docker compose exec -T api python - < backend/tests/seed_e2e.py
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
