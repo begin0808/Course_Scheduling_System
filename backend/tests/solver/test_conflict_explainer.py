@@ -208,6 +208,7 @@ def test_daily_subject_cap_conflict_reports_the_arithmetic(db):
     assert cause.detail["ceiling"] == 10
     assert "12" in cause.message and "10" in cause.message
     assert "連堂" in cause.suggestion
+    assert "自動排課" in cause.suggestion  # v1.6.1:告訴組長上限在哪裡改
     assert report.relaxable_codes == ("H10",)
 
 

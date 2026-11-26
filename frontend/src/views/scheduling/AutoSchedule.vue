@@ -9,10 +9,11 @@ import type { ApiError } from '@/api/client'
 import { listSemesters, defaultSemester } from '@/api/semesters'
 import type { SemesterListItem } from '@/api/semesters'
 import {
-  cancelSolveJob, getSolveJob, listRelaxable, preflight, startAutoSchedule, stopSolveJob,
+  cancelSolveJob, getConstraintConfig, getSolveJob, listRelaxable, preflight, saveConstraintConfig,
+  startAutoSchedule, stopSolveJob,
 } from '@/api/solver'
 import type {
-  PreflightIssue, PreflightReport, RelaxableOption, SolveJob,
+  ConstraintConfig, PreflightIssue, PreflightReport, RelaxableOption, SolveJob,
 } from '@/api/solver'
 import { createTimetable, listTimetables } from '@/api/timetables'
 import type { TimetableBrief } from '@/api/timetables'
@@ -36,6 +37,45 @@ const starting = ref(false)
 const relaxable = ref<RelaxableOption[]>([])
 const allowPartial = ref(false)
 const relax = ref<string[]>([])
+
+// 排課規則(v1.6.1):同班同科目每日節數上限。手動拖課、自動排課、檢查課表都用這個值,
+// 每個學期各存一份;以前只有 API 改得到,畫面上一直是預設的 2 節。
+const config = ref<ConstraintConfig | null>(null)
+const dailyCap = ref<number | null>(2)
+const savingRules = ref(false)
+const rulesDirty = computed(() =>
+  config.value !== null && dailyCap.value !== null && dailyCap.value !== config.value.daily_subject_cap)
+
+async function loadRules() {
+  const id = sid.value
+  if (!id) return
+  config.value = null
+  const loaded = await getConstraintConfig(id)
+  if (sid.value !== id) return  // 已切到別的學期,這份不要蓋上去
+  config.value = loaded
+  dailyCap.value = loaded.daily_subject_cap
+}
+
+async function onSaveRules() {
+  const c = config.value
+  if (!sid.value || !c || dailyCap.value === null) return
+  savingRules.value = true
+  try {
+    // 整份覆寫:其他參數與軟約束權重照原值送回,只改每日上限
+    config.value = await saveConstraintConfig(sid.value, {
+      daily_subject_cap: dailyCap.value,
+      teacher_daily_max: c.teacher_daily_max,
+      teacher_consecutive_max: c.teacher_consecutive_max,
+      weights: c.weights,
+    })
+    dailyCap.value = config.value.daily_subject_cap
+    message.success(`已儲存:同班同科目每天最多 ${dailyCap.value} 節`)
+  } catch (e) {
+    message.error((e as ApiError).detail || '儲存失敗')
+  } finally {
+    savingRules.value = false
+  }
+}
 
 let timer: ReturnType<typeof setInterval> | null = null
 
@@ -112,7 +152,7 @@ async function onSemesterChange(id: number) {
   job.value = null
   blockingIssues.value = []
   stopPolling()
-  await reload()
+  await Promise.all([reload(), loadRules()])
 }
 
 onMounted(async () => {
@@ -218,6 +258,35 @@ function openResult() {
             </n-tag>
             <n-text style="margin-left: 8px">{{ i.message }}</n-text>
           </div>
+        </n-space>
+      </n-card>
+
+      <!-- 排課規則 -->
+      <n-card v-if="config" title="排課規則" size="small" data-testid="as-rules">
+        <n-space vertical>
+          <n-space align="center">
+            <n-text>同班同科目每日節數上限</n-text>
+            <n-input-number
+              v-model:value="dailyCap" :min="1" :max="8" style="width: 120px"
+              :disabled="running" data-testid="as-daily-cap"
+              :input-props="{ 'aria-label': '同班同科目每日節數上限' }"
+            >
+              <template #suffix>節</template>
+            </n-input-number>
+            <n-button
+              size="small" type="primary" :disabled="!rulesDirty || running" :loading="savingRules"
+              data-testid="as-rules-save" @click="onSaveRules"
+            >
+              儲存
+            </n-button>
+          </n-space>
+          <n-text depth="3">
+            同一班的同一個科目,一天最多排幾節「單節」課(預設 2 節)。設成連堂的課是一次上完的整塊,不計入。
+            手動拖課、自動排課、檢查課表都照這個數字;每個學期各自設定,複製學期時會一起帶過去。
+          </n-text>
+          <n-text v-if="rulesDirty" depth="3" data-testid="as-rules-dirty">
+            尚未儲存,按「儲存」後才會生效。調低上限後,已排好的課表若超過,會在「檢查課表」列出,不會自動移動。
+          </n-text>
         </n-space>
       </n-card>
 

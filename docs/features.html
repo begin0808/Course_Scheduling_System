@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="排課與調代課系統 v1.6.0 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
+<meta name="description" content="排課與調代課系統 v1.6.1 的完整功能清單:基礎資料、配課、手動與自動排課、發布查詢、調代課、匯出、系統管理與部署,以及目前的限制與規劃中的功能。">
 <title>功能總覽 · 排課與調代課系統</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📋</text></svg>">
 <style>
@@ -184,7 +184,7 @@
 <div class="tbl"><table>
   <tr><th>功能</th><th>說明</th><th>版本</th></tr>
   <tr><td>排課引擎</td><td>以 Google OR-Tools(CP-SAT)求解;在背景工作排程執行,不影響匯出等其他工作。結果另存新草稿「來源名 自排結果」,來源草稿不受影響。</td><td class="ver">v1.0</td></tr>
-  <tr><td>硬性規則</td><td>班級、教師、場地同一節只能一堂課(跨節次表看實際時間);教師不可排時段;只排一般課節次;連堂連續且不跨午休;跑班群組同時段;每週節數守恆;鎖定格位不動;同班同科目每日上限(預設 2 節);場地類型符合。</td><td class="ver">v1.0</td></tr>
+  <tr><td>硬性規則</td><td>班級、教師、場地同一節只能一堂課(跨節次表看實際時間);教師不可排時段;只排一般課節次;連堂連續且不跨午休;跑班群組同時段;每週節數守恆;鎖定格位不動;同班同科目每日上限(預設 2 節,可在「自動排課」頁的排課規則調整,v1.6.1;連堂不計入);場地類型符合。</td><td class="ver">v1.0</td></tr>
   <tr><td>軟性偏好(S1–S8)</td><td>教師偏好/避開時段、同科分散在不同天、教師每日節數上限、空堂集中、主科排上午、教師連續授課上限、導師的課優先排自己班第一節、全校教師偏好達成的公平性。排完附各項達成度報告。</td><td class="ver">v1.0</td></tr>
   <tr><td>排課前檢查</td><td>先檢查資料是否可能排得出來(教師配課超過可排格數、班級超量、場地不足、連堂放不下、跑班群組節數不一致或同一教師重複…),逐項說明。</td><td class="ver">v1.0 / v1.2.15</td></tr>
   <tr><td>進度與提前結束</td><td>即時顯示已找到幾個解、目前目標值、經過時間;可設時間上限,找到解後可提前結束取當前最佳解。</td><td class="ver">v1.0</td></tr>
@@ -280,7 +280,7 @@
   <div class="card"><b>HTTPS</b><span>設定網域即自動申請憑證(Caddy);未設定時為校內 HTTP。</span></div>
   <div class="card"><b>資料不出校</b><span>單校自架,不連任何雲端服務;唯一的對外連線是每天一次的版本查詢,可關閉。</span></div>
 </div>
-<div class="note good">每一版發布前都經過:後端 851 項、前端 88 項、端對端 66 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
+<div class="note good">每一版發布前都經過:後端 851 項、前端 88 項、端對端 67 項自動測試(對真實 Docker 全棧),合併與標籤兩輪 CI,以及用正式映像在全新環境的實測。</div>
 
 <h2 id="limits"><span class="no">14</span>目前的限制</h2>
 <p class="intro">已知、尚未處理的部分。多數有變通做法(見手冊 FAQ)。</p>
@@ -344,6 +344,7 @@
   <tr><td>v1.4.12</td><td class="ver">2026-11-06</td><td>調課可以從較早的週開始找(提早請假先補課);換不了的節次寫出原因;代導半天改以「次」計</td></tr>
   <tr><td>v1.4.13</td><td class="ver">2026-11-09</td><td>修正:跑班群組在班級課表(與匯出)只顯示其中一位老師</td></tr>
   <tr><td>v1.4.14</td><td class="ver">2026-11-10</td><td>全校教師週總表:老師為欄、日期 × 節次為列,標出這週的調代課(列印與 Excel,可一次 1~4 週)</td></tr>
+  <tr><td>v1.6.1</td><td class="ver">2026-11-26</td><td>同班同科目每日節數上限可以自己設定(自動排課頁的排課規則)</td></tr>
   <tr><td>v1.6.0</td><td class="ver">2026-11-26</td><td>安全強化第二輪:不再有系統預設密碼(每個帳號各自產生初始密碼,匯入附清單與通知單)、寄信一律加密</td></tr>
   <tr><td>v1.5.1</td><td class="ver">2026-11-24</td><td>寄測試信:用已儲存的 SMTP 設定寄一封測試信,寄不出去時寫出可能原因</td></tr>
   <tr><td>v1.5.0</td><td class="ver">2026-11-24</td><td>安全強化:依數位發展部源碼檢測修補(容器不以 root 執行、不內建預設密碼、寄信驗證憑證、套件升級與弱點檢查)</td></tr>
@@ -366,7 +367,7 @@
 </div>
 <div class="note good">回報問題時附上<b>系統版本</b>(選單底部)、<b>操作步驟</b>和<b>畫面截圖</b>,會更快找到原因;截圖請先遮住老師姓名等個人資料。</div>
 
-<footer>排課與調代課系統 · 功能總覽 · 對應 v1.6.0 · 開源免費(AGPL-3.0)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
+<footer>排課與調代課系統 · 功能總覽 · 對應 v1.6.1 · 開源免費(AGPL-3.0)· 單校自架<br>開發者:國立南大附中 李佳恩老師 · <a href="mailto:begin0808@gmail.com">begin0808@gmail.com</a></footer>
 </div>
 </body>
 </html>

@@ -441,7 +441,7 @@ def _daily_cap_cause(problem: Problem, tag: ConstraintTag, config: SolverConfig)
 
     return Cause(
         "H10", "semester", tag.scope_id, RELAXABLE_NAMES["H10"], message,
-        "提高「同班同科目每日節數上限」,或把部分節數改為連堂"
+        "在「自動排課」頁的排課規則提高「同班同科目每日節數上限」,或把部分節數改為連堂"
         "(連堂是一次上完的整塊,不計入每日上限)",
         _relaxable("H10"),
         detail,

@@ -414,6 +414,11 @@
       <td>新功能(設備組長):全校教師週總表(含調代課),列印與 Excel</td>
       </tr>
       <tr>
+      <td>v1.6.1</td>
+      <td>2026-11-26</td>
+      <td><strong>同班同科目每日節數上限</strong>可在「自動排課」頁的排課規則設定(先前只有 API 改得到,畫面上固定 2 節)</td>
+      </tr>
+      <tr>
       <td>v1.6.0</td>
       <td>2026-11-26</td>
       <td><strong>安全強化第二輪</strong>(數位發展部複掃與自行檢視):不再有系統預設密碼,留空時為每個帳號產生不同的初始密碼(匯入教師附清單、可列印通知單);寄信一律加密</td>
@@ -542,7 +547,7 @@
       <ul>
       <li><strong>LINE 通知 adapter</strong>:走 LINE OA Messaging API,各校自申請 channel token + 綁定碼流程。
         等有試用學校提出需求再做——沒有真實 OA 可測之前,寫了也驗不了。</li>
-      <li><strong>軟約束權重 UI</strong>:<code>GET/PUT /api/solver/config</code> 已在,滑桿是給進階使用者的;等有學校真的想調權重再開工。</li>
+      <li><strong>軟約束權重 UI</strong>:<code>GET/PUT /api/solver/config</code> 已在,滑桿是給進階使用者的;等有學校真的想調權重再開工。(同班同科目每日上限已於 v1.6.1 放上「自動排課」頁的排課規則,因為組長真的問到了。)</li>
       </ul>
       <h2 id="刻意不做除非出現真實個案">刻意不做(除非出現真實個案)</h2>
       <ul>
