@@ -15,6 +15,7 @@
     "e2e:manual": "playwright test --project=manual"
   },
   "dependencies": {
+    "highlight.js": "file:./stubs/highlight.js",
     "naive-ui": "^2.40.1",
     "pinia": "^2.2.6",
     "vue": "^3.5.46",
@@ -40,6 +41,7 @@
     },
     "js-beautify": {
       "glob": "^14.0.6"
-    }
+    },
+    "highlight.js": "$highlight.js"
   }
 }

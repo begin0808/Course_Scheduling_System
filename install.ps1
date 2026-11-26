@@ -19,8 +19,10 @@
     指定安裝位置與埠號,其餘仍會詢問。
 
 .EXAMPLE
-    .\install.ps1 -SchoolName "○○國中" -AdminPassword "..." -Port 80 -Yes
-    完全不互動(供自動化或重建環境使用)。
+    .\install.ps1 -SchoolName "○○國中" -AdminPassword (Read-Host -AsSecureString '管理員密碼') -Port 80 -Yes
+    除了密碼之外完全不互動(供自動化或重建環境使用)。
+    -AdminPassword 是 SecureString(v1.7.0 起),密碼不會以明文留在指令紀錄裡;
+    自動化腳本可用 (ConvertTo-SecureString $pw -AsPlainText -Force) 轉換。
 
 .LINK
     https://github.com/begin0808/Course_Scheduling_System
@@ -30,7 +32,7 @@ param(
     # 安裝目錄。裡面只會有 docker-compose.yml 與 .env,資料都在 Docker volume
     [string]$InstallPath = (Join-Path $HOME 'scheduling'),
     [string]$SchoolName,
-    [string]$AdminPassword,
+    [SecureString]$AdminPassword,
     [ValidateRange(1, 65535)]
     [int]$Port,
     [string]$TimeZone = 'Asia/Taipei',
@@ -459,11 +461,11 @@ if ($needConfig) {
 
     $school = if ($SchoolName) { $SchoolName } else { Read-Default '學校名稱(顯示在介面與課表上)' '示範學校' }
 
-    if ($AdminPassword) {
+    if ($AdminPassword -and $AdminPassword.Length -gt 0) {
         # 走參數的路徑同樣要擋:互動輸入那邊擋了,這邊不擋就成了漏洞
-        if ($AdminPassword.Length -lt 8) { Stop-WithHelp '-AdminPassword 至少需 8 個字元。' @() }
-        if ($AdminPassword -match '["\\]') { Stop-WithHelp '-AdminPassword 不可含 " 或 \ 字元。' @() }
-        $pw = $AdminPassword
+        $pw = ConvertFrom-SecureStringPlain $AdminPassword
+        if ($pw.Length -lt 8) { Stop-WithHelp '-AdminPassword 至少需 8 個字元。' @() }
+        if ($pw -match '["\\]') { Stop-WithHelp '-AdminPassword 不可含 " 或 \ 字元。' @() }
     }
     elseif ($Yes) { Stop-WithHelp '-Yes 需要同時提供 -AdminPassword。' @() }
     else {
@@ -540,7 +542,7 @@ Write-Host ''
 Write-Host '  帳號 admin,密碼是你剛才設定的那組;登入後會要求改一次密碼,' -ForegroundColor White
 Write-Host '  接著進入「設定精靈」,照畫面五個步驟建立學期、教師、班級、科目。' -ForegroundColor White
 Write-Host ''
-Write-Note '登不進去或忘了管理員密碼:docker compose exec api python -m app.scripts.reset_admin(會印出臨時密碼)'
+Write-Note '登不進去或忘了管理員密碼:docker compose exec api python -m app.scripts.reset_admin(輸入新密碼即可)'
 Write-Note "安裝目錄:$dir"
 Write-Note "停止:docker compose down    重新啟動:docker compose up -d(需先 cd 到上面的目錄)"
 Write-Note "操作手冊與部署文件:$RepoUrl"

@@ -132,7 +132,7 @@ def test_known_example_secrets_are_replaced(old):
     assert Settings(_env_file=None, secret_key=old).secret_key != old
 
 
-# ── 首次啟動:沒設 ADMIN_PASSWORD 就產生臨時密碼寫在啟動紀錄 ─────────────
+# ── 首次啟動:沒設 ADMIN_PASSWORD 不再把密碼寫進紀錄(v1.7.0) ─────────────
 @pytest.fixture
 def boot_db(monkeypatch):
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
@@ -143,17 +143,19 @@ def boot_db(monkeypatch):
     return Session
 
 
-def test_first_boot_without_admin_password_logs_temp_password(boot_db, monkeypatch, caplog):
+def test_first_boot_without_admin_password_never_logs_a_password(boot_db, monkeypatch, caplog):
+    # v1.5.0 會把臨時密碼寫在啟動紀錄;v1.7.0 起改請架設的人用重設指令自己設定
+    monkeypatch.setattr(users_service, "temp_password", lambda: "Kx7pQ2mN9rTw")
     monkeypatch.setattr(users_service.settings, "admin_password", None)
     with caplog.at_level(logging.WARNING, logger="app.users"):
         users_service.ensure_admin()
-    msg = next(r.getMessage() for r in caplog.records if "臨時密碼" in r.getMessage())
-    temp = msg.split("臨時密碼:")[1].split("(")[0]
-    assert len(temp) == 12
+    logs = " ".join(r.getMessage() for r in caplog.records)
+    assert "Kx7pQ2mN9rTw" not in logs
+    assert "app.scripts.reset_admin" in logs
     with boot_db() as db:
         admin = db.scalar(select(User))
-        assert verify_password(temp, admin.password_hash)
-        assert admin.must_change_password
+        assert admin.username == "admin"
+        assert verify_password("Kx7pQ2mN9rTw", admin.password_hash)  # 沒人知道的隨機密碼
 
 
 def test_first_boot_with_admin_password_uses_it(boot_db, monkeypatch, caplog):
@@ -161,6 +163,6 @@ def test_first_boot_with_admin_password_uses_it(boot_db, monkeypatch, caplog):
     monkeypatch.setattr(users_service.settings, "admin_password", SecretStr(chosen))
     with caplog.at_level(logging.WARNING, logger="app.users"):
         users_service.ensure_admin()
-    assert not any("臨時密碼" in r.getMessage() for r in caplog.records)
+    assert not any("reset_admin" in r.getMessage() for r in caplog.records)
     with boot_db() as db:
         assert verify_password(chosen, db.scalar(select(User)).password_hash)

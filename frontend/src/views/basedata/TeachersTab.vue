@@ -64,7 +64,8 @@ const form = ref<TeacherForm>(emptyForm())
 // 下拉選單改了還沒存不算,重設密碼要以存檔狀態為準
 const savedUserId = ref<number | null>(null)
 const newUsername = ref('')
-const newPassword = ref('')
+// 沒填密碼用 null 表示(v1.7.0,數發部源碼檢測「空字串密碼」)
+const newPassword = ref<string | null>(null)
 const accountBusy = ref(false)
 // 停用的帳號不會出現在「可綁定帳號」清單裡,所以編輯時直接問這位教師的帳號
 const boundAccount = ref<TeacherAccount | null>(null)
@@ -106,7 +107,7 @@ async function onCreateAccount() {
     message.success(newPassword.value
       ? `已建立帳號 ${acc.username},密碼為你剛才輸入的值;老師首次登入須自行修改`
       : `已建立帳號 ${acc.username};老師首次登入須自行修改密碼`)
-    newPassword.value = ''
+    newPassword.value = null
     showGenerated(acc)
   } catch (e) {
     message.error((e as ApiError).detail || '建立帳號失敗')
@@ -127,7 +128,7 @@ async function onResetPassword() {
     message.success(newPassword.value
       ? '密碼已重設為你剛才輸入的值;老師下次登入須自行修改'
       : '密碼已重設;老師下次登入須自行修改')
-    newPassword.value = ''
+    newPassword.value = null
     showGenerated(acc)
   } catch (e) {
     message.error((e as ApiError).detail || '重設密碼失敗')
@@ -146,7 +147,7 @@ async function openCreate() {
   boundAccount.value = null
   savedUserId.value = null
   newUsername.value = ''
-  newPassword.value = ''
+  newPassword.value = null
   await loadAccounts()
   show.value = true
 }
@@ -161,7 +162,7 @@ async function openEdit(t: Teacher) {
   savedUserId.value = t.user_id
   boundAccount.value = null
   newUsername.value = ''
-  newPassword.value = ''
+  newPassword.value = null
   await Promise.all([loadAccounts(t.id), t.user_id ? loadBoundAccount(t.id) : Promise.resolve()])
   show.value = true
 }

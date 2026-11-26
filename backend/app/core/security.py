@@ -64,7 +64,7 @@ def session_issued_at(token: str, max_age: int) -> float | None:
 
 
 # 臨時密碼:只含英文與數字(避開 .env 裡 $、# 的問題),去掉容易看錯的 0/O、1/l/I。
-# 用在「重設系統管理員密碼」指令與首次啟動未設 ADMIN_PASSWORD 時(v1.5.0)。
+# 用在組長留空時的初始密碼、匯入帳號,以及首次啟動未設 ADMIN_PASSWORD 時(只存雜湊、不輸出)。
 _TEMP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 _TEMP_LENGTH = 12
 

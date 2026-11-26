@@ -107,29 +107,38 @@ E2E_BASE_URL=http://localhost:<port> npm run e2e:manual
 映像建置與發布已由 CI 自動化(見 [.github/workflows/ci.yml](.github/workflows/ci.yml)):
 
 1. 確認 `main` 綠燈——**五個 job 全過**:backend / frontend / migrations / e2e / images。
-2. 更新 `CHANGELOG.md`:把 `[Unreleased]` 內容整理到新版本標題下並註明日期,標註破壞性變更(⚠️)。同步更新 `README.md` 的專案狀態、`docs/deploy/upgrade.md` 的釘選版本範例。
-3. 打標籤並推送:
+2. **更新系統套件版本**(v1.7.0 起 `backend/Dockerfile` 釘了 Debian 套件版本;Debian 釋出安全更新後舊版本會下架、建置失敗):
+   ```bash
+   python scripts/update_apt_pins.py          # 列出有新版本的套件(同時查 amd64 與 arm64)
+   python scripts/update_apt_pins.py --write  # 改寫 Dockerfile,一起提交
+   ```
+3. 更新 `CHANGELOG.md`:把 `[Unreleased]` 內容整理到新版本標題下並註明日期,標註破壞性變更(⚠️)。同步更新 `README.md` 的專案狀態、`docs/deploy/upgrade.md` 的釘選版本範例。
+4. 打標籤並推送:
 
    ```bash
    git tag -a v1.2.0 -m "v1.2.0(日期):一句話說明"
    git push origin v1.2.0
    ```
 
-4. `v*` 標籤觸發 CI 的 `images` job,建置並推送**雙架構(amd64 + arm64)**映像到 GHCR:
+5. `v*` 標籤觸發 CI 的 `images` job,建置並推送**雙架構(amd64 + arm64)**映像到 GHCR:
    - `ghcr.io/begin0808/course_scheduling_system-api`
    - `ghcr.io/begin0808/course_scheduling_system-worker`
    - `ghcr.io/begin0808/course_scheduling_system-web`
 
    每個映像會推 `:latest`、`:<版本標籤>`(即 `github.ref_name`)與 `:<commit sha>` 三個 tag。`main` push 僅建 amd64;**版本標籤才建雙架構**(arm64 走模擬,約需 20 分鐘)。
-5. **等映像真的上架再建 Release**——標籤推上去的當下映像還在建,太早公開連結會讓人 `docker compose pull` 撲空。確認方式:
+6. **等映像真的上架再建 Release**——標籤推上去的當下映像還在建,太早公開連結會讓人 `docker compose pull` 撲空。確認方式:
 
    ```bash
    docker buildx imagetools inspect ghcr.io/begin0808/course_scheduling_system-api:<版本> | grep Platform
    ```
 
-6. 在 GitHub 建立 Release,關聯該標籤,貼上該版 CHANGELOG 內容,勾選 **Set as the latest release**。
-7. **發布前最後一道**:在乾淨環境拉**正式映像**跑一次(不是本機建的那份)——CI 驗的是從原始碼建的映像,使用者拉到的是 `images` job 產出的那份,兩者從未同時被驗證過。至少走到:六容器 healthy → 首次登入改密 → 設定精靈 → 系統管理頁(**「系統版本」顯示的目前版本須等於本次標籤**,確認 `APP_VERSION` 有注入)→ 立即備份。
-8. 使用者升級:`.env` 設 `IMAGE_TAG=<版本>` → `docker compose pull && docker compose up -d`(見 [docs/deploy/upgrade.md](docs/deploy/upgrade.md))。`IMAGE_TAG` 即對應此處推送的版本標籤。
+7. 在 GitHub 建立 Release,關聯該標籤,貼上該版 CHANGELOG 內容,勾選 **Set as the latest release**。並附上檢測用程式碼壓縮檔(源碼檢測與上架審查用):
+   ```bash
+   python scripts/make_scan_bundle.py v1.2.0 --verify   # 產生到 dist-scan/,並用解開的內容實際建置三個映像
+   gh release upload v1.2.0 dist-scan/Course_Scheduling_System-v1.2.0-scan.zip
+   ```
+8. **發布前最後一道**:在乾淨環境拉**正式映像**跑一次(不是本機建的那份)——CI 驗的是從原始碼建的映像,使用者拉到的是 `images` job 產出的那份,兩者從未同時被驗證過。至少走到:六容器 healthy → 首次登入改密 → 設定精靈 → 系統管理頁(**「系統版本」顯示的目前版本須等於本次標籤**,確認 `APP_VERSION` 有注入)→ 立即備份。
+9. 使用者升級:`.env` 設 `IMAGE_TAG=<版本>` → `docker compose pull && docker compose up -d`(見 [docs/deploy/upgrade.md](docs/deploy/upgrade.md))。`IMAGE_TAG` 即對應此處推送的版本標籤。
 
 ## 授權
 

@@ -10,18 +10,24 @@ WORKDIR /app
 # 連同 lock 檔一起複製並改用 npm ci:正式映像的相依必須與 CI 驗證過的完全一致。
 # 先前只複製 package.json 再 npm install,等於每次建置都可能裝到不同的版本。
 COPY frontend/package.json frontend/package-lock.json ./
+# 替代套件(v1.7.0):package.json 以 file: 引用,npm ci 之前就要在
+COPY frontend/stubs ./stubs
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
 FROM caddy:2-alpine
-# 不以 root 執行(v1.5.0):建 caddy 使用者,進入點先修好 volume 權限再用 su-exec 降權
-RUN apk add --no-cache su-exec \
-    && addgroup -S -g 10001 caddy \
-    && adduser -S -D -H -u 10001 -G caddy -h /data caddy
+# 不以 root 執行(v1.5.0 起;v1.7.0 改用 USER 指令,容器一啟動就是 caddy 使用者,
+# 不再需要 su-exec)。憑證資料夾在映像裡就屬於 caddy,新建的 volume 會沿用這個擁有者;
+# v1.4 以前 root 寫入的舊 volume 由 v1.5.0~v1.6.x 啟動時修正過,所以舊版要先升到 v1.6.1。
+RUN addgroup -S -g 10001 caddy \
+    && adduser -S -D -H -u 10001 -G caddy -h /data caddy \
+    && mkdir -p /data /config \
+    && chown -R caddy:caddy /data /config
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 COPY web-entrypoint.sh /usr/local/bin/web-entrypoint.sh
 RUN chmod 755 /usr/local/bin/web-entrypoint.sh
+USER caddy
 ENTRYPOINT ["/usr/local/bin/web-entrypoint.sh"]
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
