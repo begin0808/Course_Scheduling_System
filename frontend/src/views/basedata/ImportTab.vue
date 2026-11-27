@@ -72,7 +72,7 @@ async function onUpload() {
 <template>
   <n-space vertical size="large" style="max-width: 640px">
     <n-alert type="info" :show-icon="true">
-      匯入步驟:① 選擇資料類型 → ② 下載範本並填寫(第 4 列起填,說明/範例列會自動略過)→ ③ 上傳。
+      匯入步驟:① 選擇資料類型 → ② 下載範本並填寫(第 4 列起填;沒改過的說明列、範例列會自動略過)→ ③ 上傳。
       任一列有誤將全部不匯入,並列出錯誤列號。
     </n-alert>
 
@@ -120,6 +120,11 @@ async function onUpload() {
         <a href="#" data-testid="import-accounts-open" @click.prevent="accountsShow = true">查看初始密碼清單</a>
         (離開這一頁後就查不到了)。
       </template>
+    </n-alert>
+    <n-alert
+      v-if="result?.notes?.length" type="info" :show-icon="true" data-testid="import-notes"
+    >
+      <div v-for="(note, i) in result.notes" :key="i">{{ note }}</div>
     </n-alert>
     <initial-passwords
       v-if="result?.accounts?.length" v-model:show="accountsShow" :accounts="result.accounts"

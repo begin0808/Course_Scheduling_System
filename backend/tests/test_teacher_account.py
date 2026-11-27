@@ -1,15 +1,14 @@
 """教師帳號綁定與聯絡資訊測試。對應 M2-0 驗收標準。"""
 
-import io
 
 import pytest
-from openpyxl import Workbook
 
 from app.api.imports import XLSX_MIME
 from app.models.user import Role, User
 from app.services.teachers import current_teacher
 from tests.conftest import make_user
 from tests.creds import PW, random_password
+from tests.test_import import make_xlsx
 
 TEACHER_PW, OLD_PW, NEW_PW = random_password(), random_password(), random_password()
 
@@ -302,16 +301,7 @@ def test_current_teacher_helper(sched):
 
 # ── Excel 匯入綁定 ──────────────────────
 def _make_xlsx(rows: list[list], ncols: int) -> bytes:
-    wb = Workbook()
-    ws = wb.active
-    for _ in range(3):
-        ws.append(["表頭"] * ncols)
-    for r in rows:
-        ws.append(r)
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
+    return make_xlsx("teachers", rows)
 
 def _upload_teachers(client, sid, rows, ncols=11, create_accounts=True):
     content = _make_xlsx(rows, ncols)

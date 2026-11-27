@@ -62,4 +62,4 @@ async def upload_import(
             status.HTTP_400_BAD_REQUEST, "無法讀取檔案,請確認為有效的 Excel 檔"
         ) from None
     return {"imported": result.imported, "updated": result.updated, "errors": result.errors,
-            "accounts": result.accounts}
+            "notes": result.notes, "accounts": result.accounts}

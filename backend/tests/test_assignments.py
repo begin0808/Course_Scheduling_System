@@ -1,14 +1,13 @@
 """配課(M2-1)測試:單班/跑班/協同/連堂三種結構 + 五項驗收標準。"""
 
-import io
 
 import pytest
-from openpyxl import Workbook
 
 from app.api.imports import XLSX_MIME
 from app.models.user import Role
 from tests.conftest import make_user
 from tests.creds import PW
+from tests.test_import import EXAMPLE_NOTE, make_xlsx
 
 
 @pytest.fixture
@@ -286,17 +285,8 @@ def test_single_unit_reused_across_assignments(env2):
 
 
 # ── Excel 匯入 ────────────────────────
-def _xlsx(rows, ncols=7):
-    wb = Workbook()
-    ws = wb.active
-    for _ in range(3):
-        ws.append(["表頭"] * ncols)
-    for r in rows:
-        ws.append(r)
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
+def _xlsx(rows):
+    return make_xlsx("assignments", rows)
 
 def test_import_assignments(env2):
     client, sid = env2
@@ -309,7 +299,8 @@ def test_import_assignments(env2):
         f"/api/import/assignments?semester_id={sid}",
         files={"file": ("a.xlsx", _xlsx(rows), XLSX_MIME)},
     )
-    assert r.json() == {"imported": 1, "updated": 0, "errors": [], "accounts": []}
+    assert r.json() == {"imported": 1, "updated": 0, "errors": [], "accounts": [],
+                        "notes": [EXAMPLE_NOTE]}
     items = client.get(f"/api/assignments?semester_id={sid}").json()
     assert len(items) == 1
     a = items[0]

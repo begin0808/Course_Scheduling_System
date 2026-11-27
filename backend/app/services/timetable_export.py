@@ -85,6 +85,7 @@ class _EntryView:
     unit_id: int | None = None      # 排課單位(跑班群組的各組課共用同一個)
     unit_type: str = ""
     unit_name: str = ""
+    assignment_id: int = 0          # 配課 id:跑班各組照配課頁的順序(建立的先後)排列(v1.7.2)
 
 
 class _Published:
@@ -152,6 +153,7 @@ def _view(e: ScheduleEntry) -> _EntryView:
         table_id=su.members[0].class_unit.period_table_id if su.members else None,
         week_parity=a.week_parity,
         unit_id=su.id, unit_type=su.unit_type, unit_name=su.name,
+        assignment_id=a.id,
     )
 
 
@@ -161,6 +163,8 @@ def _merge_groups(entries: list[_EntryView]) -> list[_EntryView]:
     群組裡每位老師各是一筆格位,班級課表的一格原本只取其中一筆。
     寫法同巡堂表與即時概況:組數少時科目、老師以「／」並列;
     社團這類 `GRID_GROUP_LIST_MIN` 組以上的大型跑班一格塞不下,只寫群組名稱與組數。
+    v1.7.2 各組照配課頁的順序(配課 id)排列,同巡堂表;先前依科目、老師姓名的字碼排序,
+    和組長在配課頁排好的順序對不上。
     """
     out: list[_EntryView] = []
     groups: dict[tuple[int | None, int, int], list[_EntryView]] = {}
@@ -170,7 +174,7 @@ def _merge_groups(entries: list[_EntryView]) -> list[_EntryView]:
         else:
             out.append(e)
     for members in groups.values():
-        members.sort(key=lambda m: (m.subject, m.teachers))
+        members.sort(key=lambda m: m.assignment_id)
         first = members[0]
         if len(members) == 1:
             out.append(first)
