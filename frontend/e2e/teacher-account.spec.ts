@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { deleteSemesterByYearTerm, login } from './helpers'
+import { deleteSemesterByYearTerm, login, randomPassword } from './helpers'
 
 const YEAR = 124 // 專用測試學年度
 const SHOTS = 'e2e/screenshots'
@@ -53,8 +53,8 @@ test('教師聯絡資訊:新增教師填入 Email/手機/LINE 並保存', async 
  */
 test('教師帳號:事後補開登入帳號,可登入;重設密碼後舊密碼失效', async ({ page }) => {
   test.setTimeout(120_000)
-  const PW = 'teacherpw1234'
-  const NEW_PW = 'teacherpw5678'
+  const PW = randomPassword()
+  const NEW_PW = randomPassword()
   await login(page)
   await page.request.patch('/api/wizard/state', { data: { completed: true } })
 
@@ -118,7 +118,7 @@ test('教師帳號:事後補開登入帳號,可登入;重設密碼後舊密碼�
  */
 test('教師帳號:可停用與重新啟用;刪除教師時帳號一併停用', async ({ page }) => {
   test.setTimeout(120_000)
-  const PW = 'disablepw1234'
+  const PW = randomPassword()
 const YEAR_DISABLE = 155  // 專用學年度:避免與其他 spec 互刪學期
   await login(page)
   await page.request.patch('/api/wizard/state', { data: { completed: true } })

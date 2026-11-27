@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { deleteSemesterByYearTerm, login } from './helpers'
+import { deleteSemesterByYearTerm, login, randomPassword } from './helpers'
 
 /**
  * 帳號管理(v1.3.1):教學組長、教務主任的帳號在這裡設定。
@@ -16,6 +16,8 @@ test('帳號管理:教師帳號加上教學組長後看得到排課選單;新增
   const stamp = Date.now()
   const teacherUser = `e2e_t_${stamp}`
   const staffUser = `e2e_s_${stamp}`
+  const teacherPw = randomPassword()
+  const teacherNewPw = randomPassword()
 
   // 準備:一位已有教師帳號的老師(用組長身分建立)
   await login(page)
@@ -27,7 +29,7 @@ test('帳號管理:教師帳號加上教學組長後看得到排課選單;新增
   const t = await (await page.request.post(`/api/teachers?semester_id=${sem.id}`,
     { data: { name: '帳號王老師' } })).json()
   const acc = await page.request.post(`/api/teachers/${t.id}/account`,
-    { data: { username: teacherUser, password: 'teacherpw1234' } })
+    { data: { username: teacherUser, password: teacherPw } })
   expect(acc.ok()).toBeTruthy()
 
   try {
@@ -64,7 +66,7 @@ test('帳號管理:教師帳號加上教學組長後看得到排課選單;新增
     await page.getByTestId('acc-add').click()
     await page.getByTestId('acc-new-username').locator('input').fill(staffUser)
     await page.getByTestId('acc-new-name').locator('input').fill('林主任')
-    await page.getByTestId('acc-new-password').locator('input').fill('staffpw1234')
+    await page.getByTestId('acc-new-password').locator('input').fill(randomPassword())
     await page.getByTestId('acc-new-roles').getByText('教學組長').click() // 取消預設勾選
     await page.getByTestId('acc-new-roles').getByText('教務主任').click()
     await page.getByTestId('acc-new-save').click()
@@ -80,13 +82,13 @@ test('帳號管理:教師帳號加上教學組長後看得到排課選單;新增
     await page.request.post('/api/auth/logout')
     await page.goto('/login')
     await page.getByPlaceholder('請輸入帳號').fill(teacherUser)
-    await page.getByPlaceholder('請輸入密碼').fill('teacherpw1234')
+    await page.getByPlaceholder('請輸入密碼').fill(teacherPw)
     await page.getByRole('button', { name: '登入' }).click()
     await expect(page).toHaveURL(/change-password/)
     const pw = page.locator('input[type="password"]')
-    await pw.nth(0).fill('teacherpw1234')
-    await pw.nth(1).fill('teacherpw5678')
-    await pw.nth(2).fill('teacherpw5678')
+    await pw.nth(0).fill(teacherPw)
+    await pw.nth(1).fill(teacherNewPw)
+    await pw.nth(2).fill(teacherNewPw)
     await page.getByTestId('cp-submit').click()
     await expect(page).not.toHaveURL(/change-password/)
     await page.goto('/scheduling/assignments')

@@ -34,7 +34,7 @@
 - 登入連續失敗 5 次鎖定 15 分鐘(含同時大量送出的情況);session cookie 為 HttpOnly,走 HTTPS 時加上 Secure。
 - 寄信一律加密(STARTTLS 或 SMTPS)並驗證郵件伺服器憑證,不提供明文寄送(v1.6.0)。
 - CI 對前端(`npm audit`)與後端(`pip-audit`)第三方套件做弱點檢查,有中風險以上的已知弱點就不發布映像。
-- v1.5.0、v1.6.0、v1.7.0 依數位發展部公共程式平臺的源碼檢測(Fortify)與第三方元件掃描(Mend)報告完成修補。
+- v1.5.0、v1.6.0、v1.7.0、v1.7.1 依數位發展部公共程式平臺的源碼檢測(Fortify)與第三方元件掃描(Mend)報告完成修補。
   檢測用的程式碼壓縮檔(排除測試與開發工具,附排除清單)可用 `python scripts/make_scan_bundle.py <版本>` 產生,
   也附在每個版本的 GitHub Release。
 

@@ -14,9 +14,9 @@ from app.models.audit import AuditLog
 from app.models.user import Role
 from app.scripts.reset_admin import ResetError, reset_admin_password, run
 from tests.conftest import make_user
+from tests.creds import PW, random_password
 
-PW = "password123"
-NEW = "brand-new-pass"
+NEW = random_password()
 
 
 def answers(*typed: str):
@@ -36,7 +36,7 @@ def test_locked_out_admin_can_log_in_with_the_typed_password(env):
     client, db = env
     admin = make_user(db, "admin", PW, roles=[Role.admin])
     for _ in range(5):
-        client.post("/api/auth/login", json={"username": "admin", "password": "wrong-pass"})
+        client.post("/api/auth/login", json={"username": "admin", "password": random_password()})
     r = client.post("/api/auth/login", json={"username": "admin", "password": PW})
     assert r.status_code == 423  # 已被鎖
 
@@ -103,15 +103,17 @@ def test_command_asks_twice_and_never_prints_the_password(db):
 def test_command_rejects_short_or_mismatched_input_then_accepts(db):
     admin = make_user(db, "admin", PW, roles=[Role.admin])
     out, err = io.StringIO(), io.StringIO()
-    assert run(db, [], out, err, ask=answers("short", NEW, "typo-pass", NEW, NEW)) == 0
-    assert "至少要 8 個字元" in err.getvalue() and "兩次輸入不一致" in err.getvalue()
+    typed = answers(random_password(5), NEW, random_password(), NEW, NEW)
+    assert run(db, [], out, err, ask=typed) == 0
+    assert "太短" in err.getvalue() and "兩次輸入不一致" in err.getvalue()
     assert verify_password(NEW, admin.password_hash)
 
 
 def test_command_gives_up_after_three_bad_tries_without_changing_anything(db):
     admin = make_user(db, "admin", PW, roles=[Role.admin])
     out, err = io.StringIO(), io.StringIO()
-    assert run(db, [], out, err, ask=answers("a", "b", "c")) == 1
+    typed = answers(random_password(1), random_password(1), random_password(1))
+    assert run(db, [], out, err, ask=typed) == 1
     assert "沒有重設密碼" in err.getvalue()
     assert verify_password(PW, admin.password_hash)
     assert db.query(AuditLog).count() == 0

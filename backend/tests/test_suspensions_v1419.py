@@ -10,11 +10,11 @@ from datetime import timedelta
 from app.models.user import Role
 from app.services import suspensions as suspension_service
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import WED
 from tests.test_homeroom_cover import _homeroom
 from tests.test_substitutions import _options, _World, env2  # noqa: F401 - env2 為 fixture
 
-PW = "password123"
 THU = WED + timedelta(days=1)
 
 

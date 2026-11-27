@@ -8,8 +8,8 @@ from app.core.config import settings
 from app.models.user import Role
 from app.services import backup as bk
 from tests.conftest import make_user
+from tests.creds import PW
 
-PW = "password123"
 PGDMP = b"PGDMP" + b"\x00" * 100  # 假的 custom 格式檔頭
 
 

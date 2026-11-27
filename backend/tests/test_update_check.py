@@ -12,8 +12,7 @@ from app.core.config import get_settings
 from app.models.user import Role
 from app.services import update_check
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW
 
 
 @pytest.mark.parametrize("tag, expected", [

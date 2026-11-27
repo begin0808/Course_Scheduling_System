@@ -17,9 +17,6 @@ const props = defineProps<{ accounts: InitialAccount[], title?: string }>()
 const show = defineModel<boolean>('show', { required: true })
 const message = useMessage()
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => (
-  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
-
 async function onCopy() {
   const text = props.accounts.map((a) => `${a.name}\t${a.username}\t${a.password}`).join('\n')
   try {
@@ -45,36 +42,13 @@ function onDownload() {
   URL.revokeObjectURL(href)
 }
 
+// 列印通知單(v1.7.1):通知單直接放在本頁(平常隱藏,只在列印時出現)再叫出列印對話框。
+// 先前用 window.open + document.write 把密碼寫進新視窗,源碼檢測標為個資處理不當;
+// 改由 Vue 範本顯示,內容一律自動跳脫,也不必再擔心瀏覽器擋彈出視窗。
+const site = window.location.origin
+
 function onPrint() {
-  const site = esc(window.location.origin)
-  const slips = props.accounts.map((a) => `
-    <div class="slip">
-      <h3>排課與調代課系統 登入帳號</h3>
-      <table>
-        <tr><th>姓名</th><td>${esc(a.name)}</td></tr>
-        <tr><th>帳號</th><td class="mono">${esc(a.username)}</td></tr>
-        <tr><th>初始密碼</th><td class="mono">${esc(a.password)}</td></tr>
-        <tr><th>登入網址</th><td class="mono">${site}</td></tr>
-      </table>
-      <p>第一次登入時,系統會要求您設定自己的新密碼。請勿將這張通知單交給他人。</p>
-    </div>`).join('')
-  const win = window.open('', '_blank')
-  if (!win) {
-    message.error('瀏覽器擋下了新視窗,請允許彈出視窗後再按一次')
-    return
-  }
-  win.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
-    <title>登入帳號通知單</title><style>
-    body{font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;margin:16px}
-    .slip{border:1px dashed #888;padding:12px 16px;margin-bottom:12px;page-break-inside:avoid}
-    h3{margin:0 0 8px;font-size:16px} table{border-collapse:collapse}
-    th{text-align:left;padding:3px 12px 3px 0;font-weight:normal;color:#555;white-space:nowrap}
-    td{padding:3px 0;font-size:15px} .mono{font-family:Consolas,monospace;font-size:16px;letter-spacing:1px}
-    p{margin:8px 0 0;font-size:13px;color:#333}
-    </style></head><body>${slips}</body></html>`)
-  win.document.close()
-  win.focus()
-  win.print()
+  window.print()
 }
 </script>
 
@@ -111,6 +85,22 @@ function onPrint() {
       <n-text depth="3" style="font-size: 12px">
         通知單一人一張,寫有姓名、帳號、初始密碼與登入網址,可裁開發給老師。
       </n-text>
+      <Teleport to="body">
+        <div class="pw-print-slips" data-testid="initial-passwords-slips">
+          <div v-for="a in accounts" :key="a.username" class="slip">
+            <h3>排課與調代課系統 登入帳號</h3>
+            <table>
+              <tbody>
+                <tr><th>姓名</th><td>{{ a.name }}</td></tr>
+                <tr><th>帳號</th><td class="slip-mono">{{ a.username }}</td></tr>
+                <tr><th>初始密碼</th><td class="slip-mono">{{ a.password }}</td></tr>
+                <tr><th>登入網址</th><td class="slip-mono">{{ site }}</td></tr>
+              </tbody>
+            </table>
+            <p>第一次登入時,系統會要求您設定自己的新密碼。請勿將這張通知單交給他人。</p>
+          </div>
+        </div>
+      </Teleport>
     </n-space>
   </n-modal>
 </template>
@@ -120,4 +110,22 @@ function onPrint() {
 .pw-table th, .pw-table td { border-bottom: 1px solid var(--n-border-color, #e5e5e5); padding: 6px 10px; text-align: left; }
 .pw-table th { font-weight: normal; color: #666; }
 .mono { font-family: Consolas, 'Courier New', monospace; letter-spacing: 1px; }
+</style>
+
+<style>
+/* 列印通知單:平常不顯示;列印時只印通知單,其他畫面(含這個對話框)都隱藏。
+   這段樣式載入後會一直留著,所以用 :has() 限定「通知單在頁面上(對話框開著)」時才生效,
+   不影響其他頁面的列印。 */
+.pw-print-slips { display: none; }
+@media print {
+  body:has(> .pw-print-slips) > *:not(.pw-print-slips) { display: none !important; }
+  .pw-print-slips { display: block; font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif; margin: 16px; color: #000; }
+  .pw-print-slips .slip { border: 1px dashed #888; padding: 12px 16px; margin-bottom: 12px; page-break-inside: avoid; }
+  .pw-print-slips h3 { margin: 0 0 8px; font-size: 16px; }
+  .pw-print-slips table { border-collapse: collapse; }
+  .pw-print-slips th { text-align: left; padding: 3px 12px 3px 0; font-weight: normal; color: #555; white-space: nowrap; }
+  .pw-print-slips td { padding: 3px 0; font-size: 15px; }
+  .pw-print-slips .slip-mono { font-family: Consolas, monospace; font-size: 16px; letter-spacing: 1px; }
+  .pw-print-slips p { margin: 8px 0 0; font-size: 13px; color: #333; }
+}
 </style>

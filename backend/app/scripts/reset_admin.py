@@ -79,7 +79,8 @@ def ask_new_password(ask: Callable[[str], str], err: TextIO, min_length: int) ->
     for _ in range(MAX_TRIES):
         first = ask(f"新密碼(至少 {min_length} 個字元,輸入時不會顯示):")
         if len(first) < min_length:
-            print(f"密碼至少要 {min_length} 個字元,請重新輸入。", file=err)
+            # 只說太短、不重印長度:最低長度已在上面的輸入提示寫出
+            print("太短了,請重新輸入。", file=err)
             continue
         if ask("再輸入一次確認:") != first:
             print("兩次輸入不一致,請重新輸入。", file=err)

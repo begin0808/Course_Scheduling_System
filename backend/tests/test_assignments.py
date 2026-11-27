@@ -8,8 +8,7 @@ from openpyxl import Workbook
 from app.api.imports import XLSX_MIME
 from app.models.user import Role
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW
 
 
 @pytest.fixture

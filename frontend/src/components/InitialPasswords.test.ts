@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import InitialPasswords from './InitialPasswords.vue'
 
-// 姓名來自組長匯入的 Excel;列印通知單是把內容寫進新視窗,一定要先跳脫,免得被當成 HTML 執行
+// 測試用密碼執行時隨機產生(v1.7.1,程式碼不寫死密碼字串)
+const randomPassword = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+// 姓名來自組長匯入的 Excel,通知單上要原樣顯示、不能被當成 HTML 執行
 const accounts = [
-  { name: '<img src=x onerror=alert(1)>', username: 'wang001', password: 'Ab3dEf7hJk9m' },
-  { name: '李"小華', username: 'lee001', password: 'Zx8cVb2nMq4w' },
+  { name: '<img src=x onerror=alert(1)>', username: 'wang001', password: randomPassword() },
+  { name: '李"小華', username: 'lee001', password: randomPassword() },
 ]
 
 function mountDialog() {
@@ -22,23 +24,27 @@ describe('InitialPasswords', () => {
     const wrapper = mountDialog()
     const text = document.body.textContent ?? ''
     expect(text).toContain('只顯示這一次')
-    expect(text).toContain('Ab3dEf7hJk9m')
-    expect(text).toContain('Zx8cVb2nMq4w')
+    expect(text).toContain(accounts[0].password)
+    expect(text).toContain(accounts[1].password)
     expect(document.querySelectorAll('[data-testid="initial-password-row"]')).toHaveLength(2)
     wrapper.unmount()
   })
 
-  it('列印通知單時姓名等內容會跳脫,不會被當成 HTML', () => {
-    let written = ''
-    const fake = { document: { write: (s: string) => { written += s }, close() {} }, focus() {}, print() {} }
-    const open = vi.spyOn(window, 'open').mockReturnValue(fake as unknown as Window)
+  it('列印通知單印的是本頁的通知單,姓名等內容不會被當成 HTML', () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {})
+    const open = vi.spyOn(window, 'open')
     const wrapper = mountDialog()
     ;(document.querySelector('[data-testid="initial-passwords-print"]') as HTMLElement).click()
-    expect(open).toHaveBeenCalled()
-    expect(written).toContain('&lt;img src=x onerror=alert(1)&gt;')
-    expect(written).not.toContain('<img src=x')
-    expect(written).toContain('李&quot;小華')
-    expect(written).toContain('Ab3dEf7hJk9m')
+    expect(print).toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled() // 不再開新視窗寫入密碼
+    const slips = document.querySelector('[data-testid="initial-passwords-slips"]') as HTMLElement
+    expect(slips.parentElement).toBe(document.body) // 放在 body 底下,列印樣式才能只留它
+    expect(slips.querySelectorAll('.slip')).toHaveLength(2)
+    expect(slips.querySelector('img')).toBeNull()
+    expect(slips.textContent).toContain('<img src=x onerror=alert(1)>')
+    expect(slips.textContent).toContain('李"小華')
+    expect(slips.textContent).toContain(accounts[0].password)
+    print.mockRestore()
     open.mockRestore()
     wrapper.unmount()
   })

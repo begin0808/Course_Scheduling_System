@@ -24,9 +24,8 @@ from app.workers.progress import (
     JobStatus,
 )
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.fixtures import build_junior_high_mid
-
-PW = "password123"
 
 
 @pytest.fixture

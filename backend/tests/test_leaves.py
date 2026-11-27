@@ -13,6 +13,7 @@ from app.models.leave import AffectedStatus, LeaveRequest, LeaveStatus
 from app.models.notification import Notification, NotificationType
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 
 # 日期一律由執行當日推算(硬編會過期,見 tests/dates.py):
 # MON/WED/FRI/SAT 同屬一個未來的基準週,SUN 是該週日、NEXT_MON 是下週一。
@@ -28,8 +29,6 @@ from tests.dates import (
     SUN,
     WED,
 )
-
-PW = "password123"
 
 
 @pytest.fixture

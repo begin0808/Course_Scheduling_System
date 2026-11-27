@@ -9,9 +9,8 @@ import pytest
 from app.models.user import Role
 from app.services import backup as bk
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.test_backups import PGDMP, backup_dir  # noqa: F401 - 沿用 backup_dir fixture
-
-PW = "password123"
 
 
 # ── E:pg_restore stderr 白名單分類 ──────────────────────────

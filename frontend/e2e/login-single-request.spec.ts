@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { randomPassword } from './helpers'
 
 /**
  * 登入按一次只送一筆請求(使用者回報 #39)。
@@ -9,17 +10,16 @@ import type { Page } from '@playwright/test'
  * 用不存在的帳號測,不會動到任何帳號的失敗次數。
  */
 async function attempts(page: Page, submit: () => Promise<void>): Promise<number> {
-  let count = 0
-  page.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().endsWith('/api/auth/login')) count += 1
-  })
   await page.goto('/login')
   await page.getByPlaceholder('請輸入帳號').fill('no-such-user-39')
-  await page.getByPlaceholder('請輸入密碼').fill('wrong-password')
+  await page.getByPlaceholder('請輸入密碼').fill(randomPassword())
   await submit()
   await expect(page.getByText(/帳號或密碼錯誤|登入失敗/).first()).toBeVisible()
   await page.waitForTimeout(500) // 多出來的那一筆若存在,這時也已送出
-  return count
+  // 用瀏覽器自己的資源載入紀錄數登入請求(v1.7.1):不在事件回呼裡累加共用變數,
+  // 源碼檢測曾把那種寫法標成競爭條件。登入頁只會對 /api/auth/login 送 POST。
+  return page.evaluate(() => performance.getEntriesByType('resource')
+    .filter((e) => new URL(e.name).pathname === '/api/auth/login').length)
 }
 
 test('登入:點一次按鈕只送一筆請求', async ({ page }) => {

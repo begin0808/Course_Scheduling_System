@@ -43,6 +43,7 @@ from app.core.auth import get_active_user, require_roles
 from app.core.db import Base, get_db
 from app.models.user import Role, User
 from app.services.users import create_user
+from tests.creds import PW
 
 
 @pytest.fixture
@@ -127,7 +128,7 @@ def env():
 def make_user(
     db: Session,
     username: str,
-    password: str = "password123",
+    password: str = PW,
     roles: Iterable[Role] = (),
     must_change_password: bool = False,
 ) -> User:

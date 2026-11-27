@@ -1,6 +1,7 @@
 """v1.5.0 數發部源碼檢測的修補:寄信加密驗證憑證、程式碼不內建密碼與金鑰、首次啟動臨時密碼。
 
 v1.6.0:寄信一律加密(不再有不加密的選項);測試用密碼改為執行時產生,不寫在程式碼裡。
+v1.7.1:寄信的連線與加密併進 send(),改測 send() 的實際順序。
 """
 
 import logging
@@ -24,26 +25,42 @@ from app.services.settings import SmtpConfig
 
 
 # ── 寄信:465 走 SMTPS、其他埠一律 STARTTLS,兩者都驗證憑證 ────────────
+# v1.7.1 起連線與加密寫在 send() 裡,直接測 send():看加密是否一定發生在登入、寄出之前。
 class _FakeSMTP:
     instances: list["_FakeSMTP"] = []
 
     def __init__(self, host, port, timeout=None, context=None):
         self.host, self.port, self.context = host, port, context
         self.starttls_context: ssl.SSLContext | None = None
-        self.started_tls = False
+        self.events: list[str] = []
         _FakeSMTP.instances.append(self)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.events.append("close")
+        return False
+
     def starttls(self, context=None):
-        self.started_tls = True
+        self.events.append("starttls")
         self.starttls_context = context
 
-    def close(self):
-        pass
+    def login(self, user, password):
+        self.events.append("login")
+
+    def send_message(self, msg):
+        self.events.append("send")
 
 
 def _cfg(port: int) -> SmtpConfig:
     return SmtpConfig(host="smtp.example.edu.tw", port=port, user="u",
                       password=secrets.token_urlsafe(8), sender="noreply@example.edu.tw")
+
+
+def _send(monkeypatch, cfg: SmtpConfig) -> bool:
+    monkeypatch.setattr(email_service.app_settings, "smtp_config", lambda db: cfg)
+    return email_service.send(None, to="t@example.edu.tw", subject="s", body="b")
 
 
 def _verifies(ctx: ssl.SSLContext | None) -> bool:
@@ -55,8 +72,10 @@ def test_smtps_on_465_verifies_certificate(monkeypatch):
     monkeypatch.setattr(email_service.smtplib, "SMTP_SSL", _FakeSMTP)
     monkeypatch.setattr(email_service.smtplib, "SMTP",
                         lambda *a, **k: pytest.fail("465 不該走明文 SMTP"))
-    server = email_service._connect(_cfg(465))
+    assert _send(monkeypatch, _cfg(465)) is True
+    server = _FakeSMTP.instances[0]
     assert server.port == 465 and _verifies(server.context)
+    assert server.events == ["login", "send", "close"]
 
 
 @pytest.mark.parametrize("port", [587, 25, 2525])
@@ -64,24 +83,22 @@ def test_every_other_port_always_uses_starttls(monkeypatch, port):
     """v1.6.0:不再有「不勾 TLS 就明文寄」的路徑,連 25 埠也一律 STARTTLS 並驗證憑證。"""
     _FakeSMTP.instances.clear()
     monkeypatch.setattr(email_service.smtplib, "SMTP", _FakeSMTP)
-    server = email_service._connect(_cfg(port))
-    assert server.started_tls and _verifies(server.starttls_context)
+    assert _send(monkeypatch, _cfg(port)) is True
+    server = _FakeSMTP.instances[0]
+    assert server.events == ["starttls", "login", "send", "close"]  # 先加密才登入、寄出
+    assert _verifies(server.starttls_context)
 
 
 def test_server_without_starttls_fails_instead_of_sending_plaintext(monkeypatch):
     class _NoTLS(_FakeSMTP):
-        closed = False
-
         def starttls(self, context=None):
             raise email_service.smtplib.SMTPNotSupportedError("STARTTLS extension not supported")
 
-        def close(self):
-            _NoTLS.closed = True
-
+    _FakeSMTP.instances.clear()
     monkeypatch.setattr(email_service.smtplib, "SMTP", _NoTLS)
     with pytest.raises(email_service.smtplib.SMTPNotSupportedError):
-        email_service._connect(_cfg(25))
-    assert _NoTLS.closed
+        _send(monkeypatch, _cfg(25))
+    assert _FakeSMTP.instances[0].events == ["close"]  # 連線關掉,沒登入、沒寄出
 
 
 def test_old_tls_unchecked_setting_is_ignored(db, monkeypatch):
@@ -93,8 +110,8 @@ def test_old_tls_unchecked_setting_is_ignored(db, monkeypatch):
     db.commit()
     _FakeSMTP.instances.clear()
     monkeypatch.setattr(email_service.smtplib, "SMTP", _FakeSMTP)
-    server = email_service._connect(app_settings.smtp_config(db))
-    assert server.started_tls
+    assert email_service.send(db, to="t@example.edu.tw", subject="s", body="b") is True
+    assert _FakeSMTP.instances[0].events == ["starttls", "send", "close"]
 
 
 def test_unconfigured_smtp_defaults_to_587(db):

@@ -13,13 +13,12 @@ from openpyxl import load_workbook
 from app.models.basedata import Teacher
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 
 # 日期一律由執行當日推算,不硬編(見 tests/dates.py)。
 # CROSS_WED / CROSS_WED2 是相鄰但分屬不同月份的兩個週三,供跨月拆帳驗證。
 from tests.dates import CROSS_WED, CROSS_WED2, SEM_END, SEM_START, WED
 from tests.test_substitutions import _World
-
-PW = "password123"
 
 
 def _other_month(day):

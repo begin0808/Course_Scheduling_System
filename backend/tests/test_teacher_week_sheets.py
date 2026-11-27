@@ -10,11 +10,10 @@ from openpyxl.cell.rich_text import CellRichText
 from app.models.basedata import ClassUnit, Teacher
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import SEM_END, SEM_START, WED
 from tests.test_patrol_sheets import _group, _group_course, _place_group
 from tests.test_substitutions import _swap_first, _World
-
-PW = "password123"
 
 
 @pytest.fixture

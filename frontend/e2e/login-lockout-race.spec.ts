@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login } from './helpers'
+import { login, randomPassword } from './helpers'
 
 /**
  * 同時送出的錯誤密碼也要算進鎖定次數(#60,v1.4.7)。
@@ -14,7 +14,7 @@ const PARALLEL = 20
 test('同時送 20 次錯誤密碼:第 5 次就鎖定,其餘都回「已鎖定」,連正確密碼也進不去', async ({ page, playwright }) => {
   test.setTimeout(90_000)
   const username = `e2e_lock_${Date.now()}`
-  const password = 'lockrace1234'
+  const password = randomPassword()
   await login(page, ...ADMIN)
   const created = await page.request.post('/api/users', {
     data: { username, password, display_name: '鎖定測試', roles: ['director'] },
@@ -25,7 +25,7 @@ test('同時送 20 次錯誤密碼:第 5 次就鎖定,其餘都回「已鎖定�
   const api = await playwright.request.newContext({ baseURL: test.info().project.use.baseURL })
   try {
     const statuses = await Promise.all(Array.from({ length: PARALLEL }, () =>
-      api.post('/api/auth/login', { data: { username, password: 'wrong-password' } })
+      api.post('/api/auth/login', { data: { username, password: randomPassword() } })
         .then((r) => r.status())))
     const count = (code: number) => statuses.filter((s) => s === code).length
     // 每一次都要算到:前 4 次「帳號或密碼錯誤」,第 5 次起「已鎖定」

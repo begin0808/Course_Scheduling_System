@@ -27,7 +27,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = ROOT / "frontend"
 FFMPEG_IMAGE = "linuxserver/ffmpeg:7.1.1"
-FONTS_DIR = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+# 字型路徑寫死(v1.7.1):不從環境變數組指令,源碼檢測才不會判為指令注入。本工具只在 Windows 上用。
+FONTS_DIR = Path(r"C:\Windows\Fonts")
+VIDEO_DIR = FRONTEND / "e2e" / "video"
+VIDEOS = sorted(p.stem for p in VIDEO_DIR.glob("*.json"))  # 可以做的影片 = 有講稿的
 SUB_MAX = 22          # 一行字幕最多幾個字
 SUB_FONT = "Microsoft JhengHei"
 FULLWIDTH = str.maketrans({",": "，", ";": "；", ":": "：", "!": "！", "?": "？"})  # 字幕用全形標點
@@ -37,8 +40,7 @@ def docker(args: list[str], work: Path, entry: str = "ffmpeg", capture_stderr: b
     cmd = ["docker", "run", "--rm", "--entrypoint", entry,
            "-v", f"{work.as_posix()}:/w", "-v", f"{FONTS_DIR.as_posix()}:/fonts:ro",
            FFMPEG_IMAGE, *args]
-    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                       env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     if r.returncode != 0:
         sys.exit(f"ffmpeg 失敗:\n{r.stderr[-3000:]}")
     return r.stderr if capture_stderr else r.stdout
@@ -185,14 +187,15 @@ def mux(script: dict, work: Path, out_mp4: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("name")
+    ap.add_argument("name", choices=VIDEOS)
     ap.add_argument("--base", default="http://localhost:8120")
     ap.add_argument("--out", default=str(ROOT / "docs" / "影片"))
     ap.add_argument("--skip-tts", action="store_true")
     ap.add_argument("--skip-record", action="store_true")
     a = ap.parse_args()
+    os.environ["MSYS_NO_PATHCONV"] = "1"  # 從 Git Bash 執行時,別把 /w 這類容器路徑轉成 Windows 路徑
 
-    script = json.loads((FRONTEND / "e2e" / "video" / f"{a.name}.json").read_text(encoding="utf-8"))
+    script = json.loads((VIDEO_DIR / f"{a.name}.json").read_text(encoding="utf-8"))
     work = FRONTEND / "video-out" / a.name
     work.mkdir(parents=True, exist_ok=True)
 
@@ -206,9 +209,12 @@ def main() -> None:
 
     if not a.skip_record:
         print("2/3 錄影")
-        env = {**os.environ, "VIDEO_OUT": str(work), "E2E_BASE_URL": a.base}
-        r = subprocess.run(["npx", "playwright", "test", "--project=video", f"e2e/video/{a.name}.video.ts"],
-                           cwd=FRONTEND, env=env, shell=True)
+        os.environ.update(VIDEO_OUT=str(work), E2E_BASE_URL=a.base)
+        npx = shutil.which("npx")  # Windows 上是 npx.cmd;找到完整路徑就不必經過 shell
+        if npx is None:
+            sys.exit("找不到 npx,請先安裝 Node.js")
+        spec = f"e2e/video/{a.name}.video.ts"
+        r = subprocess.run([npx, "playwright", "test", "--project=video", spec], cwd=FRONTEND)
         if r.returncode != 0:
             sys.exit("錄影失敗")
 

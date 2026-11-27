@@ -10,8 +10,7 @@ import pytest
 
 from app.models.user import Role
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW
 
 # 主節次表:p1-p3 一般課、p4 午休、p5-p6 一般課(50 分/節)
 MAIN_SLOTS = [

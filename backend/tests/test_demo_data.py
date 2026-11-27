@@ -12,8 +12,7 @@ from app.models.user import Role
 from app.services import assignments as assign_svc
 from app.services import demo_data
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW
 
 
 @pytest.fixture
