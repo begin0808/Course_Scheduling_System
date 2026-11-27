@@ -12,10 +12,10 @@ from openpyxl import load_workbook
 
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import SEM_END, SEM_START, THU, WED
 from tests.test_substitutions import _World
 
-PW = "password123"
 DAILY = "日薪代課"
 
 

@@ -8,8 +8,7 @@ from app.core.config import settings as env_settings
 from app.models.user import Role
 from app.services import settings as app_settings
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW
 
 
 def _admin(client, db):

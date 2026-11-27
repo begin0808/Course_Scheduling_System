@@ -2,8 +2,7 @@
 
 from app.models.user import Role
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW
 
 
 def login(client, db, roles=(Role.scheduler,), username="s"):

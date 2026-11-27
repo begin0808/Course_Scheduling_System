@@ -8,8 +8,7 @@ from app.services.solver_data import load_config
 from app.solver.model_builder import Relaxation, SolverInputError
 from app.solver.problem import DEFAULT_WEIGHTS, MAX_WEIGHT
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW
 
 
 def _login(client, db, username="s", roles=(Role.scheduler,)):

@@ -9,8 +9,9 @@ from app.api.imports import XLSX_MIME
 from app.models.user import Role, User
 from app.services.teachers import current_teacher
 from tests.conftest import make_user
+from tests.creds import PW, random_password
 
-PW = "password123"
+TEACHER_PW, OLD_PW, NEW_PW = random_password(), random_password(), random_password()
 
 
 @pytest.fixture
@@ -156,7 +157,7 @@ def test_create_account_rejects_duplicate_username_and_second_account(sched):
 
     assert client.post(
         f"/api/teachers/{t['id']}/account",
-        json={"username": "wang002", "password": "teacherpw123"},
+        json={"username": "wang002", "password": TEACHER_PW},
     ).status_code == 201
     again = client.post(f"/api/teachers/{t['id']}/account", json={"username": "wang003"})
     assert again.status_code == 409 and "已綁定" in again.json()["detail"]
@@ -166,7 +167,8 @@ def test_create_account_rejects_short_password(sched):
     client, sid, _ = sched
     t = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
     r = client.post(
-        f"/api/teachers/{t['id']}/account", json={"username": "wang001", "password": "short"}
+        f"/api/teachers/{t['id']}/account",
+        json={"username": "wang001", "password": random_password(5)},
     )
     assert r.status_code == 400 and "至少" in r.json()["detail"]
 
@@ -177,20 +179,20 @@ def test_reset_teacher_password(sched):
     t = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
     client.post(
         f"/api/teachers/{t['id']}/account",
-        json={"username": "wang001", "password": "oldpassword1"},
+        json={"username": "wang001", "password": OLD_PW},
     )
 
     r = client.post(
-        f"/api/teachers/{t['id']}/account/reset-password", json={"password": "newpassword1"}
+        f"/api/teachers/{t['id']}/account/reset-password", json={"password": NEW_PW}
     )
     assert r.status_code == 200 and r.json()["must_change_password"] is True
 
     client.post("/api/auth/logout")
     assert client.post(
-        "/api/auth/login", json={"username": "wang001", "password": "oldpassword1"}
+        "/api/auth/login", json={"username": "wang001", "password": OLD_PW}
     ).status_code == 401
     assert client.post(
-        "/api/auth/login", json={"username": "wang001", "password": "newpassword1"}
+        "/api/auth/login", json={"username": "wang001", "password": NEW_PW}
     ).status_code == 200
 
 
@@ -213,7 +215,7 @@ def test_reset_password_without_account_is_404(sched):
 
 
 # ── 停用/啟用帳號與刪除教師的連帶影響(#19)──────────
-def _teacher_with_account(client, sid, name="王老師", username="wang001", pw="teacherpw123"):
+def _teacher_with_account(client, sid, name="王老師", username="wang001", pw=TEACHER_PW):
     t = client.post(f"/api/teachers?semester_id={sid}", json={"name": name}).json()
     acc = client.post(f"/api/teachers/{t['id']}/account",
                       json={"username": username, "password": pw}).json()
@@ -230,7 +232,7 @@ def test_disable_and_enable_teacher_account(sched):
 
     client.post("/api/auth/logout")
     blocked = client.post("/api/auth/login",
-                          json={"username": "wang001", "password": "teacherpw123"})
+                          json={"username": "wang001", "password": TEACHER_PW})
     assert blocked.status_code == 403 and "停用" in blocked.json()["detail"]
 
     # 重新啟用(需要重新以組長登入)
@@ -239,7 +241,7 @@ def test_disable_and_enable_teacher_account(sched):
                        json={"is_active": True}).json()["is_active"] is True
     client.post("/api/auth/logout")
     assert client.post("/api/auth/login",
-                       json={"username": "wang001", "password": "teacherpw123"}).status_code == 200
+                       json={"username": "wang001", "password": TEACHER_PW}).status_code == 200
 
 
 def test_account_active_refuses_non_teacher_account(sched):
@@ -264,7 +266,7 @@ def test_delete_teacher_disables_bound_account(sched):
 
     client.post("/api/auth/logout")
     assert client.post("/api/auth/login",
-                       json={"username": "wang001", "password": "teacherpw123"}).status_code == 403
+                       json={"username": "wang001", "password": TEACHER_PW}).status_code == 403
 
 
 def test_delete_impact_lists_what_will_be_lost(sched):

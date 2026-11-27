@@ -11,9 +11,8 @@ import pytest
 
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import SEM_END, SEM_START, WED, WED2
-
-PW = "password123"
 
 
 @pytest.fixture

@@ -4,9 +4,8 @@ import pytest
 
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.test_import import upload
-
-PW = "password123"
 
 
 @pytest.fixture

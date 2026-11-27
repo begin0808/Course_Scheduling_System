@@ -4,6 +4,7 @@ import pytest
 
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.test_timetables import (
     MAIN_SLOTS,
     _assign,
@@ -14,8 +15,6 @@ from tests.test_timetables import (
     _subject,
     _teacher,
 )
-
-PW = "password123"
 
 
 @pytest.fixture

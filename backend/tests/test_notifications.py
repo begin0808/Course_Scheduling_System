@@ -11,9 +11,10 @@ from app.models.user import Role
 from app.services import notifications as notif_service
 from app.services import settings as app_settings
 from tests.conftest import make_user
+from tests.creds import PW, random_password
 from tests.dates import SEM_END, SEM_START, WED  # 日期一律由執行當日推算,不硬編
 
-PW = "password123"
+SMTP_PW = random_password()
 
 
 @pytest.fixture
@@ -192,7 +193,7 @@ def test_smtp_settings_roundtrip_hides_password(env):
     client.post("/api/auth/login", json={"username": "admin2", "password": PW})
 
     r = client.put("/api/settings/smtp", json={
-        "host": "mailhog", "port": 1025, "user": "", "password": "secret",
+        "host": "mailhog", "port": 1025, "user": "", "password": SMTP_PW,
         "sender": "noreply@school.edu.tw"})
     assert r.status_code == 200
     out = r.json()
@@ -204,7 +205,7 @@ def test_smtp_settings_roundtrip_hides_password(env):
     client.put("/api/settings/smtp", json={
         "host": "mailhog", "port": 1025, "user": "", "password": "",
         "sender": "noreply@school.edu.tw"})
-    assert app_settings.smtp_config(db).password == "secret"
+    assert app_settings.smtp_config(db).password == SMTP_PW
 
 
 def test_smtp_settings_require_admin(school):

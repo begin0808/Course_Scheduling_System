@@ -13,6 +13,7 @@ from app.models.user import Role
 from app.scripts.migrate import Outcome, prepare_and_upgrade
 from app.services import backup, upgrade_notice
 from tests.conftest import make_user
+from tests.creds import PW
 
 
 class _Spy:
@@ -91,8 +92,8 @@ def test_rotation_never_removes_the_pre_upgrade_backup(backup_dir):
 # ── 系統管理員看到的提示 ───────────────
 def test_upgrade_notice_is_shown_to_admins_until_dismissed(env):
     client, db = env
-    make_user(db, "root", "password123", roles=[Role.admin])
-    client.post("/api/auth/login", json={"username": "root", "password": "password123"})
+    make_user(db, "root", PW, roles=[Role.admin])
+    client.post("/api/auth/login", json={"username": "root", "password": PW})
     assert client.get("/api/system/upgrade-notice").json() is None
 
     upgrade_notice.save(db, {
@@ -111,6 +112,6 @@ def test_upgrade_notice_is_shown_to_admins_until_dismissed(env):
 
 def test_upgrade_notice_is_admin_only(env):
     client, db = env
-    make_user(db, "s", "password123", roles=[Role.scheduler])
-    client.post("/api/auth/login", json={"username": "s", "password": "password123"})
+    make_user(db, "s", PW, roles=[Role.scheduler])
+    client.post("/api/auth/login", json={"username": "s", "password": PW})
     assert client.get("/api/system/upgrade-notice").status_code == 403

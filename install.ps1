@@ -21,8 +21,7 @@
 .EXAMPLE
     .\install.ps1 -SchoolName "○○國中" -AdminPassword (Read-Host -AsSecureString '管理員密碼') -Port 80 -Yes
     除了密碼之外完全不互動(供自動化或重建環境使用)。
-    -AdminPassword 是 SecureString(v1.7.0 起),密碼不會以明文留在指令紀錄裡;
-    自動化腳本可用 (ConvertTo-SecureString $pw -AsPlainText -Force) 轉換。
+    -AdminPassword 是 SecureString(v1.7.0 起),密碼不會以明文留在指令紀錄裡。
 
 .LINK
     https://github.com/begin0808/Course_Scheduling_System

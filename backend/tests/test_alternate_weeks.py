@@ -15,6 +15,7 @@ from app.solver import preflight
 from app.solver.model_builder import SolveOptions, solve
 from app.solver.problem import SolverConfig
 from app.solver.validator import validate
+from tests.creds import PW
 from tests.test_timetables import (
     _assign,
     _check,
@@ -277,8 +278,8 @@ class _Term:
         from tests.conftest import make_user
         from tests.dates import SEM_END, SEM_START
 
-        make_user(db, "s", "password123", roles=[Role.scheduler])
-        client.post("/api/auth/login", json={"username": "s", "password": "password123"})
+        make_user(db, "s", PW, roles=[Role.scheduler])
+        client.post("/api/auth/login", json={"username": "s", "password": PW})
         self.client, self.db, self.sem_start = client, db, SEM_START
         self.sid = client.post("/api/semesters", json={
             "academic_year": 115, "term": 1, "template_key": "junior_high",

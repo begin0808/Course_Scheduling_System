@@ -13,10 +13,9 @@ import pytest
 from app.models.user import Role
 from app.services import substitution_log as log_service
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import SEM_END, SEM_START, WED, WED2  # 日期一律由執行當日推算,不硬編
 from tests.test_substitutions import _World
-
-PW = "password123"
 
 
 @pytest.fixture

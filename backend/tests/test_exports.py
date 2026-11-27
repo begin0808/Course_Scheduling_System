@@ -11,10 +11,9 @@ from openpyxl import load_workbook
 from app.models.user import Role
 from app.services import timetable_export as tex
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import SEM_END, SEM_START  # 日期一律由執行當日推算,不硬編
 from tests.test_substitutions import _World
-
-PW = "password123"
 
 
 @pytest.fixture

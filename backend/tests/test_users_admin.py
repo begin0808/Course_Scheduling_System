@@ -8,8 +8,9 @@ import pytest
 from app.models.basedata import Teacher
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW, random_password
 
-PW = "password123"
+TEMP_PW, AGAIN_PW = random_password(), random_password()
 
 
 @pytest.fixture
@@ -40,13 +41,13 @@ def test_only_admins_can_manage_accounts(env):
 def test_create_a_scheduler_account_who_must_change_password_first(admin):
     client, _db, _ = admin
     r = client.post("/api/users", json={
-        "username": "chen", "display_name": "陳組長", "password": "temp12345",
+        "username": "chen", "display_name": "陳組長", "password": TEMP_PW,
         "roles": ["scheduler"]})
     assert r.status_code == 201, r.text
     assert r.json()["roles"] == ["scheduler"] and r.json()["must_change_password"] is True
 
     client.post("/api/auth/logout")
-    me = _login(client, "chen", "temp12345").json()
+    me = _login(client, "chen", TEMP_PW).json()
     assert "scheduler" in me["roles"] and me["must_change_password"] is True
 
 
@@ -65,7 +66,7 @@ def test_teacher_account_can_also_become_the_scheduler(admin):
     sid = client.post("/api/semesters", json={"academic_year": 115, "term": 1}).json()["id"]
     teacher = client.post(f"/api/teachers?semester_id={sid}", json={"name": "王老師"}).json()
     client.post(f"/api/teachers/{teacher['id']}/account",
-                json={"username": "wang", "password": "teach12345"})
+                json={"username": "wang", "password": random_password()})
 
     u = _user(client, "wang")
     assert u["roles"] == ["teacher"] and u["teacher_names"] == ["王老師"]
@@ -107,32 +108,32 @@ def test_cannot_lock_everyone_out(admin):
 def test_deactivated_account_cannot_log_in_until_reactivated(admin):
     client, _db, _ = admin
     u = client.post("/api/users", json={
-        "username": "lin", "password": "temp12345", "roles": ["director"]}).json()
+        "username": "lin", "password": TEMP_PW, "roles": ["director"]}).json()
     r = client.post(f"/api/users/{u['id']}/active", json={"is_active": False})
     assert r.json()["is_active"] is False
     client.post("/api/auth/logout")
-    assert _login(client, "lin", "temp12345").status_code != 200
+    assert _login(client, "lin", TEMP_PW).status_code != 200
     _login(client, "root", PW)
     client.post(f"/api/users/{u['id']}/active", json={"is_active": True})
     client.post("/api/auth/logout")
-    assert _login(client, "lin", "temp12345").status_code == 200
+    assert _login(client, "lin", TEMP_PW).status_code == 200
 
 
 def test_reset_password_forces_a_change_and_ends_the_old_session(admin):
     client, _db, me = admin
     u = client.post("/api/users", json={
-        "username": "lee", "password": "temp12345", "roles": ["scheduler"]}).json()
-    r = client.post(f"/api/users/{u['id']}/reset-password", json={"password": "again12345"})
+        "username": "lee", "password": TEMP_PW, "roles": ["scheduler"]}).json()
+    r = client.post(f"/api/users/{u['id']}/reset-password", json={"password": AGAIN_PW})
     assert r.status_code == 200 and r.json()["must_change_password"] is True
     client.post("/api/auth/logout")
-    assert _login(client, "lee", "temp12345").status_code != 200
-    assert _login(client, "lee", "again12345").status_code == 200
+    assert _login(client, "lee", TEMP_PW).status_code != 200
+    assert _login(client, "lee", AGAIN_PW).status_code == 200
     # 自己的密碼不從這裡改
     client.post("/api/auth/logout")
     _login(client, "root", PW)
     assert client.post(f"/api/users/{me.id}/reset-password", json={}).status_code == 409
     # 太短的密碼
-    r = client.post(f"/api/users/{u['id']}/reset-password", json={"password": "123"})
+    r = client.post(f"/api/users/{u['id']}/reset-password", json={"password": random_password(3)})
     assert r.status_code == 400
 
 

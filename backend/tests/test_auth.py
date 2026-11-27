@@ -2,8 +2,7 @@
 
 from app.models.user import Role
 from tests.conftest import make_user
-
-PW = "password123"
+from tests.creds import PW, random_password
 
 
 def test_login_success(env):
@@ -20,7 +19,7 @@ def test_login_success(env):
 def test_login_wrong_password(env):
     client, db = env
     make_user(db, "admin", PW, roles=[Role.admin])
-    resp = client.post("/api/auth/login", json={"username": "admin", "password": "wrong"})
+    resp = client.post("/api/auth/login", json={"username": "admin", "password": random_password()})
     assert resp.status_code == 401
 
 
@@ -40,9 +39,9 @@ def test_lockout_after_5_failures(env):
 
     # 前 4 次錯誤 → 401
     for _ in range(4):
-        assert attempt("x") == 401
+        assert attempt(random_password()) == 401
     # 第 5 次 → 觸發鎖定 423
-    assert attempt("x") == 423
+    assert attempt(random_password()) == 423
     # 鎖定期間即使密碼正確也被拒 423
     assert attempt(PW) == 423
 
@@ -66,7 +65,7 @@ def test_login_locks_the_user_row(env):
 
     event.listen(Session, "do_orm_execute", spy)
     try:
-        client.post("/api/auth/login", json={"username": "u", "password": "x"})
+        client.post("/api/auth/login", json={"username": "u", "password": random_password()})
     finally:
         event.remove(Session, "do_orm_execute", spy)
     assert locked and locked[0] is True        # 第一個查帳號的查詢就上鎖
@@ -111,7 +110,7 @@ def test_must_change_password_blocks_then_allows(env):
     # 改密後 → 可用
     chg = client.post(
         "/api/auth/change-password",
-        json={"old_password": PW, "new_password": "brandnew456"},
+        json={"old_password": PW, "new_password": random_password()},
     )
     assert chg.status_code == 200
     assert chg.json()["must_change_password"] is False
@@ -128,7 +127,7 @@ def test_change_password_revokes_old_sessions(env):
     # 改密碼(回應會重新簽發新 cookie)
     chg = client.post(
         "/api/auth/change-password",
-        json={"old_password": PW, "new_password": "brandnew456"},
+        json={"old_password": PW, "new_password": random_password()},
     )
     assert chg.status_code == 200
     # 新 session 可用
@@ -143,7 +142,7 @@ def test_change_password_too_short(env):
     make_user(db, "u", PW, roles=[Role.teacher])
     client.post("/api/auth/login", json={"username": "u", "password": PW})
     resp = client.post(
-        "/api/auth/change-password", json={"old_password": PW, "new_password": "short"}
+        "/api/auth/change-password", json={"old_password": PW, "new_password": random_password(5)}
     )
     assert resp.status_code == 400
 
@@ -154,7 +153,7 @@ def test_change_password_wrong_old(env):
     client.post("/api/auth/login", json={"username": "u", "password": PW})
     resp = client.post(
         "/api/auth/change-password",
-        json={"old_password": "nope", "new_password": "brandnew456"},
+        json={"old_password": random_password(), "new_password": random_password()},
     )
     assert resp.status_code == 400
 

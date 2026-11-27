@@ -7,6 +7,7 @@ SMTP 未設定時 `send` 直接回 False——站內通知已經送達,Email 只
 傳輸安全(數發部源碼檢測):465 埠走 SMTPS(一連線就加密),其他埠一律 STARTTLS;
 兩者都**驗證伺服器憑證**(v1.5.0;先前 starttls() 沒帶 context,不驗證憑證,等於可被中間人攔截)。
 v1.6.0 起**不再提供不加密寄信**:先前不勾 TLS 時帳密與信件內容以明文傳送。
+v1.7.1 起連線、加密、寄出寫在 `send` 同一個函式裡,檢測工具才看得出寄信前一定先加密。
 
 寄測試信(v1.5.1):`describe_error` 把常見的 SMTP 錯誤翻成組長看得懂的說明,原始訊息附在後面。
 """
@@ -35,7 +36,18 @@ def send(db: Session, *, to: str, subject: str, body: str) -> bool:
     msg["Subject"] = subject
     msg.set_content(body or subject)
 
-    with _connect(cfg) as server:
+    # 連線、加密、登入、寄出寫在同一個函式裡(v1.7.1):先前加密寫在 _connect,
+    # 源碼檢測工具跨函式追不到 starttls(),誤判為明文寄信。
+    context = ssl.create_default_context()  # 一律驗證伺服器憑證
+    if cfg.port == SMTPS_PORT:
+        with smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=15, context=context) as server:
+            if cfg.user:
+                server.login(cfg.user, cfg.password)
+            server.send_message(msg)
+        return True
+    with smtplib.SMTP(cfg.host, cfg.port, timeout=15) as server:
+        # 伺服器不支援 STARTTLS 時 starttls() 擲 SMTPNotSupportedError,不會退回明文
+        server.starttls(context=context)
         if cfg.user:
             server.login(cfg.user, cfg.password)
         server.send_message(msg)
@@ -43,23 +55,6 @@ def send(db: Session, *, to: str, subject: str, body: str) -> bool:
 
 
 SMTPS_PORT = 465
-
-
-def _connect(cfg: app_settings.SmtpConfig) -> smtplib.SMTP:
-    """連上 SMTP 伺服器並加密(465 埠 SMTPS,其他埠 STARTTLS),一律驗證伺服器憑證。
-
-    伺服器不支援 STARTTLS 時 starttls() 擲 SMTPNotSupportedError,不會退回明文。
-    """
-    context = ssl.create_default_context()
-    if cfg.port == SMTPS_PORT:
-        return smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=15, context=context)
-    server = smtplib.SMTP(cfg.host, cfg.port, timeout=15)
-    try:
-        server.starttls(context=context)
-    except Exception:
-        server.close()
-        raise
-    return server
 
 
 def describe_error(exc: BaseException, cfg: app_settings.SmtpConfig) -> str:

@@ -12,11 +12,10 @@ import pytest
 from app.models.period import Period
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import AFTER_SEM, SAT, SEM_END, SEM_START, WED
 from tests.test_patrol_sheets import _group, _group_course, _place_group
 from tests.test_substitutions import _World
-
-PW = "password123"
 
 
 @pytest.fixture

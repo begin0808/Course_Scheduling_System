@@ -35,8 +35,25 @@ test('帳號初始密碼:留空由系統產生、只顯示一次,用它登入後
     expect(text).toContain(staffUser)
     expect(text).toContain(password)
 
+    // 列印通知單(v1.7.1 起印本頁的通知單,不再開新視窗):平常看不到,
+    // 切到列印模式時只剩通知單,對話框與後面的畫面都不印
+    const slips = page.getByTestId('initial-passwords-slips')
+    await expect(slips).toBeHidden()
+    await page.evaluate(() => { window.print = () => {} }) // 不叫出真的列印對話框
+    await dialog.getByTestId('initial-passwords-print').click()
+    await page.emulateMedia({ media: 'print' })
+    await expect(slips).toBeVisible()
+    await expect(slips).toContainText(staffUser)
+    await expect(slips).toContainText(password)
+    await expect(dialog).toBeHidden()
+    await expect(page.locator('#app')).toBeHidden()
+    await page.emulateMedia({ media: 'screen' })
+    await expect(slips).toBeHidden()
+    await expect(dialog).toBeVisible()
+
     await dialog.getByTestId('initial-passwords-close').click()
     await expect(dialog).toBeHidden()
+    await expect(slips).toHaveCount(0) // 對話框關掉,通知單也從頁面上移除
 
     // 用這組密碼登入 → 先到改密碼頁
     await page.request.post('/api/auth/logout')

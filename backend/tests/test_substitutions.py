@@ -14,9 +14,8 @@ import pytest
 from app.models.leave import AffectedPeriod, AffectedStatus
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.creds import PW
 from tests.dates import SEM_END, SEM_START, THU, WED, WED2  # 日期一律由執行當日推算,不硬編
-
-PW = "password123"
 
 
 @pytest.fixture

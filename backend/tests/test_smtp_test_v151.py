@@ -14,8 +14,8 @@ from app.models.user import Role
 from app.services import email as email_service
 from app.services.settings import SmtpConfig
 from tests.conftest import make_user
+from tests.creds import PW
 
-PW = "password123"
 CFG = SmtpConfig(host="smtp.example.edu.tw", port=587, user="u",
                  password=secrets.token_urlsafe(8), sender="noreply@example.edu.tw")
 
