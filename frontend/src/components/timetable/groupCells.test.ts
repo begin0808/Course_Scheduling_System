@@ -29,8 +29,19 @@ describe('跑班群組併成一格', () => {
       entry(1, { subject: '資訊', teachers: ['甲'] }),
       entry(2, { subject: '生科', teachers: ['乙'] }),
     ])
-    expect(got[0].subject).toBe('生科／資訊')
-    expect(got[0].teachers).toEqual(['乙／甲'])
+    expect(got[0].subject).toBe('資訊／生科')
+    expect(got[0].teachers).toEqual(['甲／乙'])
+  })
+
+  // v1.7.2 組長回報:配課頁排好的順序,課表上卻依姓名字碼排成另一個順序
+  it('各組照配課頁的順序(配課建立的先後),不看姓名字碼、也不看格位的順序', () => {
+    const got = mergeGroups([
+      entry(13, { teachers: ['陳老師'] }),
+      entry(11, { teachers: ['方老師'] }),
+      entry(14, { teachers: ['李老師'] }),
+      entry(12, { teachers: ['張老師'] }),
+    ])
+    expect(got[0].teachers).toEqual(['方老師／張老師／陳老師／李老師'])
   })
 
   it('5 組以內:每位老師都列出來(v1.4.16,分組教學常有 4 組)', () => {

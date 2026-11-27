@@ -293,7 +293,7 @@ def test_same_name_teachers_get_distinct_files(w):
 
 
 # ── 跑班群組(v1.4.13,組長回報:班級課表只看得到一位老師)──────────
-def _group_world(env, clubs: int):
+def _group_world(env, clubs: int, names: list[str] | None = None):
     from tests.test_patrol_sheets import _group, _group_course, _place_group
     client, db = env
     make_user(db, "g", PW, roles=[Role.scheduler])
@@ -303,7 +303,7 @@ def _group_world(env, clubs: int):
         "start_date": SEM_START.isoformat(), "end_date": SEM_END.isoformat(),
     }).json()["id"]
     world = _World(client, db, sid)
-    names = [f"師{i}" for i in range(clubs)]
+    names = names or [f"師{i}" for i in range(clubs)]
     for t in names:
         world.teacher(t, ["英語"])
     unit = _group(world, "九年級英語分組", ["701", "702"])
@@ -328,6 +328,17 @@ def test_class_grid_lists_five_groups(env):
     grid, _ = tex.build_grid(w.db, w.sid, "class", w.classes["701"])
     lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
     assert lines == [("英語", "師0／師1／師2／師3／師4")]
+
+
+def test_class_grid_groups_follow_assignment_order(env):
+    """v1.7.2 組長回報:配課頁排好各組的順序,課表上卻依姓名字碼排成另一個順序。
+
+    方(65B9)、張(5F35)、陳(9673)、李(674E):照字碼會是張、方、李、陳。
+    """
+    w = _group_world(env, 4, ["方師", "張師", "陳師", "李師"])
+    grid, _ = tex.build_grid(w.db, w.sid, "class", w.classes["701"])
+    lines = [c.lines for r in grid.rows for c in r.cells if c.lines]
+    assert lines == [("英語", "方師／張師／陳師／李師")]
 
 
 def test_class_grid_big_group_shows_name_and_count(env):

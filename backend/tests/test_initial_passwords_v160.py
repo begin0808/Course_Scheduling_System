@@ -4,17 +4,16 @@
 預設密碼;原始碼與手冊公開,老師第一次登入改密碼前,知道帳號的人就能搶先登入。
 """
 
-import io
 import secrets
 
 import pytest
-from openpyxl import Workbook
 
 from app.api.imports import XLSX_MIME
 from app.core.config import Settings
 from app.core.security import initial_password
 from app.models.user import Role
 from tests.conftest import make_user
+from tests.test_import import make_xlsx
 
 PW = secrets.token_urlsafe(12)
 
@@ -42,17 +41,7 @@ def _login(client, username, password):
 
 
 def _teachers_xlsx(rows) -> bytes:
-    wb = Workbook()
-    ws = wb.active
-    ws.append(["欄名"] * 8)  # 範本前三列:欄名/說明/範例
-    ws.append(["說明"] * 8)
-    ws.append(["範例"] * 8)
-    for r in rows:
-        ws.append(r)
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
+    return make_xlsx("teachers", rows)
 
 def test_no_default_password_setting_anymore():
     assert not hasattr(Settings(_env_file=None), "default_import_password")

@@ -3,10 +3,11 @@
 import io
 
 import pytest
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from app.api.imports import XLSX_MIME
 from app.models.user import Role
+from app.services import importer
 from tests.conftest import make_user
 from tests.creds import PW
 
@@ -20,13 +21,13 @@ def scheduler_env(env):
     return client, sem["id"]
 
 
-def make_xlsx(data_rows: list[list], ncols: int = 8) -> bytes:
-    """建立含 3 列表頭(欄名/說明/範例)+ 資料列的 xlsx。"""
-    wb = Workbook()
+EXAMPLE_NOTE = "第 3 列是範本的範例,已略過(如果這一列是要匯入的資料,請改到下一列)。"
+
+
+def make_xlsx(entity: str, data_rows: list[list]) -> bytes:
+    """真正的範本(欄名/說明/範例三列)+ 資料列。"""
+    wb = load_workbook(io.BytesIO(importer.build_template(entity)))
     ws = wb.active
-    ws.append(["欄名"] * ncols)
-    ws.append(["說明"] * ncols)
-    ws.append(["範例"] * ncols)
     for r in data_rows:
         ws.append(r)
     buf = io.BytesIO()
@@ -36,7 +37,7 @@ def make_xlsx(data_rows: list[list], ncols: int = 8) -> bytes:
 
 def upload(client, entity, sid, data_rows, ncols=8, create_accounts=False,
            update_existing=False):
-    content = make_xlsx(data_rows, ncols)
+    content = make_xlsx(entity, data_rows)
     url = f"/api/import/{entity}?semester_id={sid}"
     if create_accounts:
         url += "&create_accounts=true"
@@ -59,7 +60,8 @@ def test_import_subjects_ok(scheduler_env):
     rows = [["數學", "數學領域", "普通教室", 1], ["物理", "自然", "專科教室", 2]]
     r = upload(client, "subjects", sid, rows, ncols=4)
     assert r.status_code == 200
-    assert r.json() == {"imported": 2, "updated": 0, "errors": [], "accounts": []}
+    assert r.json() == {"imported": 2, "updated": 0, "errors": [], "accounts": [],
+                        "notes": [EXAMPLE_NOTE]}
     assert len(client.get(f"/api/subjects?semester_id={sid}").json()) == 2
 
 
@@ -244,3 +246,64 @@ def test_import_invalid_file_rejected(scheduler_env):
         files={"file": ("bad.xlsx", b"not an excel file", XLSX_MIME)},
     )
     assert r.status_code == 400
+
+
+# ── 第 2、3 列(v1.7.2 組長回報:第一筆資料打在範例列上就默默不見了)────────
+def _sheet(rows: list[list]) -> bytes:
+    """自己決定每一列的內容(不套範本),模擬組長改過的檔案。"""
+    wb = Workbook()
+    ws = wb.active
+    for r in rows:
+        ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _post(client, entity, sid, content):
+    return client.post(f"/api/import/{entity}?semester_id={sid}",
+                       files={"file": ("t.xlsx", content, XLSX_MIME)}).json()
+
+
+def _template_rows(entity: str) -> tuple[list, list, list]:
+    cols = importer.TEMPLATE_DEFS[entity]["columns"]
+    return [c[0] for c in cols], [c[1] for c in cols], [c[2] for c in cols]
+
+
+def test_data_typed_on_the_example_row_is_imported(scheduler_env):
+    """把範例列改成自己的資料(組長的做法):第 3 列照常匯入,不再默默略過。"""
+    client, sid = scheduler_env
+    head, desc, _ = _template_rows("classes")
+    content = _sheet([head, desc, [1, "一年一班", "國中"], [1, "一年二班", "國中"]])
+    r = _post(client, "classes", sid, content)
+    assert (r["imported"], r["errors"], r["notes"]) == (2, [], [])
+    names = {c["name"] for c in client.get(f"/api/class-units?semester_id={sid}").json()}
+    assert names == {"一年一班", "一年二班"}
+
+
+def test_rows_right_after_the_header_are_imported(scheduler_env):
+    """刪掉說明列與範例列,資料從第 2 列開始:每一列都要匯入。"""
+    client, sid = scheduler_env
+    head, _, _ = _template_rows("subjects")
+    r = _post(client, "subjects", sid, _sheet([head, ["國文"], ["英語"], ["數學"]]))
+    assert (r["imported"], r["errors"]) == (3, [])
+
+
+def test_deleted_description_row_still_skips_the_example(scheduler_env):
+    """只刪說明列:範例移到第 2 列,仍當範例略過,並告訴組長。"""
+    client, sid = scheduler_env
+    head, _, example = _template_rows("subjects")
+    r = _post(client, "subjects", sid, _sheet([head, example, ["國文"]]))
+    assert (r["imported"], r["errors"]) == (1, [])
+    assert r["notes"] == ["第 2 列是範本的範例,已略過(如果這一列是要匯入的資料,請改到下一列)。"]
+
+
+def test_old_teacher_template_description_row_is_still_skipped(scheduler_env):
+    """v1.2.8 以前的教師範本,說明列有兩格文字不同:以「必填」開頭就認得是說明列。"""
+    client, sid = scheduler_env
+    head, desc, example = _template_rows("teachers")
+    old_desc = [d.split(";")[0] for d in desc]   # 舊範本沒有「;更新…」那段
+    r = _post(client, "teachers", sid, _sheet([head, old_desc, example, ["林老師"]]))
+    assert (r["imported"], r["errors"]) == (1, [])
+    names = [t["name"] for t in client.get(f"/api/teachers?semester_id={sid}").json()]
+    assert names == ["林老師"]

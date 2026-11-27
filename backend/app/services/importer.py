@@ -1,7 +1,8 @@
 """Excel 匯入:範本產生、逐列驗證、交易式入庫。
 
-範本固定三列表頭:第 1 列欄名、第 2 列說明、第 3 列範例;
-匯入時自第 4 列起讀取資料(前三列自動略過)。
+範本固定三列表頭:第 1 列欄名、第 2 列說明、第 3 列範例。
+匯入時第 1 列一定略過;第 2、3 列只有「是說明列」或「和範本的範例完全相同」時才略過,否則當資料讀入
+(v1.7.2 組長回報:把第一筆資料打在範例列上、或刪掉說明列,第一筆就默默不見了)。
 驗證採「全對才寫入」:任一列有誤即回報所有錯誤,資料庫零寫入。
 """
 
@@ -31,7 +32,7 @@ from app.services.assignments import (
     get_or_create_single_unit,
 )
 
-HEADER_ROWS = 3  # 欄名 + 說明 + 範例
+HEADER_ROWS = 3  # 欄名 + 說明 + 範例(第 2、3 列要和範本相同才略過,見 _data_rows)
 
 ROOM_TYPE_BY_LABEL = {
     "普通教室": RoomType.normal,
@@ -106,6 +107,7 @@ class ImportResult:
     imported: int = 0
     updated: int = 0          # 更新既有資料的筆數(目前只有教師匯入會用到)
     errors: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)   # 給組長看的提示(例如略過了範例列),不算錯誤
     # 匯入教師時建立的帳號:[{name, username, password}]。密碼是系統為每位老師產生的
     # 初始密碼,只在這次回應交給組長發給老師(資料庫只存雜湊),v1.6.0
     accounts: list[dict[str, str]] = field(default_factory=list)
@@ -148,14 +150,39 @@ def _parse_int(value: str | None) -> int | None:
         raise ValueError(f"「{value}」不是有效數字") from err
 
 
-def _data_rows(file_bytes: bytes):
+def _is_description(row: tuple) -> bool:
+    """範本的說明列:每個範本第一欄的說明都以「必填」開頭,真的資料不會這樣開頭。
+
+    不要求整列相同:v1.2.8 改過教師範本兩格說明,用更早的範本匯入也要能略過。
+    """
+    return (_cell(row, 0) or "").startswith("必填")
+
+
+def _same_as_template(row: tuple, values: list[str]) -> bool:
+    """這一列是否和範本的範例列一模一樣(範例從 v1.0.0 起沒改過);多出來的欄位也要是空的。"""
+    width = max(len(row), len(values))
+    return all(_cell(row, i) == (values[i] if i < len(values) else None) for i in range(width))
+
+
+def _data_rows(file_bytes: bytes, entity: str, result: ImportResult):
+    """逐列讀出資料列(列號, 內容)。
+
+    第 1 列是欄名,一定略過。第 2、3 列只有是說明列、或和範本的範例完全相同時才略過:
+    組長常把第一筆資料直接打在範例列上,或刪掉說明列讓資料往上移,這些列都要照常匯入。
+    """
+    examples = [c[2] for c in TEMPLATE_DEFS[entity]["columns"]]
     wb = load_workbook(io.BytesIO(file_bytes), data_only=True)
     ws = wb.active
-    for idx, row in enumerate(
-        ws.iter_rows(min_row=HEADER_ROWS + 1, values_only=True), start=HEADER_ROWS + 1
-    ):
+    for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if row is None or all(c is None or str(c).strip() == "" for c in row):
             continue
+        if idx <= HEADER_ROWS:
+            if _is_description(row):
+                continue
+            if _same_as_template(row, examples):
+                result.notes.append(
+                    f"第 {idx} 列是範本的範例,已略過(如果這一列是要匯入的資料,請改到下一列)。")
+                continue
         yield idx, row
 
 
@@ -163,7 +190,7 @@ def _data_rows(file_bytes: bytes):
 def _import_subjects(db: Session, semester_id: int, file_bytes: bytes) -> ImportResult:
     result = ImportResult()
     pending: list[Subject] = []
-    for idx, row in _data_rows(file_bytes):
+    for idx, row in _data_rows(file_bytes, "subjects", result):
         name = _cell(row, 0)
         if not name:
             result.errors.append(f"第 {idx} 列:名稱必填")
@@ -214,7 +241,7 @@ def _import_classes(db: Session, semester_id: int, file_bytes: bytes) -> ImportR
         )
     )
     pending: list[ClassUnit] = []
-    for idx, row in _data_rows(file_bytes):
+    for idx, row in _data_rows(file_bytes, "classes", result):
         try:
             grade = _parse_int(_cell(row, 0))
         except ValueError as e:
@@ -298,7 +325,7 @@ def _import_teachers(
     pending: list[tuple[Teacher, str | None]] = []   # 新增:(teacher, username or None)
     updates: list[tuple[Teacher, dict, list[Subject] | None]] = []  # 更新:(教師, 欄位, 科目)
 
-    for idx, row in _data_rows(file_bytes):
+    for idx, row in _data_rows(file_bytes, "teachers", result):
         name = _cell(row, 0)
         if not name:
             result.errors.append(f"第 {idx} 列:姓名必填")
@@ -418,7 +445,7 @@ def _import_assignments(db: Session, semester_id: int, file_bytes: bytes) -> Imp
     }
     # (class_unit, subject, teacher_objs, periods, block, room_type)
     pending: list[tuple] = []
-    for idx, row in _data_rows(file_bytes):
+    for idx, row in _data_rows(file_bytes, "assignments", result):
         class_name = _cell(row, 0)
         subj_name = _cell(row, 1)
         teacher_field = _cell(row, 2)
